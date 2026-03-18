@@ -1,0 +1,114 @@
+# docker-compose.yml - Environnement de developpement
+# Services : backend, postgres, redis, celery, celery-beat
+
+services:
+
+  # PostgreSQL
+  db:
+    image: postgres:16-alpine
+    container_name: restaurant_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-backend_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-backend_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis (broker Celery)
+  redis:
+    image: redis:7-alpine
+    container_name: restaurant_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Django API Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: restaurant_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=db
+      - REDIS_URL=redis://redis:6379/0
+      - DB_SSLMODE=disable
+    volumes:
+      - .:/app
+      - media_files:/app/media
+      - static_files:/app/staticfiles
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --no-input &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  # Celery Worker
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: restaurant_celery
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=db
+      - REDIS_URL=redis://redis:6379/0
+      - DB_SSLMODE=disable
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A backend worker -l info
+
+  # Celery Beat (scheduler - rapport 18h)
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: restaurant_celery_beat
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=db
+      - REDIS_URL=redis://redis:6379/0
+      - DB_SSLMODE=disable
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A backend beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+
+volumes:
+  postgres_data:
+  media_files:
+  static_files:

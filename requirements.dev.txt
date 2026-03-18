@@ -1,0 +1,18 @@
+# requirements.dev.txt - Outils de developpement uniquement
+# NE PAS installer en production
+# Commande : pip install -r requirements.dev.txt
+
+# Inclure les dependances de base
+-r requirements.txt
+
+# Tests
+pytest==8.3.3
+pytest-django==4.9.0
+coverage==7.6.1
+
+# Qualite du code
+flake8==7.1.1
+black==24.8.0
+
+# Debug
+django-debug-toolbar==4.4.6

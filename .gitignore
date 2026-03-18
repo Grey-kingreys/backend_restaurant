@@ -1,0 +1,158 @@
+# .gitignore - Restaurant Manager Pro (backend DRF)
+# Django 5.1 + DRF + PostgreSQL + Celery + Redis + Docker
+
+
+# Variables d'environnement - NE JAMAIS COMMITER
+.env
+.env.*
+!.env.example
+
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+MANIFEST
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+develop-eggs/
+sdist/
+var/
+lib/
+lib64/
+parts/
+pip-log.txt
+pip-delete-this-directory.txt
+
+
+# Environnement virtuel
+.venv/
+venv/
+env/
+ENV/
+drf/
+virtualenv/
+
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+*.sqlite3
+staticfiles/
+static_root/
+media/
+*.log
+django_logs/
+.django_cache/
+
+
+# Migrations - A VERSIONNER (ne pas ignorer)
+# Les migrations DOIVENT etre committees
+# Ne decommente PAS ces lignes :
+# */migrations/*.py
+# !*/migrations/__init__.py
+
+
+# Celery
+celerybeat-schedule
+celerybeat-schedule.db
+celerybeat.pid
+celery_worker.pid
+.celery_pid
+
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+postgres_data/
+redis_data/
+
+
+# Tests et couverture
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.cover
+*.py,cover
+nosetests.xml
+.pytest_cache/
+.tox/
+.nox/
+
+
+# IDEs et editeurs
+.vscode/
+*.code-workspace
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+*.swp
+*.swo
+*~
+*.un~
+Session.vim
+.netrwhist
+*.sublime-project
+*.sublime-workspace
+.spyderproject.cfg
+.spyproject/
+
+
+# Systeme d'exploitation
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encdata
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+
+# Fichiers temporaires
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.rej
+Pipfile.lock
+poetry.lock
+.ipynb_checkpoints/
+*.ipynb
+.mypy_cache/
+.dmypy.json
+dmypy.json
+pyrightconfig.json
+
+
+# Deploiement
+.slugignore
+gunicorn.pid

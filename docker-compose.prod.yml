@@ -1,0 +1,30 @@
+# docker-compose.prod.yml - Overrides pour la production
+# Usage : docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+services:
+
+  backend:
+    command: gunicorn backend.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120
+    environment:
+      - DEBUG=False
+      - DB_SSLMODE=require
+    volumes:
+      - media_files:/app/media
+      - static_files:/app/staticfiles
+
+  celery:
+    environment:
+      - DEBUG=False
+      - DB_SSLMODE=require
+    volumes:
+      - media_files:/app/media
+
+  celery-beat:
+    environment:
+      - DEBUG=False
+      - DB_SSLMODE=require
+
+  # En prod, PostgreSQL est gere par Neon.tech
+  db:
+    profiles:
+      - dev-only
