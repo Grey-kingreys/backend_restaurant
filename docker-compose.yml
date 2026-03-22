@@ -1,5 +1,6 @@
 # docker-compose.yml - Environnement de developpement
-# Services : backend, postgres, redis, celery, celery-beat
+# Phase 1 : backend + postgres + redis uniquement
+# Celery active en Phase 8 (decommenter les services)
 
 services:
 
@@ -22,7 +23,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis (broker Celery)
+  # Redis (disponible maintenant, utilise en Phase 8 par Celery)
   redis:
     image: redis:7-alpine
     container_name: restaurant_redis
@@ -36,6 +37,7 @@ services:
       retries: 5
 
   # Django API Backend
+  # Seul service qui fait migrate + collectstatic
   backend:
     build:
       context: .
@@ -60,53 +62,51 @@ services:
       redis:
         condition: service_healthy
     command: >
-      sh -c "python manage.py migrate &&
+      sh -c "python manage.py migrate --no-input &&
              python manage.py collectstatic --no-input &&
              python manage.py runserver 0.0.0.0:8000"
 
+  # --- PHASE 8 - Decommenter quand celery est installe ---
+
   # Celery Worker
-  celery:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: restaurant_celery
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      - DB_HOST=db
-      - REDIS_URL=redis://redis:6379/0
-      - DB_SSLMODE=disable
-    volumes:
-      - .:/app
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: celery -A backend worker -l info
+  # celery:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: restaurant_celery
+  #   restart: unless-stopped
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - DB_HOST=db
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - DB_SSLMODE=disable
+  #   volumes:
+  #     - .:/app
+  #   depends_on:
+  #     backend:
+  #       condition: service_started
+  #   command: celery -A backend worker -l info
 
   # Celery Beat (scheduler - rapport 18h)
-  celery-beat:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: restaurant_celery_beat
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      - DB_HOST=db
-      - REDIS_URL=redis://redis:6379/0
-      - DB_SSLMODE=disable
-    volumes:
-      - .:/app
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: celery -A backend beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+  # celery-beat:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: restaurant_celery_beat
+  #   restart: unless-stopped
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - DB_HOST=db
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - DB_SSLMODE=disable
+  #   volumes:
+  #     - .:/app
+  #   depends_on:
+  #     backend:
+  #       condition: service_started
+  #   command: celery -A backend beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
 
 volumes:
   postgres_data:
