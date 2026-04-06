@@ -1,8 +1,4 @@
 #!/bin/sh
-# docker/entrypoint.sh
-# Script execute au demarrage du container backend
-# Note : migrate et collectstatic sont geres dans docker-compose.yml
-# via la commande de chaque service - pas ici
 
 set -e
 
