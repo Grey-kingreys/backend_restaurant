@@ -1,0 +1,741 @@
+[
+    {
+        "model": "company.restaurant",
+        "pk": 1,
+        "fields": {
+            "nom": "Le Baobab",
+            "email_admin": "admin@lebaobab.gn",
+            "telephone": "+224620000001",
+            "adresse": "Commune de Kaloum, Conakry",
+            "is_active": true,
+            "created_at": "2026-01-10T08:00:00Z",
+            "updated_at": "2026-01-10T08:00:00Z"
+        }
+    },
+    {
+        "model": "company.restaurant",
+        "pk": 2,
+        "fields": {
+            "nom": "Chez Mariama",
+            "email_admin": "contact@chezmariama.gn",
+            "telephone": "+224621000002",
+            "adresse": "Dixinn, Conakry",
+            "is_active": true,
+            "created_at": "2026-01-15T09:00:00Z",
+            "updated_at": "2026-01-15T09:00:00Z"
+        }
+    },
+    {
+        "model": "accounts.user",
+        "pk": 1,
+        "fields": {
+            "login": "lebaobab_admin",
+            "password": "pbkdf2_sha256$720000$test$hashedpassword=",
+            "role": "Radmin",
+            "restaurant": 1,
+            "actif": true,
+            "nom_complet": "Ibrahima Diallo",
+            "email": "ibrahima.diallo@lebaobab.gn",
+            "telephone": "+224620100001",
+            "is_staff": true,
+            "is_active": true,
+            "must_change_password": false,
+            "date_creation": "2026-01-10T08:10:00Z"
+        }
+    },
+    {
+        "model": "accounts.user",
+        "pk": 1,
+        "fields": {
+            "login": "lebaobab_admin",
+            "password": "pbkdf2_sha256$720000$test$hashedpassword=",
+            "role": "Radmin",
+            "restaurant": 1,
+            "actif": true,
+            "nom_complet": "Ibrahima Diallo",
+            "email": "ibrahima.diallo@lebaobab.gn",
+            "telephone": "+224620100001",
+            "is_staff": true,
+            "is_active": true,
+            "must_change_password": false,
+            "date_creation": "2026-01-10T08:10:00Z"
+        }
+    },
+    {
+        "model": "accounts.user",
+        "pk": 2,
+        "fields": {
+            "login": "lebaobab_manager",
+            "password": "pbkdf2_sha256$720000$test$hashedpassword=",
+            "role": "Rmanager",
+            "restaurant": 1,
+            "actif": true,
+            "nom_complet": "Fatoumata Camara",
+            "email": "fatoumata.camara@lebaobab.gn",
+            "telephone": "+224620100002",
+            "is_staff": false,
+            "is_active": true,
+            "must_change_password": false,
+            "date_creation": "2026-01-10T08:15:00Z"
+        }
+    },
+    {
+        "model": "accounts.user",
+        "pk": 3,
+        "fields": {
+            "login": "lebaobab_serveur1",
+            "password": "pbkdf2_sha256$720000$test$hashedpassword=",
+            "role": "Rserveur",
+            "restaurant": 1,
+            "actif": true,
+            "nom_complet": "Mamadou Bah",
+            "email": "mamadou.bah@lebaobab.gn",
+            "telephone": "+224620100003",
+            "is_staff": false,
+            "is_active": true,
+            "must_change_password": true,
+            "date_creation": "2026-01-11T09:00:00Z"
+        }
+    },
+    {
+        "model": "accounts.user",
+        "pk": 4,
+        "fields": {
+            "login": "lebaobab_chef",
+            "password": "pbkdf2_sha256$720000$test$hashedpassword=",
+            "role": "Rchef_cuisinier",
+            "restaurant": 1,
+            "actif": true,
+            "nom_complet": "Oumar Kouyaté",
+            "email": "oumar.kouyate@lebaobab.gn",
+            "telephone": "+224620100004",
+            "is_staff": false,
+            "is_active": true,
+            "must_change_password": false,
+            "date_creation": "2026-01-11T09:05:00Z"
+        }
+    },
+    {
+        "model": "accounts.user",
+        "pk": 5,
+        "fields": {
+            "login": "lebaobab_cuisinier1",
+            "password": "pbkdf2_sha256$720000$test$hashedpassword=",
+            "role": "Rcuisinier",
+            "restaurant": 1,
+            "actif": true,
+            "nom_complet": "Sekou Traoré",
+            "email": "sekou.traore@lebaobab.gn",
+            "telephone": "+224620100005",
+            "is_staff": false,
+            "is_active": true,
+            "must_change_password": false,
+            "date_creation": "2026-01-11T09:10:00Z"
+        }
+    },
+    {
+        "model": "accounts.user",
+        "pk": 6,
+        "fields": {
+            "login": "lebaobab_comptable",
+            "password": "pbkdf2_sha256$720000$test$hashedpassword=",
+            "role": "Rcomptable",
+            "restaurant": 1,
+            "actif": true,
+            "nom_complet": "Aissatou Sow",
+            "email": "aissatou.sow@lebaobab.gn",
+            "telephone": "+224620100006",
+            "is_staff": false,
+            "is_active": true,
+            "must_change_password": false,
+            "date_creation": "2026-01-11T09:15:00Z"
+        }
+    },
+    {
+        "model": "accounts.user",
+        "pk": 7,
+        "fields": {
+            "login": "lebaobab_table_01",
+            "password": "pbkdf2_sha256$720000$test$hashedpassword=",
+            "role": "Rtable",
+            "restaurant": 1,
+            "actif": true,
+            "nom_complet": null,
+            "email": null,
+            "telephone": null,
+            "is_staff": false,
+            "is_active": true,
+            "must_change_password": false,
+            "date_creation": "2026-01-12T07:00:00Z"
+        }
+    },
+    {
+        "model": "accounts.user",
+        "pk": 8,
+        "fields": {
+            "login": "lebaobab_table_02",
+            "password": "pbkdf2_sha256$720000$test$hashedpassword=",
+            "role": "Rtable",
+            "restaurant": 1,
+            "actif": true,
+            "nom_complet": null,
+            "email": null,
+            "telephone": null,
+            "is_staff": false,
+            "is_active": true,
+            "must_change_password": false,
+            "date_creation": "2026-01-12T07:00:00Z"
+        }
+    },
+    {
+        "model": "accounts.user",
+        "pk": 9,
+        "fields": {
+            "login": "chezmariama_admin",
+            "password": "pbkdf2_sha256$720000$test$hashedpassword=",
+            "role": "Radmin",
+            "restaurant": 2,
+            "actif": true,
+            "nom_complet": "Mariama Baldé",
+            "email": "mariama.balde@chezmariama.gn",
+            "telephone": "+224621000010",
+            "is_staff": true,
+            "is_active": true,
+            "must_change_password": false,
+            "date_creation": "2026-01-15T09:10:00Z"
+        }
+    },
+    {
+        "model": "accounts.user",
+        "pk": 10,
+        "fields": {
+            "login": "chezmariama_comptable",
+            "password": "pbkdf2_sha256$720000$test$hashedpassword=",
+            "role": "Rcomptable",
+            "restaurant": 2,
+            "actif": true,
+            "nom_complet": "Alpha Barry",
+            "email": "alpha.barry@chezmariama.gn",
+            "telephone": "+224621000011",
+            "is_staff": false,
+            "is_active": true,
+            "must_change_password": false,
+            "date_creation": "2026-01-15T09:20:00Z"
+        }
+    },
+    {
+        "model": "menu.plat",
+        "pk": 1,
+        "fields": {
+            "restaurant": 1,
+            "nom": "Thiéboudienne",
+            "description": "Riz au poisson sénégalais avec légumes",
+            "prix_unitaire": "45000.00",
+            "image": null,
+            "disponible": true,
+            "categorie": "PLAT",
+            "necessite_validation_cuisine": true,
+            "date_creation": "2026-01-12T10:00:00Z",
+            "date_modification": "2026-01-12T10:00:00Z"
+        }
+    },
+    {
+        "model": "menu.plat",
+        "pk": 2,
+        "fields": {
+            "restaurant": 1,
+            "nom": "Poulet Yassa",
+            "description": "Poulet mariné aux oignons et citron",
+            "prix_unitaire": "40000.00",
+            "image": null,
+            "disponible": true,
+            "categorie": "PLAT",
+            "necessite_validation_cuisine": true,
+            "date_creation": "2026-01-12T10:05:00Z",
+            "date_modification": "2026-01-12T10:05:00Z"
+        }
+    },
+    {
+        "model": "menu.plat",
+        "pk": 3,
+        "fields": {
+            "restaurant": 1,
+            "nom": "Salade César",
+            "description": "Salade romaine, croûtons, parmesan",
+            "prix_unitaire": "20000.00",
+            "image": null,
+            "disponible": true,
+            "categorie": "ENTREE",
+            "necessite_validation_cuisine": false,
+            "date_creation": "2026-01-12T10:10:00Z",
+            "date_modification": "2026-01-12T10:10:00Z"
+        }
+    },
+    {
+        "model": "menu.plat",
+        "pk": 4,
+        "fields": {
+            "restaurant": 1,
+            "nom": "Jus de Bissap",
+            "description": "Jus d'hibiscus frais sucré",
+            "prix_unitaire": "8000.00",
+            "image": null,
+            "disponible": true,
+            "categorie": "BOISSON",
+            "necessite_validation_cuisine": false,
+            "date_creation": "2026-01-12T10:15:00Z",
+            "date_modification": "2026-01-12T10:15:00Z"
+        }
+    },
+    {
+        "model": "menu.plat",
+        "pk": 5,
+        "fields": {
+            "restaurant": 1,
+            "nom": "Beignets de banane",
+            "description": "Beignets maison, banane plantain",
+            "prix_unitaire": "15000.00",
+            "image": null,
+            "disponible": true,
+            "categorie": "DESSERT",
+            "necessite_validation_cuisine": false,
+            "date_creation": "2026-01-12T10:20:00Z",
+            "date_modification": "2026-01-12T10:20:00Z"
+        }
+    },
+    {
+        "model": "menu.plat",
+        "pk": 6,
+        "fields": {
+            "restaurant": 1,
+            "nom": "Riz blanc",
+            "description": "Riz vapeur nature",
+            "prix_unitaire": "5000.00",
+            "image": null,
+            "disponible": true,
+            "categorie": "ACCOMPAGNEMENT",
+            "necessite_validation_cuisine": false,
+            "date_creation": "2026-01-12T10:25:00Z",
+            "date_modification": "2026-01-12T10:25:00Z"
+        }
+    },
+    {
+        "model": "menu.plat",
+        "pk": 7,
+        "fields": {
+            "restaurant": 1,
+            "nom": "Soupe de Légumes",
+            "description": "Soupe du marché — actuellement indisponible",
+            "prix_unitaire": "18000.00",
+            "image": null,
+            "disponible": false,
+            "categorie": "ENTREE",
+            "necessite_validation_cuisine": false,
+            "date_creation": "2026-01-12T10:30:00Z",
+            "date_modification": "2026-02-01T08:00:00Z"
+        }
+    },
+    {
+        "model": "menu.plat",
+        "pk": 8,
+        "fields": {
+            "restaurant": 1,
+            "nom": "Eau minérale",
+            "description": "50 cl",
+            "prix_unitaire": "5000.00",
+            "image": null,
+            "disponible": true,
+            "categorie": "BOISSON",
+            "necessite_validation_cuisine": false,
+            "date_creation": "2026-01-12T10:35:00Z",
+            "date_modification": "2026-01-12T10:35:00Z"
+        }
+    },
+    {
+        "model": "menu.plat",
+        "pk": 9,
+        "fields": {
+            "restaurant": 2,
+            "nom": "Mafé Bœuf",
+            "description": "Ragoût de bœuf à la pâte d'arachide",
+            "prix_unitaire": "50000.00",
+            "image": null,
+            "disponible": true,
+            "categorie": "PLAT",
+            "necessite_validation_cuisine": true,
+            "date_creation": "2026-01-16T10:00:00Z",
+            "date_modification": "2026-01-16T10:00:00Z"
+        }
+    },
+    {
+        "model": "menu.plat",
+        "pk": 10,
+        "fields": {
+            "restaurant": 2,
+            "nom": "Ginger frais",
+            "description": "Jus de gingembre maison",
+            "prix_unitaire": "7000.00",
+            "image": null,
+            "disponible": true,
+            "categorie": "BOISSON",
+            "necessite_validation_cuisine": false,
+            "date_creation": "2026-01-16T10:05:00Z",
+            "date_modification": "2026-01-16T10:05:00Z"
+        }
+    },
+    {
+        "model": "restaurant.tablerestaurant",
+        "pk": 1,
+        "fields": {
+            "restaurant": 1,
+            "numero_table": "T01",
+            "nombre_places": 4,
+            "utilisateur": 7,
+            "date_creation": "2026-01-12T07:00:00Z",
+            "date_modification": "2026-01-12T07:00:00Z"
+        }
+    },
+    {
+        "model": "restaurant.tablerestaurant",
+        "pk": 2,
+        "fields": {
+            "restaurant": 1,
+            "numero_table": "T02",
+            "nombre_places": 2,
+            "utilisateur": 8,
+            "date_creation": "2026-01-12T07:05:00Z",
+            "date_modification": "2026-01-12T07:05:00Z"
+        }
+    },
+    {
+        "model": "paiements.caissegenerale",
+        "pk": 1,
+        "fields": {
+            "restaurant": 1,
+            "solde": "500000.00",
+            "solde_initial": "500000.00",
+            "created_at": "2026-01-10T08:20:00Z",
+            "updated_at": "2026-01-10T08:20:00Z"
+        }
+    },
+    {
+        "model": "paiements.caissegenerale",
+        "pk": 2,
+        "fields": {
+            "restaurant": 2,
+            "solde": "300000.00",
+            "solde_initial": "300000.00",
+            "created_at": "2026-01-15T09:30:00Z",
+            "updated_at": "2026-01-15T09:30:00Z"
+        }
+    },
+    {
+        "model": "paiements.caisseglobale",
+        "pk": 1,
+        "fields": {
+            "restaurant": 1,
+            "date_ouverture": "2026-04-08",
+            "solde": "185000.00",
+            "is_closed": true,
+            "closed_at": "2026-04-08T23:00:00Z",
+            "fermee_par": 6,
+            "motif_ecart": null,
+            "montant_physique_fermeture": "185000.00",
+            "created_at": "2026-04-08T05:00:00Z",
+            "updated_at": "2026-04-08T23:00:00Z"
+        }
+    },
+    {
+        "model": "paiements.caisseglobale",
+        "pk": 2,
+        "fields": {
+            "restaurant": 1,
+            "date_ouverture": "2026-04-09",
+            "solde": "0.00",
+            "is_closed": false,
+            "closed_at": null,
+            "fermee_par": null,
+            "motif_ecart": null,
+            "montant_physique_fermeture": null,
+            "created_at": "2026-04-09T05:00:00Z",
+            "updated_at": "2026-04-09T05:00:00Z"
+        }
+    },
+    {
+        "model": "paiements.caissecomptable",
+        "pk": 1,
+        "fields": {
+            "restaurant": 1,
+            "comptable": 6,
+            "solde": "150000.00",
+            "is_closed": true,
+            "opened_at": "2026-04-08T08:00:00Z",
+            "closed_at": "2026-04-08T22:00:00Z",
+            "motif_ecart": null,
+            "montant_physique_fermeture": "150000.00"
+        }
+    },
+    {
+        "model": "paiements.caissecomptable",
+        "pk": 2,
+        "fields": {
+            "restaurant": 1,
+            "comptable": 6,
+            "solde": "200000.00",
+            "is_closed": false,
+            "opened_at": "2026-04-09T08:00:00Z",
+            "closed_at": null,
+            "motif_ecart": null,
+            "montant_physique_fermeture": null
+        }
+    },
+    {
+        "model": "commandes.commande",
+        "pk": 1,
+        "fields": {
+            "restaurant": 1,
+            "table": 7,
+            "session": null,
+            "montant_total": "93000.00",
+            "statut": "payee",
+            "serveur_ayant_servi": 3,
+            "cuisinier_ayant_prepare": 5,
+            "date_paiement": "2026-04-08T13:30:00Z",
+            "date_commande": "2026-04-08T12:45:00Z",
+            "date_modification": "2026-04-08T13:30:00Z"
+        }
+    },
+    {
+        "model": "commandes.commande",
+        "pk": 2,
+        "fields": {
+            "restaurant": 1,
+            "table": 7,
+            "session": null,
+            "montant_total": "45000.00",
+            "statut": "en_attente",
+            "serveur_ayant_servi": null,
+            "cuisinier_ayant_prepare": null,
+            "date_paiement": null,
+            "date_commande": "2026-04-09T12:00:00Z",
+            "date_modification": "2026-04-09T12:00:00Z"
+        }
+    },
+    {
+        "model": "commandes.commande",
+        "pk": 3,
+        "fields": {
+            "restaurant": 1,
+            "table": 8,
+            "session": null,
+            "montant_total": "48000.00",
+            "statut": "prete",
+            "serveur_ayant_servi": null,
+            "cuisinier_ayant_prepare": 5,
+            "date_paiement": null,
+            "date_commande": "2026-04-09T11:30:00Z",
+            "date_modification": "2026-04-09T11:55:00Z"
+        }
+    },
+    {
+        "model": "commandes.commande",
+        "pk": 4,
+        "fields": {
+            "restaurant": 1,
+            "table": 8,
+            "session": null,
+            "montant_total": "13000.00",
+            "statut": "servie",
+            "serveur_ayant_servi": 3,
+            "cuisinier_ayant_prepare": null,
+            "date_paiement": null,
+            "date_commande": "2026-04-09T10:00:00Z",
+            "date_modification": "2026-04-09T10:20:00Z"
+        }
+    },
+    {
+        "model": "commandes.commandeitem",
+        "pk": 1,
+        "fields": {
+            "commande": 1,
+            "plat": 1,
+            "quantite": 1,
+            "prix_unitaire": "45000.00"
+        }
+    },
+    {
+        "model": "commandes.commandeitem",
+        "pk": 2,
+        "fields": {
+            "commande": 1,
+            "plat": 4,
+            "quantite": 2,
+            "prix_unitaire": "8000.00"
+        }
+    },
+    {
+        "model": "commandes.commandeitem",
+        "pk": 3,
+        "fields": {
+            "commande": 1,
+            "plat": 6,
+            "quantite": 1,
+            "prix_unitaire": "5000.00"
+        }
+    },
+    {
+        "model": "commandes.commandeitem",
+        "pk": 4,
+        "fields": {
+            "commande": 2,
+            "plat": 1,
+            "quantite": 1,
+            "prix_unitaire": "45000.00"
+        }
+    },
+    {
+        "model": "commandes.commandeitem",
+        "pk": 5,
+        "fields": {
+            "commande": 3,
+            "plat": 2,
+            "quantite": 1,
+            "prix_unitaire": "40000.00"
+        }
+    },
+    {
+        "model": "commandes.commandeitem",
+        "pk": 6,
+        "fields": {
+            "commande": 3,
+            "plat": 8,
+            "quantite": 1,
+            "prix_unitaire": "5000.00"
+        }
+    },
+    {
+        "model": "commandes.commandeitem",
+        "pk": 7,
+        "fields": {
+            "commande": 4,
+            "plat": 4,
+            "quantite": 1,
+            "prix_unitaire": "8000.00"
+        }
+    },
+    {
+        "model": "commandes.commandeitem",
+        "pk": 8,
+        "fields": {
+            "commande": 4,
+            "plat": 5,
+            "quantite": 1,
+            "prix_unitaire": "15000.00"
+        }
+    },
+    {
+        "model": "commandes.panieritem",
+        "pk": 1,
+        "fields": {
+            "table": 7,
+            "plat": 2,
+            "quantite": 1,
+            "date_ajout": "2026-04-09T12:30:00Z"
+        }
+    },
+    {
+        "model": "commandes.panieritem",
+        "pk": 2,
+        "fields": {
+            "table": 7,
+            "plat": 4,
+            "quantite": 2,
+            "date_ajout": "2026-04-09T12:31:00Z"
+        }
+    },
+    {
+        "model": "paiements.paiement",
+        "pk": 1,
+        "fields": {
+            "commande": 1,
+            "montant": "93000.00",
+            "date_paiement": "2026-04-08T13:30:00Z"
+        }
+    },
+    {
+        "model": "paiements.remiseserveur",
+        "pk": 1,
+        "fields": {
+            "caisse_globale": 1,
+            "paiement": 1,
+            "montant_virtuel": "93000.00",
+            "montant_physique": "93000.00",
+            "motif_ecart": null,
+            "valide": true,
+            "validee_par": 6,
+            "serveur": 3,
+            "created_at": "2026-04-08T13:35:00Z",
+            "updated_at": "2026-04-08T13:35:00Z"
+        }
+    },
+    {
+        "model": "paiements.mouvementcaisse",
+        "pk": 1,
+        "fields": {
+            "caisse_comptable": 2,
+            "type_mouvement": "approvisionnement",
+            "montant": "200000.00",
+            "motif": "Approvisionnement journalier depuis caisse générale",
+            "effectue_par": 6,
+            "created_at": "2026-04-09T08:05:00Z"
+        }
+    },
+    {
+        "model": "paiements.mouvementcaisse",
+        "pk": 2,
+        "fields": {
+            "caisse_comptable": 2,
+            "type_mouvement": "depense",
+            "montant": "35000.00",
+            "motif": "Achat légumes frais au marché Madina",
+            "effectue_par": 6,
+            "created_at": "2026-04-09T09:30:00Z"
+        }
+    },
+    {
+        "model": "paiements.mouvementcaisse",
+        "pk": 3,
+        "fields": {
+            "caisse_comptable": 2,
+            "type_mouvement": "depense",
+            "montant": "15000.00",
+            "motif": "Achat produits d'entretien",
+            "effectue_par": 6,
+            "created_at": "2026-04-09T10:00:00Z"
+        }
+    },
+    {
+        "model": "paiements.depense",
+        "pk": 1,
+        "fields": {
+            "caisse_comptable": 2,
+            "motif": "Achat légumes frais au marché Madina",
+            "montant": "35000.00",
+            "date_depense": "2026-04-09",
+            "date_enregistrement": "2026-04-09T09:30:00Z",
+            "enregistree_par": 6
+        }
+    },
+    {
+        "model": "paiements.depense",
+        "pk": 2,
+        "fields": {
+            "caisse_comptable": 2,
+            "motif": "Achat produits d'entretien",
+            "montant": "15000.00",
+            "date_depense": "2026-04-09",
+            "date_enregistrement": "2026-04-09T10:00:00Z",
+            "enregistree_par": 6
+        }
+    }
+]

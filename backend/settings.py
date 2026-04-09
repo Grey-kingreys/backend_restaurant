@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'apps.accounts',
     'apps.menu',
     'apps.commandes',
+    'apps.company',
     'apps.restaurant',
     'apps.paiements',
     'apps.dashboard',
@@ -104,6 +105,10 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+
+FIXTURE_DIRS = [
+    BASE_DIR / 'fixtures',
+]
 
 # ------------------------------------------
 # DJANGO REST FRAMEWORK

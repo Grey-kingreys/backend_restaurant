@@ -1,6 +1,6 @@
 # docker-compose.yml - Environnement de developpement
-# Phase 2 : makemigrations inclus temporairement
-# Retirer makemigrations apres la premiere generation des fichiers
+# Les migrations sont gerees dans docker/entrypoint.sh
+# command ne contient que le serveur de dev
 
 services:
 
@@ -39,7 +39,6 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: restaurant_backend
-    restart: unless-stopped
     env_file:
       - .env
     environment:
@@ -57,16 +56,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: >
-      sh -c "python manage.py makemigrations accounts &&
-             python manage.py makemigrations menu &&
-             python manage.py makemigrations restaurant &&
-             python manage.py makemigrations commandes &&
-             python manage.py makemigrations paiements &&
-             python manage.py makemigrations dashboard &&
-             python manage.py migrate --no-input &&
-             python manage.py collectstatic --no-input &&
-             python manage.py runserver 0.0.0.0:8000"
+    # Seul le serveur ici — migrations dans entrypoint.sh
+    command: python manage.py runserver 0.0.0.0:8000
 
 volumes:
   postgres_data:
