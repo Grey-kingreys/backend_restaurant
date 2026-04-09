@@ -8,7 +8,8 @@ class PanierItem(models.Model):
     """
     Panier en base de donnees.
     Un PanierItem = un plat dans le panier d'une table.
-    Compatible mobile Flutter (pas de cookies/session).
+    Isolation SaaS : heritee via table (User → restaurant).
+    unique_together [table, plat] : un seul item par plat dans le panier.
     """
 
     table = models.ForeignKey(
@@ -43,7 +44,7 @@ class PanierItem(models.Model):
         unique_together = ['table', 'plat']
 
     def __str__(self):
-        return f"Panier {self.table.login} - {self.plat.nom} x{self.quantite}"
+        return f"Panier {self.table.login} — {self.plat.nom} x{self.quantite}"
 
     @property
     def sous_total(self):
@@ -54,17 +55,13 @@ class Commande(models.Model):
     """
     Commande passee par une table.
 
-    Workflow v2.0 :
-    EN_ATTENTE -> PRETE (cuisinier) -> SERVIE (serveur) -> PAYEE
+    Isolation SaaS : FK restaurant directe pour filtrage efficace.
+    La FK table (User) pointe deja vers le restaurant, mais on garde
+    restaurant en direct pour les QuerySets sans jointure supplementaire.
 
-    Si aucun plat ne necessite_validation_cuisine :
-    EN_ATTENTE -> SERVIE -> PAYEE (etape PRETE sautee)
-
-    Visibilite :
-    - Rtable    : uniquement les commandes de sa session QR active
-    - Rserveur  : toutes les commandes
-    - Rcuisinier: toutes les commandes en attente/prete
-    - Radmin    : toutes les commandes
+    Workflow v2 :
+    EN_ATTENTE → PRETE (cuisinier) → SERVIE (serveur) → PAYEE
+    Si aucun plat necessite_validation_cuisine : EN_ATTENTE → SERVIE → PAYEE
     """
 
     STATUS_CHOICES = [
@@ -74,6 +71,15 @@ class Commande(models.Model):
         ('payee',      'Payee'),
     ]
 
+    # ── Isolation SaaS ────────────────────────────────────────────────────
+    restaurant = models.ForeignKey(
+        'company.Restaurant',
+        on_delete=models.CASCADE,
+        related_name='commandes',
+        verbose_name="Restaurant"
+    )
+
+    # ── Champs metier ─────────────────────────────────────────────────────
     table = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -82,8 +88,6 @@ class Commande(models.Model):
         verbose_name="Table"
     )
 
-    # Lien avec la session QR - cle de l'amelioration
-    # La table ne voit que les commandes de sa session active
     session = models.ForeignKey(
         'restaurant.TableSession',
         on_delete=models.SET_NULL,
@@ -148,11 +152,15 @@ class Commande(models.Model):
         ordering = ['-date_commande']
         verbose_name = 'Commande'
         verbose_name_plural = 'Commandes'
+        indexes = [
+            models.Index(fields=['restaurant', 'statut']),
+            models.Index(fields=['restaurant', 'date_commande']),
+        ]
 
     def __str__(self):
         return (
-            f"Commande #{self.id} - "
-            f"{self.table.login} - "
+            f"Commande #{self.id} — "
+            f"{self.table.login} — "
             f"{self.get_statut_display()}"
         )
 
@@ -177,7 +185,8 @@ class Commande(models.Model):
 class CommandeItem(models.Model):
     """
     Ligne de commande : un plat dans une commande.
-    Le prix_unitaire est capture au moment de la commande.
+    Le prix_unitaire est capture au moment de la commande (snapshot).
+    Isolation SaaS : heritee via commande → restaurant.
     """
 
     commande = models.ForeignKey(
@@ -203,7 +212,7 @@ class CommandeItem(models.Model):
         max_digits=10,
         decimal_places=2,
         validators=[MinValueValidator(0)],
-        verbose_name="Prix unitaire"
+        verbose_name="Prix unitaire (snapshot)"
     )
 
     class Meta:

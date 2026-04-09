@@ -8,10 +8,10 @@ class Plat(models.Model):
     """
     Modele representant un plat du menu.
 
-    Nouveaute v2.0 :
-    - necessite_validation_cuisine : si True, la commande passe par
-      l'etape PRETE (cuisinier valide) avant d'etre SERVIE.
-      Si False, le serveur peut servir directement depuis EN_ATTENTE.
+    Isolation SaaS : chaque plat appartient a un restaurant.
+    Un plat ne peut jamais etre supprime — toggle disponible uniquement.
+    necessite_validation_cuisine : si True, la commande passe par
+    l'etape PRETE (cuisinier valide) avant d'etre SERVIE.
     """
 
     CATEGORIE_CHOICES = [
@@ -22,6 +22,15 @@ class Plat(models.Model):
         ('ACCOMPAGNEMENT',  'Accompagnement'),
     ]
 
+    # ── Isolation SaaS ────────────────────────────────────────────────────
+    restaurant = models.ForeignKey(
+        'company.Restaurant',
+        on_delete=models.CASCADE,
+        related_name='plats',
+        verbose_name="Restaurant"
+    )
+
+    # ── Champs metier ─────────────────────────────────────────────────────
     nom = models.CharField(
         max_length=200,
         verbose_name="Nom du plat",
@@ -64,13 +73,12 @@ class Plat(models.Model):
         verbose_name="Categorie"
     )
 
-    # NOUVEAU v2.0
     necessite_validation_cuisine = models.BooleanField(
         default=False,
         verbose_name="Necessite validation cuisine",
         help_text=(
-            "Si True : la commande doit passer par l'etape PRETE "
-            "(un cuisinier valide la preparation) avant d'etre servie. "
+            "Si True : la commande passe par l'etape PRETE "
+            "(cuisinier valide) avant d'etre SERVIE. "
             "Si False : le serveur peut servir directement."
         )
     )
@@ -90,31 +98,31 @@ class Plat(models.Model):
         verbose_name_plural = "Plats"
         ordering = ['categorie', 'nom']
         indexes = [
-            models.Index(fields=['disponible', 'categorie']),
-            models.Index(fields=['nom']),
+            models.Index(fields=['restaurant', 'disponible', 'categorie']),
+            models.Index(fields=['restaurant', 'nom']),
         ]
 
     def __str__(self):
         statut = "OK" if self.disponible else "XX"
-        return f"[{statut}] {self.nom} - {self.prix_unitaire} GNF"
+        return f"[{statut}] {self.nom} — {self.prix_unitaire} GNF ({self.restaurant.nom})"
 
     @property
     def prix_formate(self):
-        """Retourne le prix formate avec separateur de milliers"""
         return f"{self.prix_unitaire:,.0f}".replace(',', ' ')
 
     def get_image_url(self):
-        """Retourne l'URL de l'image ou None"""
         if self.image:
             return self.image.url
         return None
 
+    def toggle_disponibilite(self):
+        self.disponible = not self.disponible
+        self.save(update_fields=['disponible', 'date_modification'])
+
 
 class PlatDisponibleManager(models.Manager):
-    """Manager pour recuperer uniquement les plats disponibles"""
     def get_queryset(self):
         return super().get_queryset().filter(disponible=True)
 
 
-# Ajouter le manager au modele
 Plat.add_to_class('disponibles', PlatDisponibleManager())
