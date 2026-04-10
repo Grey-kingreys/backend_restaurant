@@ -3,12 +3,14 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.db import models
 from django.utils import timezone
 from django.core.validators import EmailValidator, RegexValidator
+from datetime import timedelta
+import uuid
 
 
 class UserManager(BaseUserManager):
     """
-    Manager personnalise pour le modele User.
-    USERNAME_FIELD = 'login' (pas 'username')
+    Manager personnalisé pour le modèle User.
+    USERNAME_FIELD = 'login' (requis par Django et utilisé pour les Rtable via QR)
     """
 
     def create_user(self, login, password=None, **extra_fields):
@@ -21,8 +23,8 @@ class UserManager(BaseUserManager):
 
     def create_superuser(self, login, password=None, **extra_fields):
         """
-        Cree un Super Admin Django (Rsuper_admin).
-        Pas de restaurant associe — gere toute la plateforme.
+        Crée un Super Admin Django (Rsuper_admin).
+        Pas de restaurant associé — gère toute la plateforme.
         """
         extra_fields.setdefault('role', 'Rsuper_admin')
         extra_fields.setdefault('is_staff', True)
@@ -40,30 +42,21 @@ class UserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     """
-    Modele User personnalise pour Restaurant Manager Pro v2.
+    Modèle User personnalisé pour Restaurant Manager Pro v2.
 
-    Roles disponibles :
-    - Rsuper_admin    : Gere la plateforme SaaS — cree les restaurants [NOUVEAU v2]
-    - Radmin          : Acces total au restaurant — cree par le Super Admin
-    - Rmanager        : Comme Admin mais sans suppression [NOUVEAU v2]
-    - Rserveur        : Sert les tables, valide paiements
-    - Rchef_cuisinier : Gere le menu (CRUD plats)
-    - Rcuisinier      : Prepare les commandes en cuisine
-    - Rcomptable      : Gere la caisse et les depenses
-    - Rtable          : Client a la table (commande via tablette)
+    Connexion :
+    - Rtable        : login + password (via QR Code ou formulaire)
+    - Tous les autres : email + password
 
-    Isolation SaaS :
-    - Tous les roles sauf Rsuper_admin ont une FK restaurant obligatoire
-    - login est unique globalement (contrainte Django obligatoire sur USERNAME_FIELD)
-    - Le serializer de creation prefixe le login avec le slug du restaurant
-      pour eviter les collisions entre restaurants (ex: "lebaobab_admin")
-    - Le Super Admin n'appartient a aucun restaurant (restaurant=None)
+    USERNAME_FIELD = 'login' conservé pour :
+    - Compatibilité Django (auth.E003)
+    - Connexion QR Code des tables (login unique par table)
     """
 
     ROLE_CHOICES = [
-        ('Rsuper_admin',    'Super Administrateur'),   # NOUVEAU v2 — gere la plateforme
+        ('Rsuper_admin',    'Super Administrateur'),
         ('Radmin',          'Administrateur'),
-        ('Rmanager',        'Manager'),                # NOUVEAU v2 — comme admin sans delete
+        ('Rmanager',        'Manager'),
         ('Rserveur',        'Serveur'),
         ('Rchef_cuisinier', 'Chef Cuisinier'),
         ('Rcuisinier',      'Cuisinier'),
@@ -71,8 +64,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('Rtable',          'Table'),
     ]
 
-    # unique=True obligatoire : Django exige que USERNAME_FIELD soit unique (auth.E003)
-    # Le serializer de creation gerera les collisions via prefixe slug restaurant
     login = models.CharField(
         max_length=50,
         unique=True,
@@ -82,10 +73,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     role = models.CharField(
         max_length=20,
         choices=ROLE_CHOICES,
-        verbose_name="Role"
+        verbose_name="Rôle"
     )
 
-    # FK vers le restaurant — NULL uniquement pour Rsuper_admin
     restaurant = models.ForeignKey(
         'company.Restaurant',
         on_delete=models.CASCADE,
@@ -99,30 +89,28 @@ class User(AbstractBaseUser, PermissionsMixin):
     actif = models.BooleanField(default=True)
     date_creation = models.DateTimeField(default=timezone.now)
 
-    # Force le changement de mot de passe a la premiere connexion
-    # Mis a True automatiquement lors de la creation par l'Admin
     must_change_password = models.BooleanField(
         default=False,
         verbose_name="Doit changer le mot de passe",
-        help_text="Force a True a la creation par l'Admin — reset a False apres changement"
+        help_text="Forcé à True à la création — reset à False après changement"
     )
 
-    # Informations personnelles — obligatoires pour tous les roles sauf Rtable
     nom_complet = models.CharField(
         max_length=200,
         blank=True,
         null=True,
-        verbose_name="Nom complet",
-        help_text="Obligatoire pour tous les roles sauf Rtable"
+        verbose_name="Nom complet"
     )
 
+    # Email unique sur toute la plateforme — utilisé pour la connexion (sauf Rtable)
     email = models.EmailField(
         max_length=254,
         blank=True,
         null=True,
+        unique=True,
         validators=[EmailValidator()],
         verbose_name="Adresse email",
-        help_text="Obligatoire pour tous les roles sauf Rtable"
+        help_text="Obligatoire pour tous les rôles sauf Rtable — unique sur toute la plateforme"
     )
 
     telephone = models.CharField(
@@ -135,16 +123,15 @@ class User(AbstractBaseUser, PermissionsMixin):
                 message="Format valide: +224XXXXXXXXX ou XXXXXXXXX (9-20 chiffres)"
             )
         ],
-        verbose_name="Numero de telephone",
-        help_text="Obligatoire pour tous les roles sauf Rtable"
+        verbose_name="Numéro de téléphone"
     )
 
-    # Champs requis par Django
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
     objects = UserManager()
 
+    # Conservé pour Django + QR Login des tables
     USERNAME_FIELD = 'login'
     REQUIRED_FIELDS = ['nom_complet', 'email']
 
@@ -158,7 +145,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             return f"{self.nom_complet} ({self.login})"
         return f"{self.login} ({self.get_role_display()})"
 
-    # ── Methodes helper roles ──────────────────────────────────────────────
+    # ── Helpers rôles ──────────────────────────────────────────────────────
 
     def is_super_admin(self):
         return self.role == 'Rsuper_admin'
@@ -170,7 +157,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.role == 'Rmanager'
 
     def is_admin_or_manager(self):
-        """True si Radmin OU Rmanager"""
         return self.role in ('Radmin', 'Rmanager')
 
     def is_serveur(self):
@@ -183,7 +169,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.role == 'Rcuisinier'
 
     def is_cuisinier_any(self):
-        """True si Chef Cuisinier OU Cuisinier executant"""
         return self.role in ('Rchef_cuisinier', 'Rcuisinier')
 
     def is_comptable(self):
@@ -193,14 +178,64 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.role == 'Rtable'
 
     def requires_personal_info(self):
-        """True si le role necessite nom_complet + email + telephone"""
         return self.role != 'Rtable'
 
     def get_restaurant_actif(self):
-        """
-        Retourne True si le restaurant du user est actif.
-        Toujours True pour le Super Admin (pas de restaurant).
-        """
         if self.is_super_admin():
             return True
         return self.restaurant and self.restaurant.is_active
+
+
+class PasswordResetToken(models.Model):
+    """
+    Token de réinitialisation de mot de passe demandé par l'utilisateur.
+    Valable 1h — usage unique.
+    Le frontend redirige vers /auth/reset-password?token=<uuid>
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='password_reset_tokens',
+        verbose_name="Utilisateur"
+    )
+
+    token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        verbose_name="Token"
+    )
+
+    expires_at = models.DateTimeField(verbose_name="Expiration")
+    is_used = models.BooleanField(default=False, verbose_name="Utilisé")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Token de réinitialisation"
+        verbose_name_plural = "Tokens de réinitialisation"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        statut = "UTILISÉ" if self.is_used else "ACTIF"
+        return f"Reset {self.user.email} [{statut}]"
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(hours=1)
+        super().save(*args, **kwargs)
+
+    def est_valide(self):
+        return not self.is_used and timezone.now() < self.expires_at
+
+    def utiliser(self):
+        self.is_used = True
+        self.save(update_fields=['is_used'])
+
+    @classmethod
+    def creer_pour(cls, user):
+        """Invalide les anciens tokens et crée un nouveau."""
+        cls.objects.filter(user=user, is_used=False).update(is_used=True)
+        return cls.objects.create(
+            user=user,
+            expires_at=timezone.now() + timedelta(hours=1),
+        )

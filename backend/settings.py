@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
+    'drf_spectacular',
 
     # Apps metier - decommentees au fur et a mesure
     'apps.accounts',
@@ -42,6 +43,18 @@ INSTALLED_APPS = [
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
+
+
+# ------------------------------------------
+# SWAGGER / OpenAPI — drf-spectacular
+# ------------------------------------------
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Restaurant Manager API',
+    'DESCRIPTION': 'API SaaS multi-tenant pour la gestion de restaurants.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+}
 
 # ------------------------------------------
 # MIDDLEWARE
@@ -125,8 +138,8 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
-    # Decommenter en Phase 3 apres creation de apps/accounts/exceptions.py
-    # 'EXCEPTION_HANDLER': 'apps.accounts.exceptions.custom_exception_handler',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'EXCEPTION_HANDLER': 'apps.accounts.exceptions.custom_exception_handler',
 }
 
 # ------------------------------------------
@@ -148,8 +161,7 @@ SIMPLE_JWT = {
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
-    # Decommenter en Phase 3 apres creation du serializer
-    # 'TOKEN_OBTAIN_SERIALIZER': 'apps.accounts.serializers.CustomTokenObtainPairSerializer',
+    'TOKEN_OBTAIN_SERIALIZER': 'apps.accounts.serializers.CustomTokenObtainPairSerializer',
 }
 
 # ------------------------------------------
@@ -197,13 +209,12 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # ------------------------------------------
 # EMAIL
-# Console en dev - SMTP active en Phase 8
 # ------------------------------------------
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
-REPORT_EMAIL_TO = os.getenv('REPORT_EMAIL_TO', DEFAULT_FROM_EMAIL)
+
+# ------------------------------------------
+# RESEND
+# ------------------------------------------
+RESEND_KEY = os.getenv('RESEND_KEY', '')
+RESEND_FROM_EMAIL = os.getenv('RESEND_FROM_EMAIL', 'noreply@kingreys.fr')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')

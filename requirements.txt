@@ -9,6 +9,7 @@ Django==5.1
 djangorestframework==3.15.2
 djangorestframework-simplejwt==5.3.1
 django-cors-headers==4.4.0
+drf-spectacular==0.29.0
 
 # Base de donnees PostgreSQL
 psycopg[binary]==3.2.3
@@ -30,6 +31,12 @@ whitenoise==6.7.0
 
 # Serveur WSGI - Production
 gunicorn==23.0.0
+
+# Requests - Envoi d'emails via Resend
+requests==2.32.3
+
+# Resend - Envoi d'emails
+resend==2.27.0
 
 # --- A DECOMMENTER EN PHASE 8 ---
 # celery==5.4.0
