@@ -1,0 +1,53 @@
+# docker/loki/loki-config.yaml
+# Configuration minimale de Loki pour le développement.
+# Loki reçoit les logs des containers Docker et les stocke localement.
+
+auth_enabled: false  # Pas d'authentification en dev
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+# Stockage des métadonnées des chunks (index)
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+# Schéma de stockage
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+# Limites — adaptées au développement
+limits_config:
+  # Fenêtre de rejet des logs trop anciens (10 minutes)
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  # Taille max d'un batch de logs
+  ingestion_rate_mb: 16
+  ingestion_burst_size_mb: 32
+
+# Règles d'alerte (désactivées en dev)
+ruler:
+  alertmanager_url: http://localhost:9093
+
+# Compression des chunks
+chunk_store_config:
+  chunk_cache_config:
+    embedded_cache:
+      enabled: true
+      max_size_mb: 100
