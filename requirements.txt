@@ -38,6 +38,9 @@ requests==2.32.3
 # Resend - Envoi d'emails
 resend==2.27.0
 
+# Prometheus - Monitoring
+django-prometheus==2.3.1
+
 # --- A DECOMMENTER EN PHASE 8 ---
 # celery==5.4.0
 # django-celery-beat==2.7.0

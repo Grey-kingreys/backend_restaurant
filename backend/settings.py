@@ -17,7 +17,10 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 # ------------------------------------------
 # APPLICATIONS
 # ------------------------------------------
+USE_S3 = os.getenv('USE_S3', 'False').lower() == 'true'
+ 
 INSTALLED_APPS = [
+    'django_prometheus',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -31,12 +34,14 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'drf_spectacular',
-
-    # Apps metier - decommentees au fur et a mesure
+ 
+    # Storage S3 — chargé uniquement si USE_S3=True
+    *(['storages'] if USE_S3 else []),
+ 
+    'apps.company',
     'apps.accounts',
     'apps.menu',
     'apps.commandes',
-    'apps.company',
     'apps.restaurant',
     'apps.paiements',
     'apps.dashboard',
@@ -60,6 +65,7 @@ SPECTACULAR_SETTINGS = {
 # MIDDLEWARE
 # ------------------------------------------
 MIDDLEWARE = [
+    'django_prometheus.middleware.PrometheusBeforeMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -68,6 +74,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django_prometheus.middleware.PrometheusAfterMiddleware',
     # 'apps.restaurant.middleware.AutoLogoutTableMiddleware', # Phase 6
 ]
 
@@ -186,8 +193,34 @@ USE_TZ = True
 # ------------------------------------------
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+if USE_S3:
+    AWS_ACCESS_KEY_ID      = os.getenv('AWS_ACCESS_KEY_ID', '')
+    AWS_SECRET_ACCESS_KEY  = os.getenv('AWS_SECRET_ACCESS_KEY', '')
+    AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', '')
+    AWS_S3_REGION_NAME     = os.getenv('AWS_S3_REGION_NAME', 'us-east-1')
+    AWS_S3_LOCATION        = os.getenv('AWS_S3_LOCATION', 'media')
+    AWS_QUERYSTRING_AUTH   = False
+    AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=31536000'}
+ 
+    _cdn = os.getenv('AWS_S3_CUSTOM_DOMAIN', '')
+    if _cdn:
+        AWS_S3_CUSTOM_DOMAIN = _cdn
+        MEDIA_URL = f'https://{_cdn}/{AWS_S3_LOCATION}/'
+    else:
+        MEDIA_URL = (
+            f'https://{AWS_STORAGE_BUCKET_NAME}'
+            f'.s3.{AWS_S3_REGION_NAME}.amazonaws.com/{AWS_S3_LOCATION}/'
+        )
+ 
+    MEDIA_ROOT = ''
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+ 
+else:
+    # Développement — stockage local (inchangé)
+    MEDIA_URL  = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
+    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+ 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
