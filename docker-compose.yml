@@ -143,6 +143,28 @@ services:
         condition: service_started
     logging: *loki-logging
 
+  # ── Tempo — Distributed Tracing ───────────────────────────────────────
+  tempo:
+    image: grafana/tempo:2.4.1
+    container_name: restaurant_tempo
+    restart: unless-stopped
+    ports:
+      - "3200:3200"   # API Tempo / Grafana
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP  ← Django envoie ici
+    volumes:
+      - ./docker/tempo/tempo-config.yaml:/etc/tempo/tempo-config.yaml:ro
+      - tempo_data:/var/tempo
+    command: -config.file=/etc/tempo/tempo-config.yaml
+    depends_on:
+      mimir:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --tries=1 -O- http://localhost:3200/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   # ── Grafana — Dashboard de visualisation ──────────────────────────────
   grafana:
     image: grafana/grafana:11.0.0
@@ -170,5 +192,6 @@ volumes:
   static_files:
   loki_data:
   grafana_data:
-  mimir_data:       # Stockage persistant des métriques Mimir
-  prometheus_data:  # Stockage temporaire Prometheus (6h)
+  mimir_data:       
+  prometheus_data:  
+  tempo_data:

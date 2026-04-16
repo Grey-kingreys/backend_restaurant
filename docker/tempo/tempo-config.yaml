@@ -1,0 +1,57 @@
+# docker/tempo/tempo-config.yaml
+# Configuration Tempo pour le développement — mode monolithique
+
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+  log_level: warn
+
+# Récepteurs de traces
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+# Stockage des traces
+ingester:
+  max_block_duration: 5m
+
+compactor:
+  compaction:
+    block_retention: 1h
+
+# Backend filesystem (dev)
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/blocks
+    wal:
+      path: /var/tempo/wal
+
+# Générateur de métriques — active le service graph dans Grafana
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: restaurant-dev
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://mimir:9009/api/v1/push
+        send_exemplars: true
+        headers:
+          X-Scope-OrgID: anonymous
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - service-graphs
+        - span-metrics
+      generate_native_histograms: both
