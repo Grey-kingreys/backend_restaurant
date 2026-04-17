@@ -5,7 +5,7 @@
 x-loki-logging: &loki-logging
   driver: loki
   options:
-    loki-url: "http://localhost:3100/loki/api/v1/push"
+    loki-url: "http://loki:3100/loki/api/v1/push"
     loki-retries: "3"
     loki-batch-size: "400"
 
@@ -57,6 +57,8 @@ services:
       - DB_HOST=db
       - REDIS_URL=redis://redis:6379/0
       - DB_SSLMODE=disable
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318
+      - OTEL_SERVICE_NAME=restaurant-backend
     volumes:
       - .:/app
       - media_files:/app/media
