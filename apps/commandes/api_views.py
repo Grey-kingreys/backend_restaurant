@@ -1,4 +1,5 @@
 # apps/commandes/api_views.py
+import logging
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -21,6 +22,8 @@ from .serializers import (
     CommandePayeeSerializer,
 )
 from .pdf_utils import generer_recu_pdf
+
+logger = logging.getLogger(__name__)
 
 
 def ok(data=None, message="", code=status.HTTP_200_OK):
@@ -465,9 +468,10 @@ class CommandeRecuView(APIView):
             response = HttpResponse(pdf_buffer, content_type='application/pdf')
             response['Content-Disposition'] = f'attachment; filename="{filename}"'
             return response
-        except Exception as e:
+        except Exception:
+            logger.exception("Erreur lors de la génération du reçu PDF pour la commande %s", commande.id)
             return err(
-                message=f"Erreur génération PDF : {str(e)}",
+                message="Une erreur interne est survenue lors de la génération du PDF.",
                 code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
