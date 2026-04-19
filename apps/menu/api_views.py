@@ -48,8 +48,8 @@ def _get_base_queryset(request):
 
 class PlatListCreateView(APIView):
     """
-    GET  /api/v1/plats/  — Liste des plats
-    POST /api/v1/plats/  — Créer un plat (Chef / Admin / Manager)
+    GET  /api/plats/  — Liste des plats
+    POST /api/plats/  — Créer un plat (Chef / Admin / Manager)
 
     GET :
     - Rtable → uniquement les plats disponibles=True
@@ -147,9 +147,9 @@ class PlatListCreateView(APIView):
 
 class PlatDetailView(APIView):
     """
-    GET   /api/v1/plats/<id>/  — Détail d'un plat
-    PUT   /api/v1/plats/<id>/  — Modifier un plat (Chef / Admin / Manager)
-    PATCH /api/v1/plats/<id>/  — Modification partielle
+    GET   /api/plats/<id>/  — Détail d'un plat
+    PUT   /api/plats/<id>/  — Modifier un plat (Chef / Admin / Manager)
+    PATCH /api/plats/<id>/  — Modification partielle
     (pas de DELETE — toggle uniquement)
     """
     permission_classes = [IsAuthenticated, IsRestaurantActive]
@@ -235,7 +235,7 @@ class PlatDetailView(APIView):
 
 class PlatToggleView(APIView):
     """
-    POST /api/v1/plats/<id>/toggle/
+    POST /api/plats/<id>/toggle/
     Active ou désactive un plat (inverse son état `disponible`).
     Un plat ne peut JAMAIS être supprimé — seulement désactivé.
     Accès : Chef Cuisinier, Admin, Manager.
@@ -281,7 +281,7 @@ class PlatToggleView(APIView):
 
 class PlatCategoriesView(APIView):
     """
-    GET /api/v1/plats/categories/
+    GET /api/plats/categories/
     Retourne la liste des catégories disponibles.
     Accès : tous les rôles authentifiés.
     """

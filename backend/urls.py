@@ -19,14 +19,12 @@ urlpatterns = [
 
     # ── API — URLs inchangées (Phase 1→3) ─────────────────────────────────
     # IMPORTANT : ces préfixes ne changent pas pour ne pas casser l'existant.
-    # La migration vers /api/v1/ se fera en une seule fois quand le frontend
+    # La migration vers /api/ se fera en une seule fois quand le frontend
     # sera prêt à suivre.
     path('api/company/', include('apps.company.urls')),
     path('api/accounts/', include('apps.accounts.urls')),
-
-    # ── Phase 4 — Menu & Plats ────────────────────────────────────────────
-    # Nouvelles routes seulement.
     path('api/menu/', include('apps.menu.urls')),
+    path('api/commandes/', include('apps.commandes.urls')),
 
     # ── Prometheus ────────────────────────────────────────────────────────
     path('', include('django_prometheus.urls')),
