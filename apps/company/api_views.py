@@ -372,7 +372,7 @@ class PlatformStatsView(APIView):
             'utilisateurs_par_restaurant': utilisateurs_par_restaurant,
             '_note': (
                 "Les statistiques detaillees (commandes, revenus, plats) "
-                "seront disponibles en Phase 8 via /api/v1/dashboard/super/stats/"
+                "seront disponibles en Phase 8 via /api/dashboard/super/stats/"
             ),
         }
 
