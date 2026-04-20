@@ -127,6 +127,11 @@ class TableToken(models.Model):
     def marquer_utilise(self):
         self.date_derniere_utilisation = timezone.now()
         self.save(update_fields=['date_derniere_utilisation'])
+    def get_qr_url(self, request):
+        """Construit l'URL de connexion automatique encodee dans le QR Code."""
+        from django.urls import reverse
+        path = reverse('accounts:qr-login', kwargs={'token': self.token})
+        return request.build_absolute_uri(path)
 
 
 class TableSession(models.Model):

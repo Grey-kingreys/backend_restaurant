@@ -2,6 +2,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from . import api_views
+from apps.restaurant.api_views import QRLoginView
 
 app_name = 'accounts'
 
@@ -66,5 +67,12 @@ urlpatterns = [
         'auth/password/reset-confirm/',
         api_views.PasswordResetConfirmView.as_view(),
         name='password-reset-confirm'
+    ),
+
+    # ── QR Login ───────────────────────────────────────────────────────────
+    path(
+        'qr/<str:token>/',
+        QRLoginView.as_view(),
+        name='qr-login'
     ),
 ]
