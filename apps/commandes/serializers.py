@@ -293,22 +293,46 @@ class CommandePayeeSerializer(serializers.Serializer):
 
     @transaction.atomic
     def save(self, serveur):
-        from django.utils import timezone
+        from django.utils import timezone as tz
+        from apps.paiements.models import Paiement
+ 
         commande = self.context['commande']
         commande.serveur_ayant_servi = serveur
-        commande.statut = 'payee'
-        commande.date_paiement = timezone.now()
+        commande.statut       = 'payee'
+        commande.date_paiement = tz.now()
         commande.save(update_fields=[
             'statut', 'serveur_ayant_servi', 'date_paiement', 'date_modification'
         ])
-
-        # Déclencher la vérification d'expiration de session QR (1 min après dernier paiement)
-        # Cette logique est gérée dans apps/restaurant/tasks.py via Celery
+ 
+        # ── Creer le Paiement ──────────────────────────────────────────
+        paiement, created = Paiement.objects.get_or_create(
+            commande=commande,
+            defaults={'montant': commande.montant_total},
+        )
+ 
+        # ── Declencher la creation de la RemiseServeur (async) ─────────
+        if created:
+            try:
+                from apps.paiements.tasks import creer_remise_pour_paiement
+                creer_remise_pour_paiement.delay(paiement.id)
+            except Exception:
+                # Ne pas bloquer le flux si Celery est indisponible
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Impossible de planifier creer_remise_pour_paiement "
+                    "pour paiement %d — Celery indisponible ?",
+                    paiement.id,
+                )
+ 
+        # ── Declencher la verification d'expiration de session QR ──────
         if commande.session:
-            from apps.restaurant.tasks import verifier_expiration_session
-            verifier_expiration_session.apply_async(
-                args=[commande.session.id],
-                countdown=60  # 1 minute
-            )
-
+            try:
+                from apps.restaurant.tasks import verifier_expiration_session
+                verifier_expiration_session.apply_async(
+                    args=[commande.session.id],
+                    countdown=60  # 1 minute
+                )
+            except Exception:
+                pass
+ 
         return commande
