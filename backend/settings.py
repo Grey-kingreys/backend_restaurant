@@ -171,6 +171,25 @@ SIMPLE_JWT = {
     # 'TOKEN_OBTAIN_SERIALIZER': 'apps.accounts.serializers.CustomTokenObtainPairSerializer',
 }
 
+
+# ------------------------------------------
+# CELERY
+# ------------------------------------------
+CELERY_BROKER_URL          = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND      = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT      = ['json']
+CELERY_TASK_SERIALIZER     = 'json'
+CELERY_RESULT_SERIALIZER   = 'json'
+CELERY_TIMEZONE            = 'Africa/Conakry'
+CELERY_TASK_TRACK_STARTED  = True
+CELERY_TASK_TIME_LIMIT     = 300          # 5 minutes max par tache
+CELERY_TASK_SOFT_TIME_LIMIT = 240         # soft limit : 4 minutes
+CELERY_BEAT_SCHEDULER      = 'django_celery_beat.schedulers:DatabaseScheduler'
+ 
+# Retry automatique en cas d'echec de connexion au broker
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+
 # ------------------------------------------
 # CORS
 # ------------------------------------------

@@ -26,6 +26,7 @@ urlpatterns = [
     path('api/menu/', include('apps.menu.urls')),
     path('api/commandes/', include('apps.commandes.urls')),
     path('api/restaurant/',  include('apps.restaurant.api_urls')),
+    path('api/paiements/', include('apps.paiements.urls')),
 
     # ── Prometheus ────────────────────────────────────────────────────────
     path('', include('django_prometheus.urls')),
