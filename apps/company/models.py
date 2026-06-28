@@ -41,6 +41,62 @@ class Restaurant(models.Model):
         verbose_name="Adresse"
     )
 
+    latitude = models.DecimalField(
+        max_digits=9, decimal_places=6,
+        null=True, blank=True,
+        verbose_name="Latitude GPS"
+    )
+
+    longitude = models.DecimalField(
+        max_digits=9, decimal_places=6,
+        null=True, blank=True,
+        verbose_name="Longitude GPS"
+    )
+
+    rayon_connexion = models.PositiveIntegerField(
+        default=200,
+        verbose_name="Rayon de connexion (m)",
+        help_text="Distance maximale en metres pour se connecter via QR Code"
+    )
+
+    duree_session_table = models.PositiveIntegerField(
+        default=60,
+        verbose_name="Duree session table (min)",
+        help_text="Duree maximale d'une session QR en minutes (30-120)"
+    )
+
+    accept_livraison = models.BooleanField(
+        default=False,
+        verbose_name="Accepte les commandes livraison",
+        help_text="Active la commande en ligne avec livraison a domicile"
+    )
+
+    accept_emporter = models.BooleanField(
+        default=False,
+        verbose_name="Accepte les commandes a emporter",
+        help_text="Active la commande en ligne avec retrait sur place"
+    )
+
+    frais_livraison = models.DecimalField(
+        max_digits=10, decimal_places=0,
+        null=True, blank=True,
+        verbose_name="Frais de livraison (GNF)",
+        help_text="Laisser vide pour gratuit"
+    )
+
+    # ── Réservations ──────────────────────────────────────────────────────
+    reservation_validation_auto = models.BooleanField(
+        default=True,
+        verbose_name="Validation automatique des réservations",
+        help_text="Si True, la réservation est confirmée immédiatement ; sinon le staff valide manuellement"
+    )
+
+    reservation_delai_annulation_heures = models.PositiveIntegerField(
+        default=2,
+        verbose_name="Délai d'annulation (heures)",
+        help_text="Nombre d'heures avant l'heure de réservation jusqu'auquel le client peut annuler"
+    )
+
     is_active = models.BooleanField(
         default=True,
         verbose_name="Actif",

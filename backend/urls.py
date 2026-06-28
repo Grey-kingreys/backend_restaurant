@@ -27,6 +27,10 @@ urlpatterns = [
     path('api/commandes/', include('apps.commandes.urls')),
     path('api/restaurant/',  include('apps.restaurant.api_urls')),
     path('api/paiements/', include('apps.paiements.urls')),
+    path('api/dashboard/', include('apps.dashboard.urls')),
+
+    # ── Vitrine publique ──────────────────────────────────────────────────
+    path('api/public/', include('apps.public.api_urls')),
 
     # ── Prometheus ────────────────────────────────────────────────────────
     path('', include('django_prometheus.urls')),

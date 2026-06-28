@@ -17,14 +17,22 @@ class RestaurantSerializer(serializers.ModelSerializer):
     nombre_utilisateurs = serializers.SerializerMethodField()
     statut = serializers.SerializerMethodField()
 
+    has_geo = serializers.SerializerMethodField()
+
     class Meta:
         model = Restaurant
         fields = [
             'id', 'nom', 'email_admin', 'telephone', 'adresse',
-            'is_active', 'statut', 'nombre_utilisateurs',
+            'latitude', 'longitude', 'rayon_connexion', 'duree_session_table',
+            'accept_livraison', 'accept_emporter', 'frais_livraison',
+            'reservation_validation_auto', 'reservation_delai_annulation_heures',
+            'has_geo', 'is_active', 'statut', 'nombre_utilisateurs',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_has_geo(self, obj):
+        return obj.latitude is not None and obj.longitude is not None
 
     def get_nombre_utilisateurs(self, obj):
         # Exclut les Rtable du compte — ce sont des comptes systeme
@@ -135,12 +143,27 @@ class RestaurantCreateSerializer(serializers.ModelSerializer):
 class RestaurantUpdateSerializer(serializers.ModelSerializer):
     """
     Serializer mise a jour partielle d'un restaurant.
-    Le Super Admin peut modifier les infos de base.
+    Le Super Admin et l'Admin du restaurant peuvent modifier les infos.
+    Les champs geo (latitude, longitude, rayon_connexion, duree_session_table)
+    sont modifiables par l'Admin pour configurer la restriction QR.
     """
 
     class Meta:
         model = Restaurant
-        fields = ['nom', 'email_admin', 'telephone', 'adresse']
+        fields = [
+            'nom', 'email_admin', 'telephone', 'adresse',
+            'latitude', 'longitude', 'rayon_connexion', 'duree_session_table',
+        ]
+
+    def validate_rayon_connexion(self, value):
+        if value < 50 or value > 2000:
+            raise serializers.ValidationError("Le rayon doit être entre 50 et 2000 mètres.")
+        return value
+
+    def validate_duree_session_table(self, value):
+        if value < 15 or value > 480:
+            raise serializers.ValidationError("La durée doit être entre 15 et 480 minutes.")
+        return value
 
 
 class OnboardingTokenValidateSerializer(serializers.Serializer):
@@ -187,6 +210,39 @@ class OnboardingTokenValidateSerializer(serializers.Serializer):
         onboarding.utiliser()
 
         return user
+
+
+class MonRestaurantUpdateSerializer(serializers.ModelSerializer):
+    """
+    Mise à jour partielle du restaurant par son propre Admin.
+    L'email_admin et is_active sont gérés par le Super Admin uniquement.
+    Inclut la configuration de la commande en ligne (livraison / emporter).
+    """
+    class Meta:
+        model = Restaurant
+        fields = [
+            'nom', 'telephone', 'adresse',
+            'accept_livraison', 'accept_emporter', 'frais_livraison',
+            'reservation_validation_auto', 'reservation_delai_annulation_heures',
+        ]
+
+    def validate_reservation_delai_annulation_heures(self, value):
+        if value is not None and (value < 0 or value > 72):
+            raise serializers.ValidationError("Le délai doit être compris entre 0 et 72 heures.")
+        return value
+
+    def validate_nom(self, value):
+        qs = Restaurant.objects.filter(nom__iexact=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("Un restaurant avec ce nom existe déjà.")
+        return value
+
+    def validate_frais_livraison(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Les frais de livraison ne peuvent pas être négatifs.")
+        return value
 
 
 class PlatformStatsSerializer(serializers.Serializer):

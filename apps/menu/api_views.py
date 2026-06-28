@@ -15,13 +15,8 @@ from .serializers import (
     PlatDetailSerializer,
     PlatCreateUpdateSerializer,
 )
-from apps.accounts.permissions import (
-    IsRestaurantActive,
-    IsChefCuisinier,
-    IsAdminOrManager,
-    IsTable,
-    IsCuisinierAny,
-)
+from apps.accounts.permissions import IsRestaurantActive
+from apps.accounts.perm_codes import PERM_MANAGE_MENU
 
 
 def success_response(data=None, message="", status_code=status.HTTP_200_OK):
@@ -123,12 +118,9 @@ class PlatListCreateView(APIView):
         tags=["Menu"],
     )
     def post(self, request):
-        # Seuls Chef, Admin, Manager peuvent créer
-        if not (request.user.is_chef_cuisinier()
-                or request.user.is_admin()
-                or request.user.is_manager()):
+        if not request.user.has_permission(PERM_MANAGE_MENU):
             return error_response(
-                message="Seul le Chef Cuisinier, l'Administrateur ou le Manager peut créer un plat.",
+                message="Vous n'avez pas la permission de gérer le menu.",
                 status_code=status.HTTP_403_FORBIDDEN
             )
 
@@ -212,11 +204,9 @@ class PlatDetailView(APIView):
         return self._update(request, pk, partial=True)
 
     def _update(self, request, pk, partial):
-        if not (request.user.is_chef_cuisinier()
-                or request.user.is_admin()
-                or request.user.is_manager()):
+        if not request.user.has_permission(PERM_MANAGE_MENU):
             return error_response(
-                message="Seul le Chef Cuisinier, l'Administrateur ou le Manager peut modifier un plat.",
+                message="Vous n'avez pas la permission de gérer le menu.",
                 status_code=status.HTTP_403_FORBIDDEN
             )
 
@@ -258,11 +248,9 @@ class PlatToggleView(APIView):
         tags=["Menu"],
     )
     def post(self, request, pk):
-        if not (request.user.is_chef_cuisinier()
-                or request.user.is_admin()
-                or request.user.is_manager()):
+        if not request.user.has_permission(PERM_MANAGE_MENU):
             return error_response(
-                message="Seul le Chef Cuisinier, l'Administrateur ou le Manager peut activer/désactiver un plat.",
+                message="Vous n'avez pas la permission de gérer le menu.",
                 status_code=status.HTTP_403_FORBIDDEN
             )
 

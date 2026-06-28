@@ -56,6 +56,11 @@ urlpatterns = [
         api_views.AdminPasswordResetView.as_view(),
         name='user-reset-password'
     ),
+    path(
+        'auth/users/<int:pk>/impersonate/',
+        api_views.ImpersonateView.as_view(),
+        name='user-impersonate'
+    ),
 
     # ── Reset mot de passe (self-service) ─────────────────────────────────
     path(
@@ -74,5 +79,24 @@ urlpatterns = [
         'qr/<str:token>/',
         QRLoginView.as_view(),
         name='qr-login'
+    ),
+
+    # ── Permissions catalogue ──────────────────────────────────────────────
+    path(
+        'permissions/',
+        api_views.PermissionListView.as_view(),
+        name='permission-list'
+    ),
+
+    # ── CRUD Rôles ─────────────────────────────────────────────────────────
+    path(
+        'roles/',
+        api_views.RoleConfigListCreateView.as_view(),
+        name='role-list-create'
+    ),
+    path(
+        'roles/<int:pk>/',
+        api_views.RoleConfigDetailView.as_view(),
+        name='role-detail'
     ),
 ]

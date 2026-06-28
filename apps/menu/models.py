@@ -60,6 +60,14 @@ class Plat(models.Model):
         help_text="Image du plat (formats acceptes: JPG, PNG)"
     )
 
+    image_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        verbose_name="URL d'image externe",
+        help_text="URL d'image externe (prioritaire sur le fichier uploade) — utile pour les demos"
+    )
+
     disponible = models.BooleanField(
         default=True,
         verbose_name="Disponible",
@@ -111,6 +119,8 @@ class Plat(models.Model):
         return f"{self.prix_unitaire:,.0f}".replace(',', ' ')
 
     def get_image_url(self):
+        if self.image_url:
+            return self.image_url
         if self.image:
             return self.image.url
         return None

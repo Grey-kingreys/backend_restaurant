@@ -14,6 +14,7 @@ from .serializers import (
     RestaurantUpdateSerializer,
     OnboardingTokenValidateSerializer,
     PlatformStatsSerializer,
+    MonRestaurantUpdateSerializer,
 )
 
 
@@ -218,6 +219,51 @@ class RestaurantActivateView(APIView):
             data=RestaurantSerializer(restaurant, context={'request': request}).data,
             message=f"Restaurant '{restaurant.nom}' reactive."
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MON RESTAURANT — Admin peut voir/modifier son propre restaurant
+# ─────────────────────────────────────────────────────────────────────────────
+
+class MonRestaurantView(APIView):
+    """
+    GET   /api/company/mon-restaurant/  — Voir son restaurant (Admin)
+    PATCH /api/company/mon-restaurant/  — Modifier nom, telephone, adresse (Admin)
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Mon restaurant — informations",
+        description="Retourne les informations du restaurant de l'Admin connecté.",
+        responses={200: RestaurantSerializer, 403: OpenApiResponse(description="Admin uniquement")},
+        tags=["Restaurants"],
+    )
+    def get(self, request):
+        if not request.user.is_admin():
+            return error_response(message="Accès réservé à l'Admin.", status_code=status.HTTP_403_FORBIDDEN)
+        serializer = RestaurantSerializer(request.user.restaurant, context={'request': request})
+        return success_response(data=serializer.data)
+
+    @extend_schema(
+        summary="Mon restaurant — mise à jour",
+        description="Met à jour le nom, téléphone ou adresse du restaurant (Admin uniquement).",
+        request=MonRestaurantUpdateSerializer,
+        responses={200: RestaurantSerializer, 400: OpenApiResponse(description="Données invalides"), 403: OpenApiResponse(description="Admin uniquement")},
+        tags=["Restaurants"],
+    )
+    def patch(self, request):
+        if not request.user.is_admin():
+            return error_response(message="Accès réservé à l'Admin.", status_code=status.HTTP_403_FORBIDDEN)
+        serializer = MonRestaurantUpdateSerializer(
+            request.user.restaurant, data=request.data, partial=True
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return success_response(
+                data=RestaurantSerializer(request.user.restaurant, context={'request': request}).data,
+                message="Restaurant mis à jour."
+            )
+        return error_response(errors=serializer.errors, message="Données invalides.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
