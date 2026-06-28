@@ -5,7 +5,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.db import transaction
 
-from .models import User, PasswordResetToken
+from .models import User, PasswordResetToken, Permission, RoleConfig
 from .services.email_service import send_password_reset_email
 
 
@@ -84,8 +84,8 @@ class LoginSerializer(serializers.Serializer):
                 "Votre compte a été désactivé. Contactez votre administrateur."
             )
 
-        # Vérification restaurant actif (sauf Super Admin)
-        if not user.is_super_admin():
+        # Vérification restaurant actif (sauf Super Admin et Client — non liés à un restaurant)
+        if not user.is_super_admin() and not user.is_client():
             if not user.restaurant or not user.restaurant.is_active:
                 raise serializers.ValidationError(
                     "Votre restaurant est suspendu. Contactez le support."
@@ -130,7 +130,10 @@ class LogoutSerializer(serializers.Serializer):
 class UserMeSerializer(serializers.ModelSerializer):
     """Profil de l'utilisateur connecté — lecture seule."""
     restaurant_nom = serializers.SerializerMethodField()
-    statut = serializers.SerializerMethodField()
+    statut         = serializers.SerializerMethodField()
+    permissions    = serializers.SerializerMethodField()
+    role_config_id = serializers.SerializerMethodField()
+    dashboard_type = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -138,6 +141,7 @@ class UserMeSerializer(serializers.ModelSerializer):
             'id', 'login', 'role', 'nom_complet', 'email', 'telephone',
             'restaurant', 'restaurant_nom', 'actif', 'statut',
             'must_change_password', 'date_creation',
+            'permissions', 'role_config_id', 'dashboard_type',
         ]
         read_only_fields = fields
 
@@ -146,6 +150,47 @@ class UserMeSerializer(serializers.ModelSerializer):
 
     def get_statut(self, obj):
         return "actif" if obj.actif else "inactif"
+
+    def get_permissions(self, obj):
+        """Liste des codes de permissions de l'utilisateur."""
+        return sorted(obj.get_all_permissions_codes())
+
+    def get_role_config_id(self, obj):
+        return obj.role_config_id
+
+    def get_dashboard_type(self, obj):
+        if obj.role_config_id:
+            return obj.role_config.dashboard_type
+        if obj.is_super_admin():
+            return 'superadmin'
+        if obj.is_table():
+            return 'table'
+        return None
+
+
+class UpdateMeSerializer(serializers.ModelSerializer):
+    """Auto-édition du profil par l'utilisateur connecté (tous rôles réels)."""
+
+    class Meta:
+        model = User
+        fields = ['nom_complet', 'email', 'telephone']
+
+    def validate_nom_complet(self, value):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError("Le nom complet est requis.")
+        return value
+
+    def validate_email(self, value):
+        value = (value or "").strip() or None
+        if value:
+            qs = User.objects.filter(email=value).exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError("Un utilisateur avec cet email existe déjà.")
+        elif not self.instance.is_table():
+            # email obligatoire pour les comptes humains (les Rtable n'en ont pas)
+            raise serializers.ValidationError("L'email est requis.")
+        return value
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -433,3 +478,113 @@ class ChangePasswordSerializer(serializers.Serializer):
         user.must_change_password = False
         user.save(update_fields=['password', 'must_change_password'])
         return user
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROLES & PERMISSIONS
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PermissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Permission
+        fields = ['id', 'code', 'label', 'categorie']
+
+
+class RoleConfigListSerializer(serializers.ModelSerializer):
+    permissions_count = serializers.SerializerMethodField()
+    users_count       = serializers.SerializerMethodField()
+    dashboard_label   = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RoleConfig
+        fields = [
+            'id', 'nom', 'slug', 'is_system', 'dashboard_type', 'dashboard_label',
+            'permissions_count', 'users_count',
+        ]
+
+    def get_permissions_count(self, obj):
+        return obj.permissions.count()
+
+    def get_users_count(self, obj):
+        return obj.users.count()
+
+    def get_dashboard_label(self, obj):
+        return dict(RoleConfig.DASHBOARD_CHOICES).get(obj.dashboard_type, obj.dashboard_type)
+
+
+class RoleConfigDetailSerializer(serializers.ModelSerializer):
+    permissions     = PermissionSerializer(many=True, read_only=True)
+    permission_codes = serializers.SerializerMethodField()
+    users_count     = serializers.SerializerMethodField()
+    dashboard_label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RoleConfig
+        fields = [
+            'id', 'nom', 'slug', 'is_system', 'dashboard_type', 'dashboard_label',
+            'permissions', 'permission_codes', 'users_count',
+        ]
+
+    def get_permission_codes(self, obj):
+        return sorted(obj.get_permission_codes())
+
+    def get_users_count(self, obj):
+        return obj.users.count()
+
+    def get_dashboard_label(self, obj):
+        return dict(RoleConfig.DASHBOARD_CHOICES).get(obj.dashboard_type, obj.dashboard_type)
+
+
+class RoleConfigCreateSerializer(serializers.Serializer):
+    """Création d'un rôle custom par un admin."""
+    nom            = serializers.CharField(max_length=100)
+    slug           = serializers.SlugField(max_length=30)
+    dashboard_type = serializers.ChoiceField(choices=[c[0] for c in RoleConfig.DASHBOARD_CHOICES])
+    permission_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list
+    )
+
+    def validate_slug(self, value):
+        request = self.context['request']
+        restaurant = request.user.restaurant
+        if RoleConfig.objects.filter(slug=value, restaurant=restaurant).exists():
+            raise serializers.ValidationError("Un rôle avec ce slug existe déjà dans votre restaurant.")
+        if RoleConfig.objects.filter(slug=value, is_system=True).exists():
+            raise serializers.ValidationError("Ce slug est réservé à un rôle système.")
+        return value
+
+    def create(self, validated_data):
+        request    = self.context['request']
+        perm_ids   = validated_data.pop('permission_ids', [])
+        role = RoleConfig.objects.create(
+            restaurant=request.user.restaurant,
+            is_system=False,
+            **validated_data,
+        )
+        if perm_ids:
+            perms = Permission.objects.filter(
+                id__in=perm_ids,
+            )
+            role.permissions.set(perms)
+        return role
+
+
+class RoleConfigUpdateSerializer(serializers.Serializer):
+    """Mise à jour partielle d'un rôle custom."""
+    nom            = serializers.CharField(max_length=100, required=False)
+    dashboard_type = serializers.ChoiceField(
+        choices=[c[0] for c in RoleConfig.DASHBOARD_CHOICES], required=False
+    )
+    permission_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False
+    )
+
+    def update(self, instance, validated_data):
+        perm_ids = validated_data.pop('permission_ids', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if perm_ids is not None:
+            perms = Permission.objects.filter(id__in=perm_ids)
+            instance.permissions.set(perms)
+        return instance

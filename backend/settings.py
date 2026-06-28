@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'apps.restaurant',
     'apps.paiements',
     'apps.dashboard',
+    'apps.public',
 ]
 
 AUTH_USER_MODEL = 'accounts.User'

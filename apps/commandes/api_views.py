@@ -9,6 +9,10 @@ from django.http import HttpResponse
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
+from apps.accounts.perm_codes import (
+    PERM_VIEW_COMMANDES, PERM_MANAGE_COMMANDES,
+    PERM_VIEW_CUISINE, PERM_MANAGE_CUISINE,
+)
 from .models import Commande, PanierItem
 from .serializers import (
     PanierItemSerializer,
@@ -204,28 +208,23 @@ class MesCommandesView(APIView):
 class AllCommandesView(APIView):
     permission_classes = [IsAuthenticated]
 
-    ROLES_AUTORISES = ('is_serveur', 'is_chef_cuisinier', 'is_admin', 'is_manager')
-
-    def _check_access(self, user):
-        return any(getattr(user, r)() for r in self.ROLES_AUTORISES)
-
     @extend_schema(
         summary="Toutes les commandes du restaurant",
-        description="Retourne toutes les commandes du restaurant. Filtres : statut, table_id. Accès : Serveur, Chef Cuisinier, Admin, Manager.",
+        description="Retourne toutes les commandes du restaurant. Filtres : statut, table_id. Accès : permission view_commandes.",
         parameters=[
-            OpenApiParameter('statut', OpenApiTypes.STR, description="en_attente | prete | servie | payee", required=False),
+            OpenApiParameter('statut', OpenApiTypes.STR, description="en_attente | prete | en_livraison | servie | payee", required=False),
             OpenApiParameter('table_id', OpenApiTypes.INT, description="ID de la table", required=False),
         ],
         responses={
             200: CommandeListSerializer(many=True),
-            403: OpenApiResponse(description="Accès réservé : Serveur, Chef Cuisinier, Admin, Manager"),
+            403: OpenApiResponse(description="Permission view_commandes requise"),
         },
         tags=["Commandes"],
     )
     def get(self, request):
-        if not self._check_access(request.user):
+        if not request.user.has_permission(PERM_VIEW_COMMANDES):
             return err(
-                message="Accès réservé : Serveur, Chef Cuisinier, Admin, Manager.",
+                message="Vous n'avez pas accès aux commandes.",
                 code=status.HTTP_403_FORBIDDEN,
             )
 
@@ -237,7 +236,7 @@ class AllCommandesView(APIView):
         statut   = request.query_params.get('statut')
         table_id = request.query_params.get('table_id')
 
-        if statut and statut in ('en_attente', 'prete', 'servie', 'payee'):
+        if statut and statut in ('en_attente', 'prete', 'en_livraison', 'servie', 'payee'):
             qs = qs.filter(statut=statut)
         if table_id:
             qs = qs.filter(table_id=table_id)
@@ -283,8 +282,8 @@ class CommandeDetailView(APIView):
                     message="Cette commande n'appartient pas à votre session courante.",
                     code=status.HTTP_403_FORBIDDEN,
                 )
-        elif not any(getattr(user, r)() for r in ('is_serveur', 'is_chef_cuisinier', 'is_admin', 'is_manager')):
-            return err(message="Accès non autorisé.", code=status.HTTP_403_FORBIDDEN)
+        elif not user.has_permission(PERM_VIEW_COMMANDES):
+            return err(message="Vous n'avez pas accès aux commandes.", code=status.HTTP_403_FORBIDDEN)
 
         return ok(data=CommandeDetailSerializer(commande, context={'request': request}).data)
 
@@ -309,8 +308,8 @@ class CuisinierCommandesView(APIView):
         tags=["Cuisine"],
     )
     def get(self, request):
-        if not request.user.is_cuisinier_any():
-            return err(message="Accès réservé aux Cuisiniers.", code=status.HTTP_403_FORBIDDEN)
+        if not request.user.has_permission(PERM_VIEW_CUISINE):
+            return err(message="Vous n'avez pas accès à la file cuisine.", code=status.HTTP_403_FORBIDDEN)
 
         statut = request.query_params.get('statut', 'en_attente')
         if statut not in ('en_attente', 'prete'):
@@ -343,8 +342,8 @@ class CommandePreteView(APIView):
         tags=["Cuisine"],
     )
     def post(self, request, pk):
-        if not request.user.is_cuisinier_any():
-            return err(message="Accès réservé aux Cuisiniers.", code=status.HTTP_403_FORBIDDEN)
+        if not request.user.has_permission(PERM_MANAGE_CUISINE):
+            return err(message="Vous n'avez pas la permission de gérer la cuisine.", code=status.HTTP_403_FORBIDDEN)
 
         commande = get_object_or_404(Commande, pk=pk, restaurant=request.user.restaurant)
         s = CommandePreteSerializer(data={}, context={'commande': commande})
@@ -358,8 +357,35 @@ class CommandePreteView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# VUE SERVEUR — SERVIE & PAYÉE
+# VUE SERVEUR — EN LIVRAISON, SERVIE & PAYÉE
 # ─────────────────────────────────────────────────────────────────────────────
+
+class CommandeEnLivraisonView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Marquer une commande comme EN LIVRAISON",
+        description="Disponible uniquement pour les commandes de type 'livraison' au statut 'prete'. Accès : Staff avec permission manage_commandes.",
+        tags=["Service"],
+    )
+    def post(self, request, pk):
+        if not request.user.has_permission(PERM_MANAGE_COMMANDES):
+            return err(message="Vous n'avez pas la permission de gérer les commandes.", code=status.HTTP_403_FORBIDDEN)
+
+        commande = get_object_or_404(Commande, pk=pk, restaurant=request.user.restaurant)
+
+        if commande.type_commande != 'livraison':
+            return err(message="Cette action est réservée aux commandes de livraison.")
+        if commande.statut != 'prete':
+            return err(message=f"Statut actuel : {commande.statut}. La commande doit être PRÊTE.")
+
+        commande.statut = 'en_livraison'
+        commande.save(update_fields=['statut'])
+        return ok(
+            data=CommandeDetailSerializer(commande, context={'request': request}).data,
+            message=f"Commande #{commande.id} en cours de livraison.",
+        )
+
 
 class CommandeServieView(APIView):
     permission_classes = [IsAuthenticated]
@@ -376,8 +402,8 @@ class CommandeServieView(APIView):
         tags=["Service"],
     )
     def post(self, request, pk):
-        if not request.user.is_serveur():
-            return err(message="Accès réservé aux Serveurs.", code=status.HTTP_403_FORBIDDEN)
+        if not request.user.has_permission(PERM_MANAGE_COMMANDES):
+            return err(message="Vous n'avez pas la permission de gérer les commandes.", code=status.HTTP_403_FORBIDDEN)
 
         commande = get_object_or_404(Commande, pk=pk, restaurant=request.user.restaurant)
         s = CommandeServieSerializer(data={}, context={'commande': commande})
@@ -405,8 +431,8 @@ class CommandePayeeView(APIView):
         tags=["Service"],
     )
     def post(self, request, pk):
-        if not request.user.is_serveur():
-            return err(message="Accès réservé aux Serveurs.", code=status.HTTP_403_FORBIDDEN)
+        if not request.user.has_permission(PERM_MANAGE_COMMANDES):
+            return err(message="Vous n'avez pas la permission de gérer les commandes.", code=status.HTTP_403_FORBIDDEN)
 
         commande = get_object_or_404(Commande, pk=pk, restaurant=request.user.restaurant)
         s = CommandePayeeSerializer(data={}, context={'commande': commande})
@@ -429,11 +455,9 @@ class CommandePayeeView(APIView):
 class CommandeRecuView(APIView):
     permission_classes = [IsAuthenticated]
 
-    ROLES_STAFF = ('is_serveur', 'is_comptable', 'is_chef_cuisinier', 'is_admin', 'is_manager')
-
     @extend_schema(
         summary="Télécharger le reçu PDF",
-        description="Génère et retourne le reçu PDF d'une commande. Table : sa commande de sa session courante. Staff : toute commande du restaurant.",
+        description="Génère et retourne le reçu PDF d'une commande. Table : sa commande de sa session courante. Staff : toute commande du restaurant (permission view_commandes).",
         responses={
             200: OpenApiResponse(description="Fichier PDF"),
             403: OpenApiResponse(description="Accès non autorisé"),
@@ -456,8 +480,8 @@ class CommandeRecuView(APIView):
         if user.is_table():
             if commande.table != user:
                 return err(message="Ce reçu ne vous appartient pas.", code=status.HTTP_403_FORBIDDEN)
-        elif not any(getattr(user, r)() for r in self.ROLES_STAFF):
-            return err(message="Accès non autorisé.", code=status.HTTP_403_FORBIDDEN)
+        elif not user.has_permission(PERM_VIEW_COMMANDES):
+            return err(message="Vous n'avez pas accès aux commandes.", code=status.HTTP_403_FORBIDDEN)
 
         try:
             pdf_buffer = generer_recu_pdf(commande)
@@ -494,7 +518,7 @@ class CommandeDeleteView(APIView):
         tags=["Commandes"],
     )
     def delete(self, request, pk):
-        if not request.user.is_admin():
+        if not request.user.has_permission(PERM_MANAGE_COMMANDES) or not request.user.is_admin():
             return err(
                 message="Seul l'Admin peut supprimer une commande.",
                 code=status.HTTP_403_FORBIDDEN,

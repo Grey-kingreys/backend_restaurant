@@ -5,14 +5,20 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
+from django.db.models import Q
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
-from .models import User
-from .permissions import IsAdminOrManager, IsAdmin, IsRestaurantActive, IsSameRestaurant
+from .models import User, Permission, RoleConfig
+from .permissions import (
+    IsRestaurantActive, IsSameRestaurant,
+    HasManageEquipe, HasImpersonate, HasManageRoles,
+)
+from .perm_codes import PERM_MANAGE_ROLES
 from .serializers import (
     LoginSerializer,
     LogoutSerializer,
     UserMeSerializer,
+    UpdateMeSerializer,
     UserListSerializer,
     UserDetailSerializer,
     UserCreateSerializer,
@@ -21,6 +27,11 @@ from .serializers import (
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer,
     ChangePasswordSerializer,
+    PermissionSerializer,
+    RoleConfigListSerializer,
+    RoleConfigDetailSerializer,
+    RoleConfigCreateSerializer,
+    RoleConfigUpdateSerializer,
 )
 
 
@@ -115,6 +126,28 @@ class MeView(APIView):
         serializer = UserMeSerializer(request.user)
         return success_response(data=serializer.data)
 
+    @extend_schema(
+        summary="Modifier son profil",
+        description="Permet à l'utilisateur connecté de modifier son nom, son email et son téléphone.",
+        request=UpdateMeSerializer,
+        responses={
+            200: UserMeSerializer,
+            400: OpenApiResponse(description="Données invalides"),
+        },
+        tags=["Auth"],
+    )
+    def patch(self, request):
+        serializer = UpdateMeSerializer(
+            request.user, data=request.data, partial=True, context={'request': request}
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return success_response(
+                data=UserMeSerializer(request.user).data,
+                message="Profil mis à jour avec succès.",
+            )
+        return error_response(errors=serializer.errors)
+
 
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
@@ -147,7 +180,7 @@ class ChangePasswordView(APIView):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class UserListCreateView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminOrManager, IsRestaurantActive]
+    permission_classes = [IsAuthenticated, HasManageEquipe, IsRestaurantActive]
 
     @extend_schema(
         summary="Lister les utilisateurs du restaurant",
@@ -215,7 +248,7 @@ class UserListCreateView(APIView):
 
 
 class UserDetailView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminOrManager, IsRestaurantActive]
+    permission_classes = [IsAuthenticated, HasManageEquipe, IsRestaurantActive]
 
     def get_object(self, pk, request):
         user = get_object_or_404(
@@ -296,7 +329,7 @@ class UserDetailView(APIView):
 
 
 class UserToggleView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminOrManager, IsRestaurantActive]
+    permission_classes = [IsAuthenticated, HasManageEquipe, IsRestaurantActive]
 
     @extend_schema(
         summary="Activer / Désactiver un utilisateur",
@@ -335,7 +368,7 @@ class UserToggleView(APIView):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class AdminPasswordResetView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminOrManager, IsRestaurantActive]
+    permission_classes = [IsAuthenticated, HasManageEquipe, IsRestaurantActive]
 
     @extend_schema(
         summary="Réinitialiser le mot de passe d'un utilisateur (Admin)",
@@ -364,6 +397,53 @@ class AdminPasswordResetView(APIView):
                         "L'utilisateur devra le changer à sa prochaine connexion."
             )
         return error_response(errors=serializer.errors)
+
+
+class ImpersonateView(APIView):
+    permission_classes = [IsAuthenticated, HasImpersonate, IsRestaurantActive]
+
+    @extend_schema(
+        summary="Simuler un utilisateur du restaurant",
+        description=(
+            "Génère des tokens JWT pour un utilisateur du restaurant.\n"
+            "Réservé à l'Administrateur uniquement.\n\n"
+            "Restrictions :\n"
+            "- Impossible de simuler un Admin ou Super Admin\n"
+            "- Impossible de simuler un utilisateur inactif\n"
+            "- Impossible de se simuler soi-même"
+        ),
+        request=None,
+        responses={
+            200: OpenApiResponse(description="Tokens JWT de l'utilisateur simulé"),
+            400: OpenApiResponse(description="Simulation impossible"),
+            403: OpenApiResponse(description="Accès réservé à l'Administrateur"),
+            404: OpenApiResponse(description="Utilisateur introuvable"),
+        },
+        tags=["Auth"],
+    )
+    def post(self, request, pk):
+        target = get_object_or_404(
+            User, pk=pk, restaurant=request.user.restaurant
+        )
+
+        if target == request.user:
+            return error_response(message="Vous ne pouvez pas vous simuler vous-même.")
+
+        if target.role in ('Rsuper_admin', 'Radmin'):
+            return error_response(message="Impossible de simuler un Administrateur.")
+
+        if not target.actif:
+            return error_response(message="Impossible de simuler un utilisateur inactif.")
+
+        refresh = RefreshToken.for_user(target)
+        return success_response(
+            data={
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': UserMeSerializer(target).data,
+            },
+            message=f"Simulation de {target.nom_complet or target.login} ({target.get_role_display()})"
+        )
 
 
 class PasswordResetRequestView(APIView):
@@ -418,3 +498,173 @@ class PasswordResetConfirmView(APIView):
                 message="Mot de passe réinitialisé avec succès. Vous pouvez maintenant vous connecter."
             )
         return error_response(errors=serializer.errors, message="Données invalides.")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PERMISSIONS CATALOGUE
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PermissionListView(APIView):
+    """GET /api/accounts/permissions/ — Liste de toutes les permissions disponibles."""
+    permission_classes = [IsAuthenticated, IsRestaurantActive]
+
+    @extend_schema(
+        summary="Catalogue des permissions",
+        description="Retourne toutes les permissions disponibles, groupées par catégorie. Accès : manage_roles.",
+        responses={200: PermissionSerializer(many=True)},
+        tags=["Rôles"],
+    )
+    def get(self, request):
+        if not request.user.has_permission(PERM_MANAGE_ROLES):
+            return error_response(
+                message="Vous n'avez pas la permission de gérer les rôles.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        perms = Permission.objects.all().order_by('categorie', 'label')
+        return success_response(data=PermissionSerializer(perms, many=True).data)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CRUD RÔLES
+# ─────────────────────────────────────────────────────────────────────────────
+
+class RoleConfigListCreateView(APIView):
+    """
+    GET  /api/accounts/roles/ — Rôles système + rôles custom du restaurant
+    POST /api/accounts/roles/ — Créer un rôle custom
+    """
+    permission_classes = [IsAuthenticated, IsRestaurantActive]
+
+    @extend_schema(
+        summary="Liste des rôles",
+        description=(
+            "Retourne les rôles système (is_system=True) + les rôles custom du restaurant connecté.\n"
+            "Accès : manage_roles."
+        ),
+        responses={200: RoleConfigListSerializer(many=True)},
+        tags=["Rôles"],
+    )
+    def get(self, request):
+        if not request.user.has_permission(PERM_MANAGE_ROLES):
+            return error_response(
+                message="Vous n'avez pas la permission de gérer les rôles.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        qs = RoleConfig.objects.filter(
+            Q(is_system=True) | Q(restaurant=request.user.restaurant)
+        ).prefetch_related('permissions', 'users').order_by('is_system', 'nom')
+        return success_response(
+            data={
+                'count': qs.count(),
+                'roles': RoleConfigListSerializer(qs, many=True).data,
+            }
+        )
+
+    @extend_schema(
+        summary="Créer un rôle custom",
+        description="Crée un rôle personnalisé pour le restaurant. Accès : manage_roles.",
+        request=RoleConfigCreateSerializer,
+        responses={
+            201: RoleConfigDetailSerializer,
+            400: OpenApiResponse(description="Données invalides"),
+            403: OpenApiResponse(description="Permission manage_roles requise"),
+        },
+        tags=["Rôles"],
+    )
+    def post(self, request):
+        if not request.user.has_permission(PERM_MANAGE_ROLES):
+            return error_response(
+                message="Vous n'avez pas la permission de créer des rôles.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        s = RoleConfigCreateSerializer(data=request.data, context={'request': request})
+        if s.is_valid():
+            role = s.create(s.validated_data)
+            return success_response(
+                data=RoleConfigDetailSerializer(role).data,
+                message=f"Rôle '{role.nom}' créé avec succès.",
+                status_code=status.HTTP_201_CREATED,
+            )
+        return error_response(errors=s.errors, message="Données invalides.")
+
+
+class RoleConfigDetailView(APIView):
+    """
+    GET    /api/accounts/roles/<pk>/ — Détail d'un rôle
+    PATCH  /api/accounts/roles/<pk>/ — Modifier un rôle custom
+    DELETE /api/accounts/roles/<pk>/ — Supprimer un rôle custom
+    """
+    permission_classes = [IsAuthenticated, IsRestaurantActive]
+
+    def _get_role(self, pk, request):
+        return get_object_or_404(RoleConfig, pk=pk)
+
+    def _check_perm(self, request):
+        if not request.user.has_permission(PERM_MANAGE_ROLES):
+            return error_response(
+                message="Vous n'avez pas la permission de gérer les rôles.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        return None
+
+    @extend_schema(
+        summary="Détail d'un rôle",
+        responses={200: RoleConfigDetailSerializer},
+        tags=["Rôles"],
+    )
+    def get(self, request, pk):
+        if e := self._check_perm(request):
+            return e
+        role = self._get_role(pk, request)
+        if not role.is_system and role.restaurant != request.user.restaurant:
+            return error_response(message="Rôle introuvable.", status_code=status.HTTP_404_NOT_FOUND)
+        return success_response(data=RoleConfigDetailSerializer(role).data)
+
+    @extend_schema(
+        summary="Modifier un rôle",
+        description="Modification partielle (nom, dashboard_type, permissions). Fonctionne aussi sur les rôles système.",
+        request=RoleConfigUpdateSerializer,
+        responses={
+            200: RoleConfigDetailSerializer,
+            400: OpenApiResponse(description="Données invalides"),
+        },
+        tags=["Rôles"],
+    )
+    def patch(self, request, pk):
+        if e := self._check_perm(request):
+            return e
+        role = self._get_role(pk, request)
+        if not role.is_system and role.restaurant != request.user.restaurant:
+            return error_response(message="Rôle introuvable.", status_code=status.HTTP_404_NOT_FOUND)
+        s = RoleConfigUpdateSerializer(role, data=request.data, partial=True)
+        if s.is_valid():
+            role = s.update(role, s.validated_data)
+            return success_response(
+                data=RoleConfigDetailSerializer(role).data,
+                message=f"Rôle '{role.nom}' mis à jour.",
+            )
+        return error_response(errors=s.errors, message="Données invalides.")
+
+    @extend_schema(
+        summary="Supprimer un rôle",
+        description="Suppression d'un rôle. Impossible si des utilisateurs y sont encore associés.",
+        responses={
+            200: OpenApiResponse(description="Rôle supprimé"),
+            400: OpenApiResponse(description="Des utilisateurs utilisent encore ce rôle"),
+        },
+        tags=["Rôles"],
+    )
+    def delete(self, request, pk):
+        if e := self._check_perm(request):
+            return e
+        role = self._get_role(pk, request)
+        if not role.is_system and role.restaurant != request.user.restaurant:
+            return error_response(message="Rôle introuvable.", status_code=status.HTTP_404_NOT_FOUND)
+        nb_users = role.users.count()
+        if nb_users > 0:
+            return error_response(
+                message=f"Impossible de supprimer ce rôle : {nb_users} utilisateur(s) l'utilisent encore."
+            )
+        nom = role.nom
+        role.delete()
+        return success_response(message=f"Rôle '{nom}' supprimé.")

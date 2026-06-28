@@ -149,68 +149,97 @@ class TableRestaurantDetailSerializer(serializers.ModelSerializer):
 
 class TableRestaurantCreateSerializer(serializers.ModelSerializer):
     """
-    Création d'une table physique (Admin uniquement).
-    Le User associé doit être Rtable et appartenir au même restaurant.
+    Création d'une table physique + compte Rtable en un seul appel.
 
-    Le champ `restaurant` est intentionnellement absent de `fields` :
-    il est injecté automatiquement depuis request.user.restaurant dans create()
-    pour éviter tout risque d'injection cross-restaurant.
+    login et nom_complet servent à créer le User Rtable associé — le mot de
+    passe est généré aléatoirement (la connexion se fait via QR code).
     """
+    login       = serializers.CharField(write_only=True, max_length=50)
+    nom_complet = serializers.CharField(write_only=True, max_length=150, required=False, allow_blank=True)
+
     class Meta:
         model  = TableRestaurant
-        fields = ['numero_table', 'nombre_places', 'utilisateur']
+        fields = ['numero_table', 'nombre_places', 'login', 'nom_complet']
 
-    def validate_utilisateur(self, value):
-        request = self.context['request']
-
-        # Doit être Rtable
-        if not value.is_table():
-            raise serializers.ValidationError(
-                "L'utilisateur doit avoir le rôle Table (Rtable)."
-            )
-
-        # Doit appartenir au même restaurant
-        if value.restaurant != request.user.restaurant:
-            raise serializers.ValidationError(
-                "Cet utilisateur n'appartient pas à votre restaurant."
-            )
-
-        # Ne doit pas déjà avoir une table associée
-        instance = self.instance
-        qs = TableRestaurant.objects.filter(utilisateur=value)
-        if instance:
-            qs = qs.exclude(pk=instance.pk)
-        if qs.exists():
-            raise serializers.ValidationError(
-                f"Le compte {value.login} est déjà associé à une table."
-            )
-        return value
+    def validate_login(self, value):
+        v = value.strip().lower()
+        if not v:
+            raise serializers.ValidationError("Le login ne peut pas être vide.")
+        if User.objects.filter(login=v).exists():
+            raise serializers.ValidationError(f"Le login « {v} » est déjà utilisé.")
+        return v
 
     def validate_numero_table(self, value):
         request  = self.context['request']
         instance = self.instance
         qs = TableRestaurant.objects.filter(
             numero_table=value.strip().upper(),
-            utilisateur__restaurant=request.user.restaurant
+            utilisateur__restaurant=request.user.restaurant,
         )
         if instance:
             qs = qs.exclude(pk=instance.pk)
         if qs.exists():
             raise serializers.ValidationError(
-                f"Le numéro de table '{value}' est déjà utilisé dans ce restaurant."
+                f"Le numéro de table « {value} » est déjà utilisé dans ce restaurant."
             )
         return value.strip().upper()
 
     def create(self, validated_data):
-        # Injection du restaurant depuis l'admin connecté — non exposé dans le payload
-        validated_data['restaurant'] = self.context['request'].user.restaurant
-        return super().create(validated_data)
+        import secrets
+        restaurant  = self.context['request'].user.restaurant
+        login       = validated_data.pop('login')
+        num         = validated_data.get('numero_table', '')
+        nom_complet = validated_data.pop('nom_complet', '').strip() or f"Table {num}"
+
+        user = User.objects.create_user(
+            login=login,
+            role='Rtable',
+            restaurant=restaurant,
+            nom_complet=nom_complet,
+            password=secrets.token_urlsafe(20),
+            actif=True,
+        )
+
+        return TableRestaurant.objects.create(
+            restaurant=restaurant,
+            utilisateur=user,
+            **validated_data,
+        )
 
 
-class TableRestaurantUpdateSerializer(TableRestaurantCreateSerializer):
-    """Modification partielle d'une table (Admin)."""
-    class Meta(TableRestaurantCreateSerializer.Meta):
-        pass
+class TableRestaurantUpdateSerializer(serializers.ModelSerializer):
+    """
+    Modification partielle d'une table existante.
+    Permet aussi de renommer le compte Rtable via nom_complet.
+    Le login n'est jamais modifiable.
+    """
+    nom_complet = serializers.CharField(write_only=True, max_length=150, required=False, allow_blank=True)
+
+    class Meta:
+        model  = TableRestaurant
+        fields = ['numero_table', 'nombre_places', 'nom_complet']
+
+    def validate_numero_table(self, value):
+        request  = self.context['request']
+        instance = self.instance
+        qs = TableRestaurant.objects.filter(
+            numero_table=value.strip().upper(),
+            utilisateur__restaurant=request.user.restaurant,
+        )
+        if instance:
+            qs = qs.exclude(pk=instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(
+                f"Le numéro de table « {value} » est déjà utilisé dans ce restaurant."
+            )
+        return value.strip().upper()
+
+    def update(self, instance, validated_data):
+        nom_complet = validated_data.pop('nom_complet', None)
+        if nom_complet and nom_complet.strip():
+            instance.utilisateur.nom_complet = nom_complet.strip()
+            instance.utilisateur.save(update_fields=['nom_complet'])
+        return super().update(instance, validated_data)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

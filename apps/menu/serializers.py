@@ -25,6 +25,9 @@ class PlatListSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'date_creation', 'date_modification']
 
     def get_image_url(self, obj):
+        # URL externe prioritaire (démo), sinon fichier uploadé
+        if obj.image_url:
+            return obj.image_url
         request = self.context.get('request')
         if obj.image:
             if request:

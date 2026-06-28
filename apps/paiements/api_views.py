@@ -31,6 +31,12 @@ from .serializers import (
     DashboardComptableSerializer,
 )
 from apps.accounts.permissions import IsRestaurantActive
+from apps.accounts.perm_codes import (
+    PERM_VIEW_CAISSE_GENERALE,
+    PERM_MANAGE_CAISSE_COMPTABLE,
+    PERM_VIEW_CAISSE_GLOBALE, PERM_MANAGE_CAISSE_GLOBALE,
+    PERM_VIEW_REMISES, PERM_MANAGE_REMISES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,24 +66,21 @@ class CaisseGeneraleView(APIView):
     """
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
-    def _check_admin_manager(self, user):
-        return user.is_admin_or_manager()
-
     @extend_schema(
         summary="Caisse Generale du restaurant",
         description=(
             "Retourne le solde et les informations de la Caisse Generale. "
-            "Acces : Admin, Manager."
+            "Acces : permission view_caisse_generale."
         ),
         responses={
             200: CaisseGeneraleSerializer,
-            403: OpenApiResponse(description="Acces reserve Admin/Manager"),
+            403: OpenApiResponse(description="Permission view_caisse_generale requise"),
             404: OpenApiResponse(description="Caisse non initialisee"),
         },
         tags=["Paiements - Caisse Generale"],
     )
     def get(self, request):
-        if not self._check_admin_manager(request.user):
+        if not request.user.has_permission(PERM_VIEW_CAISSE_GENERALE):
             return err(
                 message="Acces reserve a l'Administrateur ou au Manager.",
                 code=status.HTTP_403_FORBIDDEN,
@@ -112,9 +115,9 @@ class CaisseGeneraleInitView(APIView):
         tags=["Paiements - Caisse Generale"],
     )
     def post(self, request):
-        if not request.user.is_admin():
+        if not request.user.has_permission(PERM_MANAGE_CAISSE_GLOBALE):
             return err(
-                message="Seul l'Administrateur peut initialiser la Caisse Generale.",
+                message="Vous n'avez pas la permission d'initialiser la Caisse Generale.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         caisse, _ = CaisseGenerale.objects.get_or_create(
@@ -138,21 +141,16 @@ class CaisseGlobaleListView(APIView):
     """
     GET /api/paiements/caisse-globale/
     Liste des caisses globales du restaurant (historique).
-    Acces : Comptable, Admin, Manager.
+    Acces : permission view_caisse_globale.
     """
     permission_classes = [IsAuthenticated, IsRestaurantActive]
-
-    ROLES_AUTORISES = ('is_comptable', 'is_admin', 'is_manager')
-
-    def _check_access(self, user):
-        return any(getattr(user, r)() for r in self.ROLES_AUTORISES)
 
     @extend_schema(
         summary="Liste des Caisses Globales (historique)",
         description=(
             "Retourne la liste paginee des caisses globales du restaurant. "
             "Filtre : ?is_closed=true/false. "
-            "Acces : Comptable, Admin, Manager."
+            "Acces : permission view_caisse_globale."
         ),
         parameters=[
             OpenApiParameter(
@@ -163,14 +161,14 @@ class CaisseGlobaleListView(APIView):
         ],
         responses={
             200: CaisseGlobaleSerializer(many=True),
-            403: OpenApiResponse(description="Acces reserve"),
+            403: OpenApiResponse(description="Permission view_caisse_globale requise"),
         },
         tags=["Paiements - Caisse Globale"],
     )
     def get(self, request):
-        if not self._check_access(request.user):
+        if not request.user.has_permission(PERM_VIEW_CAISSE_GLOBALE):
             return err(
-                message="Acces reserve au Comptable, Admin ou Manager.",
+                message="Vous n'avez pas acces a la caisse globale.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         qs = CaisseGlobale.objects.filter(
@@ -191,14 +189,9 @@ class CaisseGlobaleActiveView(APIView):
     """
     GET  /api/paiements/caisse-globale/active/  — Caisse du jour
     POST /api/paiements/caisse-globale/active/fermer/ — Fermeture
-    Acces : Comptable, Admin, Manager.
+    Acces : permission view_caisse_globale.
     """
     permission_classes = [IsAuthenticated, IsRestaurantActive]
-
-    ROLES_AUTORISES = ('is_comptable', 'is_admin', 'is_manager')
-
-    def _check_access(self, user):
-        return any(getattr(user, r)() for r in self.ROLES_AUTORISES)
 
     def _get_active(self, request):
         return CaisseGlobale.objects.filter(
@@ -210,15 +203,15 @@ class CaisseGlobaleActiveView(APIView):
         summary="Caisse Globale active (journee en cours)",
         responses={
             200: CaisseGlobaleSerializer,
-            403: OpenApiResponse(description="Acces reserve"),
+            403: OpenApiResponse(description="Permission view_caisse_globale requise"),
             404: OpenApiResponse(description="Aucune caisse ouverte"),
         },
         tags=["Paiements - Caisse Globale"],
     )
     def get(self, request):
-        if not self._check_access(request.user):
+        if not request.user.has_permission(PERM_VIEW_CAISSE_GLOBALE):
             return err(
-                message="Acces reserve au Comptable, Admin ou Manager.",
+                message="Vous n'avez pas acces a la caisse globale.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         caisse = self._get_active(request)
@@ -234,31 +227,26 @@ class CaisseGlobaleFermerView(APIView):
     """POST /api/paiements/caisse-globale/active/fermer/"""
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
-    ROLES_AUTORISES = ('is_comptable', 'is_admin', 'is_manager')
-
-    def _check_access(self, user):
-        return any(getattr(user, r)() for r in self.ROLES_AUTORISES)
-
     @extend_schema(
         summary="Fermer la Caisse Globale du jour",
         description=(
             "Ferme la caisse globale active. Le solde est transfere "
             "dans la Caisse Generale. Operation irreversible. "
-            "Acces : Comptable, Admin, Manager."
+            "Acces : permission manage_caisse_globale."
         ),
         request=CaisseGlobaleFermerSerializer,
         responses={
             200: CaisseGlobaleSerializer,
             400: OpenApiResponse(description="Donnees invalides ou caisse deja fermee"),
-            403: OpenApiResponse(description="Acces reserve"),
+            403: OpenApiResponse(description="Permission manage_caisse_globale requise"),
             404: OpenApiResponse(description="Aucune caisse ouverte"),
         },
         tags=["Paiements - Caisse Globale"],
     )
     def post(self, request):
-        if not self._check_access(request.user):
+        if not request.user.has_permission(PERM_MANAGE_CAISSE_GLOBALE):
             return err(
-                message="Acces reserve au Comptable, Admin ou Manager.",
+                message="Vous n'avez pas la permission de gerer la caisse globale.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         caisse = CaisseGlobale.objects.filter(
@@ -323,9 +311,9 @@ class CaisseGlobaleOuvrirView(APIView):
         tags=["Paiements - Caisse Globale"],
     )
     def post(self, request):
-        if not request.user.is_admin():
+        if not request.user.has_permission(PERM_MANAGE_CAISSE_GLOBALE):
             return err(
-                message="Seul l'Administrateur peut ouvrir manuellement la Caisse Globale.",
+                message="Vous n'avez pas la permission d'ouvrir manuellement la Caisse Globale.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         restaurant = request.user.restaurant
@@ -366,11 +354,6 @@ class CaisseComptableListView(APIView):
     """
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
-    ROLES_AUTORISES = ('is_comptable', 'is_admin', 'is_manager')
-
-    def _check_access(self, user):
-        return any(getattr(user, r)() for r in self.ROLES_AUTORISES)
-
     @extend_schema(
         summary="Mes caisses comptables",
         description=(
@@ -392,16 +375,17 @@ class CaisseComptableListView(APIView):
         tags=["Paiements - Caisse Comptable"],
     )
     def get(self, request):
-        if not self._check_access(request.user):
+        if not (request.user.has_permission(PERM_MANAGE_CAISSE_COMPTABLE)
+                or request.user.has_permission(PERM_VIEW_CAISSE_GLOBALE)):
             return err(
-                message="Acces reserve au Comptable, Admin ou Manager.",
+                message="Acces reserve.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         qs = CaisseComptable.objects.filter(
             restaurant=request.user.restaurant
         )
-        # Le comptable ne voit que ses propres caisses
-        if request.user.is_comptable():
+        # Les non-superviseurs (VIEW_CAISSE_GLOBALE) ne voient que leurs propres caisses
+        if not request.user.has_permission(PERM_VIEW_CAISSE_GLOBALE):
             qs = qs.filter(comptable=request.user)
 
         is_closed = request.query_params.get('is_closed')
@@ -435,9 +419,9 @@ class CaisseComptableOuvrirView(APIView):
         tags=["Paiements - Caisse Comptable"],
     )
     def post(self, request):
-        if not request.user.is_comptable():
+        if not request.user.has_permission(PERM_MANAGE_CAISSE_COMPTABLE):
             return err(
-                message="Seul le Comptable peut ouvrir une Caisse Comptable.",
+                message="Vous n'avez pas la permission d'ouvrir une Caisse Comptable.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         s = CaisseComptableOuvrirSerializer(
@@ -461,7 +445,7 @@ class CaisseComptableDetailView(APIView):
         qs = CaisseComptable.objects.filter(
             restaurant=request.user.restaurant
         )
-        if request.user.is_comptable():
+        if not request.user.has_permission(PERM_VIEW_CAISSE_GLOBALE):
             qs = qs.filter(comptable=request.user)
         return get_object_or_404(qs, pk=pk)
 
@@ -476,12 +460,10 @@ class CaisseComptableDetailView(APIView):
         tags=["Paiements - Caisse Comptable"],
     )
     def get(self, request, pk):
-        if not any(
-            getattr(request.user, r)()
-            for r in ('is_comptable', 'is_admin', 'is_manager')
-        ):
+        if not (request.user.has_permission(PERM_MANAGE_CAISSE_COMPTABLE)
+                or request.user.has_permission(PERM_VIEW_CAISSE_GLOBALE)):
             return err(
-                message="Acces reserve au Comptable, Admin ou Manager.",
+                message="Acces reserve.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         caisse = self._get_caisse(pk, request)
@@ -506,9 +488,9 @@ class CaisseComptableActiveView(APIView):
         tags=["Paiements - Caisse Comptable"],
     )
     def get(self, request):
-        if not request.user.is_comptable():
+        if not request.user.has_permission(PERM_MANAGE_CAISSE_COMPTABLE):
             return err(
-                message="Acces reserve au Comptable.",
+                message="Acces reserve.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         caisse = CaisseComptable.objects.filter(
@@ -544,16 +526,14 @@ class CaisseComptableApprovisionnerView(APIView):
         tags=["Paiements - Caisse Comptable"],
     )
     def post(self, request, pk):
-        if not any(
-            getattr(request.user, r)()
-            for r in ('is_comptable', 'is_admin', 'is_manager')
-        ):
+        if not (request.user.has_permission(PERM_MANAGE_CAISSE_COMPTABLE)
+                or request.user.has_permission(PERM_VIEW_CAISSE_GLOBALE)):
             return err(
-                message="Acces reserve au Comptable, Admin ou Manager.",
+                message="Acces reserve.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         qs = CaisseComptable.objects.filter(restaurant=request.user.restaurant)
-        if request.user.is_comptable():
+        if not request.user.has_permission(PERM_VIEW_CAISSE_GLOBALE):
             qs = qs.filter(comptable=request.user)
         caisse = get_object_or_404(qs, pk=pk)
 
@@ -591,9 +571,9 @@ class DepenseCreateView(APIView):
         tags=["Paiements - Caisse Comptable"],
     )
     def post(self, request, pk):
-        if not request.user.is_comptable():
+        if not request.user.has_permission(PERM_MANAGE_CAISSE_COMPTABLE):
             return err(
-                message="Seul le Comptable peut enregistrer des depenses.",
+                message="Vous n'avez pas la permission d'enregistrer des depenses.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         caisse = get_object_or_404(
@@ -630,16 +610,14 @@ class DepenseListView(APIView):
         tags=["Paiements - Caisse Comptable"],
     )
     def get(self, request, pk):
-        if not any(
-            getattr(request.user, r)()
-            for r in ('is_comptable', 'is_admin', 'is_manager')
-        ):
+        if not (request.user.has_permission(PERM_MANAGE_CAISSE_COMPTABLE)
+                or request.user.has_permission(PERM_VIEW_CAISSE_GLOBALE)):
             return err(
                 message="Acces reserve.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         qs = CaisseComptable.objects.filter(restaurant=request.user.restaurant)
-        if request.user.is_comptable():
+        if not request.user.has_permission(PERM_VIEW_CAISSE_GLOBALE):
             qs = qs.filter(comptable=request.user)
         caisse = get_object_or_404(qs, pk=pk)
 
@@ -674,9 +652,9 @@ class CaisseComptableFermerView(APIView):
         tags=["Paiements - Caisse Comptable"],
     )
     def post(self, request, pk):
-        if not request.user.is_comptable():
+        if not request.user.has_permission(PERM_MANAGE_CAISSE_COMPTABLE):
             return err(
-                message="Seul le Comptable peut fermer sa caisse.",
+                message="Vous n'avez pas la permission de fermer la caisse.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         caisse = get_object_or_404(
@@ -708,24 +686,19 @@ class CaisseComptableFermerView(APIView):
 class RemiseServeurListView(APIView):
     """
     GET /api/paiements/remises/
-    Liste des remises selon le role :
-    - Serveur : ses propres remises
-    - Comptable : remises en attente de validation
-    - Admin / Manager : toutes les remises
+    Liste des remises selon les permissions :
+    - view_remises (sans manage_remises) → ses propres remises serveur
+    - manage_remises → remises en attente de validation (défaut)
+    - view_remises + manage_remises (admin/manager) → toutes les remises
     """
     permission_classes = [IsAuthenticated, IsRestaurantActive]
-
-    ROLES_AUTORISES = ('is_serveur', 'is_comptable', 'is_admin', 'is_manager')
-
-    def _check_access(self, user):
-        return any(getattr(user, r)() for r in self.ROLES_AUTORISES)
 
     @extend_schema(
         summary="Liste des remises serveurs",
         description=(
-            "Serveur : ses remises uniquement. "
-            "Comptable : remises en attente de validation. "
-            "Admin/Manager : toutes les remises. "
+            "view_remises seul : ses remises uniquement. "
+            "manage_remises : remises en attente de validation. "
+            "Les deux : toutes les remises. "
             "Filtre : ?valide=true/false."
         ),
         parameters=[
@@ -742,31 +715,32 @@ class RemiseServeurListView(APIView):
         tags=["Paiements - Remises"],
     )
     def get(self, request):
-        if not self._check_access(request.user):
+        can_view   = request.user.has_permission(PERM_VIEW_REMISES)
+        can_manage = request.user.has_permission(PERM_MANAGE_REMISES)
+        if not (can_view or can_manage):
             return err(
-                message="Acces reserve.",
+                message="Vous n'avez pas acces aux remises.",
                 code=status.HTTP_403_FORBIDDEN,
             )
 
-        # Filtrage par restaurant d'abord (isolation SaaS)
         qs = RemiseServeur.objects.filter(
             caisse_globale__restaurant=request.user.restaurant
         ).select_related(
             'serveur', 'validee_par', 'paiement__commande__table'
         ).order_by('-created_at')
 
-        # Filtrage par role
-        if request.user.is_serveur():
+        if can_view and not can_manage:
+            # Serveur : uniquement ses propres remises
             qs = qs.filter(serveur=request.user)
-        elif request.user.is_comptable():
-            # Par defaut le comptable voit les non validees
+        elif can_manage and not can_view:
+            # Comptable seul : par défaut les non validées
             valide_param = request.query_params.get('valide')
             if valide_param is None:
                 qs = qs.filter(valide=False)
 
         # Filtre query param optionnel
         valide = request.query_params.get('valide')
-        if valide is not None and not (request.user.is_comptable() and request.query_params.get('valide') is None):
+        if valide is not None:
             qs = qs.filter(valide=valide.lower() == 'true')
 
         return ok(data={
@@ -779,8 +753,6 @@ class RemiseServeurDetailView(APIView):
     """GET /api/paiements/remises/<pk>/"""
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
-    ROLES_AUTORISES = ('is_serveur', 'is_comptable', 'is_admin', 'is_manager')
-
     @extend_schema(
         summary="Detail d'une remise serveur",
         responses={
@@ -791,15 +763,17 @@ class RemiseServeurDetailView(APIView):
         tags=["Paiements - Remises"],
     )
     def get(self, request, pk):
-        if not any(getattr(request.user, r)() for r in self.ROLES_AUTORISES):
+        can_view   = request.user.has_permission(PERM_VIEW_REMISES)
+        can_manage = request.user.has_permission(PERM_MANAGE_REMISES)
+        if not (can_view or can_manage):
             return err(
-                message="Acces refuse.",
+                message="Vous n'avez pas acces aux remises.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         qs = RemiseServeur.objects.filter(
             caisse_globale__restaurant=request.user.restaurant
         )
-        if request.user.is_serveur():
+        if can_view and not can_manage:
             qs = qs.filter(serveur=request.user)
 
         remise = get_object_or_404(qs, pk=pk)
@@ -832,9 +806,9 @@ class RemiseValiderView(APIView):
         tags=["Paiements - Remises"],
     )
     def post(self, request, pk):
-        if not request.user.is_comptable():
+        if not request.user.has_permission(PERM_MANAGE_REMISES):
             return err(
-                message="Seul le Comptable peut valider les remises.",
+                message="Vous n'avez pas la permission de valider les remises.",
                 code=status.HTTP_403_FORBIDDEN,
             )
 
@@ -895,9 +869,10 @@ class PaiementListView(APIView):
         tags=["Paiements"],
     )
     def get(self, request):
-        if not any(getattr(request.user, r)() for r in self.ROLES_AUTORISES):
+        if not (request.user.has_permission(PERM_MANAGE_CAISSE_COMPTABLE)
+                or request.user.has_permission(PERM_VIEW_CAISSE_GLOBALE)):
             return err(
-                message="Acces reserve au Comptable, Admin ou Manager.",
+                message="Acces reserve.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         qs = Paiement.objects.filter(
@@ -937,9 +912,9 @@ class DashboardComptableView(APIView):
         tags=["Paiements - Dashboard"],
     )
     def get(self, request):
-        if not request.user.is_comptable():
+        if not request.user.has_permission(PERM_MANAGE_CAISSE_COMPTABLE):
             return err(
-                message="Acces reserve au Comptable.",
+                message="Acces reserve.",
                 code=status.HTTP_403_FORBIDDEN,
             )
         from decimal import Decimal

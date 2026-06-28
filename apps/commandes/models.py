@@ -65,10 +65,25 @@ class Commande(models.Model):
     """
 
     STATUS_CHOICES = [
-        ('en_attente', 'En attente'),
-        ('prete',      'Prete'),
-        ('servie',     'Servie'),
-        ('payee',      'Payee'),
+        ('en_attente',   'En attente'),
+        ('prete',        'Prete'),
+        ('en_livraison', 'En livraison'),
+        ('servie',       'Servie / Livree'),
+        ('payee',        'Payee'),
+    ]
+
+    TYPE_CHOICES = [
+        ('sur_table',  'Sur table (QR)'),
+        ('livraison',  'Livraison a domicile'),
+        ('emporter',   'A emporter'),
+    ]
+
+    MODE_PAIEMENT_CHOICES = [
+        ('livraison',    'Paiement a la livraison'),
+        ('orange_money', 'Orange Money'),
+        ('mtn',          'MTN Mobile Money'),
+        ('carte',        'Carte bancaire'),
+        ('paydunya',     'PayDunya'),
     ]
 
     # ── Isolation SaaS ────────────────────────────────────────────────────
@@ -80,12 +95,40 @@ class Commande(models.Model):
     )
 
     # ── Champs metier ─────────────────────────────────────────────────────
+    type_commande = models.CharField(
+        max_length=20,
+        choices=TYPE_CHOICES,
+        default='sur_table',
+        verbose_name="Type de commande"
+    )
+
     table = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='commandes',
-        limit_choices_to={'role': 'Rtable'},
-        verbose_name="Table"
+        limit_choices_to={'role__in': ['Rtable', 'Rclient']},
+        verbose_name="Table / Client"
+    )
+
+    # ── Infos client (commandes livraison / emporter) ─────────────────────
+    client_nom = models.CharField(
+        max_length=150, null=True, blank=True, verbose_name="Nom du client"
+    )
+    client_telephone = models.CharField(
+        max_length=20, null=True, blank=True, verbose_name="Telephone du client"
+    )
+    client_adresse_livraison = models.TextField(
+        null=True, blank=True, verbose_name="Adresse de livraison"
+    )
+    mode_paiement = models.CharField(
+        max_length=20,
+        choices=MODE_PAIEMENT_CHOICES,
+        null=True, blank=True,
+        verbose_name="Mode de paiement"
+    )
+    cle_suivi = models.CharField(
+        max_length=32, unique=True, null=True, blank=True,
+        verbose_name="Cle de suivi publique"
     )
 
     session = models.ForeignKey(
@@ -167,11 +210,23 @@ class Commande(models.Model):
     def est_modifiable(self):
         return self.statut == 'en_attente'
 
+    def peut_passer_en_livraison(self):
+        return self.statut == 'prete' and self.type_commande == 'livraison'
+
+    def est_livraison(self):
+        return self.type_commande == 'livraison'
+
+    def est_emporter(self):
+        return self.type_commande == 'emporter'
+
+    def est_sur_table(self):
+        return self.type_commande == 'sur_table'
+
     def peut_etre_marquee_prete(self):
         return self.statut == 'en_attente'
 
     def peut_etre_servie(self):
-        return self.statut in ('prete', 'en_attente')
+        return self.statut in ('prete', 'en_attente', 'en_livraison')
 
     def peut_etre_payee(self):
         return self.statut == 'servie'

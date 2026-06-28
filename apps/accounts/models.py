@@ -7,6 +7,78 @@ from datetime import timedelta
 import uuid
 
 
+class Permission(models.Model):
+    """
+    Permission atomique. Les codes sont définis dans perm_codes.py.
+    Instances créées une fois via data migration — ne pas créer manuellement.
+    """
+    code      = models.CharField(max_length=50, unique=True, verbose_name="Code")
+    label     = models.CharField(max_length=100, verbose_name="Libellé")
+    categorie = models.CharField(max_length=50, verbose_name="Catégorie")
+
+    class Meta:
+        db_table = 'permission'
+        verbose_name = 'Permission'
+        verbose_name_plural = 'Permissions'
+        ordering = ['categorie', 'label']
+
+    def __str__(self):
+        return f"[{self.categorie}] {self.label}"
+
+
+class RoleConfig(models.Model):
+    """
+    Rôle configurable par restaurant.
+    Les rôles système (is_system=True, restaurant=None) sont créés en migration
+    et correspondent aux 6 rôles actuels du staff.
+    Les admins peuvent créer des rôles custom pour leur restaurant.
+    """
+    DASHBOARD_CHOICES = [
+        ('admin',      'Dashboard Admin / Manager'),
+        ('serveur',    'Dashboard Serveur'),
+        ('cuisine',    'Dashboard Cuisine'),
+        ('comptable',  'Dashboard Comptable'),
+    ]
+
+    restaurant = models.ForeignKey(
+        'company.Restaurant',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='role_configs',
+        verbose_name="Restaurant",
+        help_text="Null pour les rôles système globaux",
+    )
+    nom            = models.CharField(max_length=100, verbose_name="Nom du rôle")
+    slug           = models.CharField(max_length=30, verbose_name="Slug",
+                                      help_text="Identifiant court lisible (ex: Radmin, Rserveur)")
+    is_system      = models.BooleanField(default=False, verbose_name="Rôle système",
+                                         help_text="Rôle système — non modifiable par les admins")
+    dashboard_type = models.CharField(max_length=20, choices=DASHBOARD_CHOICES,
+                                      default='admin', verbose_name="Type de dashboard")
+    permissions    = models.ManyToManyField(
+        Permission,
+        blank=True,
+        related_name='role_configs',
+        verbose_name="Permissions",
+    )
+
+    class Meta:
+        db_table = 'role_config'
+        verbose_name = 'Configuration de rôle'
+        verbose_name_plural = 'Configurations de rôles'
+
+    def __str__(self):
+        prefix = '[SYSTÈME]' if self.is_system else f'[{self.restaurant.nom if self.restaurant else "?"}]'
+        return f"{prefix} {self.nom}"
+
+    def get_permission_codes(self):
+        """Retourne le set de codes de permissions (mis en cache sur l'instance)."""
+        if not hasattr(self, '_perm_cache'):
+            self._perm_cache = set(self.permissions.values_list('code', flat=True))
+        return self._perm_cache
+
+
 class UserManager(BaseUserManager):
     """
     Manager personnalisé pour le modèle User.
@@ -62,6 +134,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('Rcuisinier',      'Cuisinier'),
         ('Rcomptable',      'Comptable'),
         ('Rtable',          'Table'),
+        ('Rclient',         'Client'),
     ]
 
     login = models.CharField(
@@ -83,7 +156,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True,
         related_name='users',
         verbose_name="Restaurant",
-        help_text="Null uniquement pour le Super Admin"
+        help_text="Null pour Rsuper_admin et Rclient (pas liés à un restaurant)"
     )
 
     actif = models.BooleanField(default=True)
@@ -124,6 +197,16 @@ class User(AbstractBaseUser, PermissionsMixin):
             )
         ],
         verbose_name="Numéro de téléphone"
+    )
+
+    role_config = models.ForeignKey(
+        'RoleConfig',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='users',
+        verbose_name="Configuration de rôle",
+        help_text="Null pour Rsuper_admin et Rtable (rôles structurels)"
     )
 
     is_staff = models.BooleanField(default=False)
@@ -177,13 +260,34 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_table(self):
         return self.role == 'Rtable'
 
+    def is_client(self):
+        return self.role == 'Rclient'
+
     def requires_personal_info(self):
         return self.role != 'Rtable'
 
     def get_restaurant_actif(self):
-        if self.is_super_admin():
+        if self.is_super_admin() or self.is_client():
             return True
         return self.restaurant and self.restaurant.is_active
+
+    # ── Permissions ────────────────────────────────────────────────────────
+
+    def has_permission(self, code: str) -> bool:
+        """
+        Vérifie si l'utilisateur possède une permission donnée via son role_config.
+        Rsuper_admin et Rtable n'ont pas de role_config — retourne False pour eux.
+        Utilise le cache de get_permission_codes() pour éviter les requêtes répétées.
+        """
+        if not self.role_config_id:
+            return False
+        return code in self.role_config.get_permission_codes()
+
+    def get_all_permissions_codes(self) -> set:
+        """Retourne le set complet des codes de permissions de l'utilisateur."""
+        if not self.role_config_id:
+            return set()
+        return self.role_config.get_permission_codes()
 
 
 class PasswordResetToken(models.Model):

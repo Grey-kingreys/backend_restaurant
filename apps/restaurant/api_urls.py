@@ -46,6 +46,13 @@ urlpatterns = [
         name='sessions'
     ),
 
+    # ── Vérification position GPS (Rtable) ───────────────────────────────
+    path(
+        'tables/check-position/',
+        api_views.CheckPositionView.as_view(),
+        name='check-position'
+    ),
+
     # ── Dashboard Serveur ─────────────────────────────────────────────────
     path(
         'dashboard/serveur/',
@@ -63,5 +70,47 @@ urlpatterns = [
         'commandes/<int:pk>/payee/',
         api_views.ServeurCommandePayeeView.as_view(),
         name='commande-payee'
+    ),
+
+    # ── Réservations (gestion staff) ──────────────────────────────────────
+    path(
+        'reservations/',
+        api_views.ReservationListView.as_view(),
+        name='reservations'
+    ),
+    path(
+        'reservations/<int:pk>/confirmer/',
+        api_views.ReservationConfirmerView.as_view(),
+        name='reservation-confirmer'
+    ),
+    path(
+        'reservations/<int:pk>/refuser/',
+        api_views.ReservationRefuserView.as_view(),
+        name='reservation-refuser'
+    ),
+    path(
+        'reservations/<int:pk>/reaffecter/',
+        api_views.ReservationReaffecterView.as_view(),
+        name='reservation-reaffecter'
+    ),
+    path(
+        'reservations/<int:pk>/terminer/',
+        api_views.ReservationTerminerView.as_view(),
+        name='reservation-terminer'
+    ),
+    path(
+        'reservations/<int:pk>/no-show/',
+        api_views.ReservationNoShowView.as_view(),
+        name='reservation-no-show'
+    ),
+    path(
+        'reservations/<int:pk>/bloquer-client/',
+        api_views.ReservationBloquerClientView.as_view(),
+        name='reservation-bloquer-client'
+    ),
+    path(
+        'reservations/<int:pk>/debloquer-client/',
+        api_views.ReservationDebloquerClientView.as_view(),
+        name='reservation-debloquer-client'
     ),
 ]

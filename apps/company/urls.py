@@ -27,6 +27,13 @@ urlpatterns = [
         name='restaurant-activate'
     ),
 
+    # ── Mon restaurant (Admin) ────────────────────────────────────────────
+    path(
+        'mon-restaurant/',
+        api_views.MonRestaurantView.as_view(),
+        name='mon-restaurant'
+    ),
+
     # ── Onboarding premiere connexion Admin ───────────────────────────────
     path(
         'onboarding/<uuid:token>/',

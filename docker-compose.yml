@@ -1,13 +1,14 @@
 # docker-compose.yml - Environnement de développement
-# Observabilité complète : Loki + Grafana + Prometheus + Mimir
+# Stack allégée : db + redis + backend uniquement
+# Pour activer l'observabilité complète, décommenter les sections marquées [OBS]
 
-# ── Ancre YAML — doit être AVANT les services qui l'utilisent ─────────
-x-loki-logging: &loki-logging
-  driver: loki
-  options:
-    loki-url: "http://localhost:3100/loki/api/v1/push"
-    loki-retries: "3"
-    loki-batch-size: "400"
+# # [OBS] Ancre YAML pour le logging Loki
+# x-loki-logging: &loki-logging
+#   driver: loki
+#   options:
+#     loki-url: "http://localhost:3100/loki/api/v1/push"
+#     loki-retries: "3"
+#     loki-batch-size: "400"
 
 services:
 
@@ -29,7 +30,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    logging: *loki-logging
+    # logging: *loki-logging  # [OBS]
 
   # ── Redis ─────────────────────────────────────────────────────────────
   redis:
@@ -43,7 +44,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    logging: *loki-logging
+    # logging: *loki-logging  # [OBS]
 
   # ── Backend Django ─────────────────────────────────────────────────────
   backend:
@@ -57,8 +58,8 @@ services:
       - DB_HOST=db
       - REDIS_URL=redis://redis:6379/0
       - DB_SSLMODE=disable
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318
-      - OTEL_SERVICE_NAME=restaurant-backend
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318  # [OBS]
+      # - OTEL_SERVICE_NAME=restaurant-backend            # [OBS]
     volumes:
       - .:/app
       - media_files:/app/media
@@ -71,129 +72,128 @@ services:
       redis:
         condition: service_healthy
     command: python manage.py runserver 0.0.0.0:8000
-    logging: *loki-logging
+    # logging: *loki-logging  # [OBS]
 
-  # ── Loki — Agrégation des logs ────────────────────────────────────────
-  loki:
-    image: grafana/loki:3.0.0
-    container_name: restaurant_loki
-    restart: unless-stopped
-    ports:
-      - "3100:3100"
-    volumes:
-      - ./docker/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
-      - loki_data:/loki
-    command: -config.file=/etc/loki/local-config.yaml
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --tries=1 -O- http://localhost:3100/ready || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # # [OBS] ── Loki — Agrégation des logs ─────────────────────────────────
+  # loki:
+  #   image: grafana/loki:3.0.0
+  #   container_name: restaurant_loki
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3100:3100"
+  #   volumes:
+  #     - ./docker/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+  #     - loki_data:/loki
+  #   command: -config.file=/etc/loki/local-config.yaml
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "wget -q --tries=1 -O- http://localhost:3100/ready || exit 1"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
-  # ── Mimir — Stockage métriques long terme ─────────────────────────────
-  mimir:
-    image: grafana/mimir:2.12.0
-    container_name: restaurant_mimir
-    restart: unless-stopped
-    ports:
-      - "9009:9009"
-    volumes:
-      - ./docker/mimir/mimir-config.yaml:/etc/mimir/mimir-config.yaml:ro
-      - mimir_data:/mimir
-    command: -config.file=/etc/mimir/mimir-config.yaml
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --tries=1 -O- http://localhost:9009/ready || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+  # # [OBS] ── Mimir — Stockage métriques long terme ───────────────────────
+  # mimir:
+  #   image: grafana/mimir:2.12.0
+  #   container_name: restaurant_mimir
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9009:9009"
+  #   volumes:
+  #     - ./docker/mimir/mimir-config.yaml:/etc/mimir/mimir-config.yaml:ro
+  #     - mimir_data:/mimir
+  #   command: -config.file=/etc/mimir/mimir-config.yaml
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "wget -q --tries=1 -O- http://localhost:9009/ready || exit 1"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
 
-  # ── cAdvisor — Métriques système des containers ───────────────────────
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
-    container_name: restaurant_cadvisor
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-    privileged: true
-    logging: *loki-logging
+  # # [OBS] ── cAdvisor — Métriques système des containers ────────────────
+  # cadvisor:
+  #   image: gcr.io/cadvisor/cadvisor:v0.49.1
+  #   container_name: restaurant_cadvisor
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8080:8080"
+  #   volumes:
+  #     - /:/rootfs:ro
+  #     - /var/run:/var/run:ro
+  #     - /sys:/sys:ro
+  #     - /var/lib/docker/:/var/lib/docker:ro
+  #   privileged: true
+  #   logging: *loki-logging
 
-  # ── Prometheus — Collecte des métriques Django ─────────────────────────
-  prometheus:
-    image: prom/prometheus:v2.52.0
-    container_name: restaurant_prometheus
-    restart: unless-stopped
-    ports:
-      - "9090:9090"           # Interface web Prometheus (optionnelle en dev)
-    volumes:
-      - ./docker/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
-      - prometheus_data:/prometheus
-    command:
-      - --config.file=/etc/prometheus/prometheus.yaml
-      - --storage.tsdb.path=/prometheus
-      # Garder seulement 6h de données localement (Mimir garde le reste)
-      - --storage.tsdb.retention.time=6h
-      - --web.enable-lifecycle        # Permet le rechargement à chaud de la config
-    depends_on:
-      mimir:
-        condition: service_healthy
-      backend:
-        condition: service_started
-    logging: *loki-logging
+  # # [OBS] ── Prometheus — Collecte des métriques Django ──────────────────
+  # prometheus:
+  #   image: prom/prometheus:v2.52.0
+  #   container_name: restaurant_prometheus
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./docker/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+  #     - prometheus_data:/prometheus
+  #   command:
+  #     - --config.file=/etc/prometheus/prometheus.yaml
+  #     - --storage.tsdb.path=/prometheus
+  #     - --storage.tsdb.retention.time=6h
+  #     - --web.enable-lifecycle
+  #   depends_on:
+  #     mimir:
+  #       condition: service_healthy
+  #     backend:
+  #       condition: service_started
+  #   logging: *loki-logging
 
-  # ── Tempo — Distributed Tracing ───────────────────────────────────────
-  tempo:
-    image: grafana/tempo:2.4.1
-    container_name: restaurant_tempo
-    restart: unless-stopped
-    ports:
-      - "3200:3200"   # API Tempo / Grafana
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP  ← Django envoie ici
-    volumes:
-      - ./docker/tempo/tempo-config.yaml:/etc/tempo/tempo-config.yaml:ro
-      - tempo_data:/var/tempo
-    command: -config.file=/etc/tempo/tempo-config.yaml
-    depends_on:
-      mimir:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --tries=1 -O- http://localhost:3200/ready || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+  # # [OBS] ── Tempo — Distributed Tracing ────────────────────────────────
+  # tempo:
+  #   image: grafana/tempo:2.4.1
+  #   container_name: restaurant_tempo
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3200:3200"
+  #     - "4317:4317"
+  #     - "4318:4318"
+  #   volumes:
+  #     - ./docker/tempo/tempo-config.yaml:/etc/tempo/tempo-config.yaml:ro
+  #     - tempo_data:/var/tempo
+  #   command: -config.file=/etc/tempo/tempo-config.yaml
+  #   depends_on:
+  #     mimir:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "wget -q --tries=1 -O- http://localhost:3200/ready || exit 1"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
 
-  # ── Grafana — Dashboard de visualisation ──────────────────────────────
-  grafana:
-    image: grafana/grafana:11.0.0
-    container_name: restaurant_grafana
-    restart: unless-stopped
-    ports:
-      - "3002:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_LOG_LEVEL=warn
-    volumes:
-      - ./docker/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      loki:
-        condition: service_healthy
-      mimir:
-        condition: service_healthy
+  # # [OBS] ── Grafana — Dashboard de visualisation ───────────────────────
+  # grafana:
+  #   image: grafana/grafana:11.0.0
+  #   container_name: restaurant_grafana
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3002:3000"
+  #   environment:
+  #     - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+  #     - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+  #     - GF_USERS_ALLOW_SIGN_UP=false
+  #     - GF_LOG_LEVEL=warn
+  #   volumes:
+  #     - ./docker/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+  #     - grafana_data:/var/lib/grafana
+  #   depends_on:
+  #     loki:
+  #       condition: service_healthy
+  #     mimir:
+  #       condition: service_healthy
 
 volumes:
   postgres_data:
   media_files:
   static_files:
-  loki_data:
-  grafana_data:
-  mimir_data:       
-  prometheus_data:  
-  tempo_data:
+  # loki_data:        # [OBS]
+  # grafana_data:     # [OBS]
+  # mimir_data:       # [OBS]
+  # prometheus_data:  # [OBS]
+  # tempo_data:       # [OBS]

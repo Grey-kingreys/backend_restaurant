@@ -26,9 +26,10 @@ urlpatterns = [
     path('cuisine/',            api_views.CuisinierCommandesView.as_view(), name='cuisine'),
     path('<int:pk>/prete/',     api_views.CommandePreteView.as_view(),      name='prete'),
 
-    # ── Vue Serveur — transitions SERVIE et PAYÉE ─────────────────────────
-    path('<int:pk>/servie/',    api_views.CommandeServieView.as_view(),  name='servie'),
-    path('<int:pk>/payee/',     api_views.CommandePayeeView.as_view(),   name='payee'),
+    # ── Vue Serveur — transitions SERVIE, EN_LIVRAISON et PAYÉE ─────────────
+    path('<int:pk>/servie/',         api_views.CommandeServieView.as_view(),      name='servie'),
+    path('<int:pk>/en-livraison/',   api_views.CommandeEnLivraisonView.as_view(), name='en-livraison'),
+    path('<int:pk>/payee/',          api_views.CommandePayeeView.as_view(),        name='payee'),
 
     # ── Reçu PDF ──────────────────────────────────────────────────────────
     path('<int:pk>/recu/',      api_views.CommandeRecuView.as_view(),   name='recu'),
