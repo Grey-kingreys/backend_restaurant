@@ -245,6 +245,44 @@ class MonRestaurantUpdateSerializer(serializers.ModelSerializer):
         return value
 
 
+class RestaurantDeleteSerializer(serializers.Serializer):
+    """
+    Serializer pour la suppression d'un restaurant.
+    Requiert une confirmation : le nom exact du restaurant + mot de passe du Super Admin.
+    Cela empeche les suppressions accidentelles.
+    """
+    nom_confirmation = serializers.CharField(
+        max_length=200,
+        help_text="Le nom exact du restaurant a supprimer (case-sensitive)"
+    )
+    password = serializers.CharField(
+        write_only=True,
+        min_length=6,
+        help_text="Mot de passe du Super Admin pour confirmer la suppression"
+    )
+
+    def validate(self, data):
+        restaurant = self.context.get('restaurant')
+        user = self.context.get('user')
+
+        if not restaurant or not user:
+            raise serializers.ValidationError("Context manquant.")
+
+        # Verifier que le nom correspond exactement
+        if data['nom_confirmation'] != restaurant.nom:
+            raise serializers.ValidationError({
+                'nom_confirmation': f"Le nom doit correspondre exactement : '{restaurant.nom}'"
+            })
+
+        # Verifier le mot de passe du Super Admin
+        if not user.check_password(data['password']):
+            raise serializers.ValidationError({
+                'password': "Mot de passe incorrect."
+            })
+
+        return data
+
+
 class PlatformStatsSerializer(serializers.Serializer):
     """
     Serializer stats globales plateforme — Super Admin uniquement.

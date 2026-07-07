@@ -130,6 +130,10 @@ class Restaurant(models.Model):
         self.is_active = True
         self.save(update_fields=['is_active', 'updated_at'])
 
+    def supprimer(self):
+        """Supprime le restaurant et toutes ses donnees associees (cascade)."""
+        self.delete()
+
     def get_slug(self):
         """
         Retourne un slug simple base sur le nom du restaurant.

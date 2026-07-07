@@ -12,6 +12,7 @@ from .serializers import (
     RestaurantSerializer,
     RestaurantCreateSerializer,
     RestaurantUpdateSerializer,
+    RestaurantDeleteSerializer,
     OnboardingTokenValidateSerializer,
     PlatformStatsSerializer,
     MonRestaurantUpdateSerializer,
@@ -150,6 +151,43 @@ class RestaurantDetailView(APIView):
                 message="Restaurant mis a jour."
             )
         return error_response(errors=serializer.errors, message="Donnees invalides.")
+
+    @extend_schema(
+        summary="Supprimer un restaurant",
+        description=(
+            "Supprime définitivement un restaurant et toutes ses données associées "
+            "(utilisateurs, plats, commandes, paiements, etc.). "
+            "Opération IRREVERSIBLE. Requiert la confirmation du nom exact "
+            "et le mot de passe du Super Admin. "
+            "Accès Super Admin uniquement."
+        ),
+        request=RestaurantDeleteSerializer,
+        responses={
+            200: OpenApiResponse(description="Restaurant supprimé avec succès"),
+            400: OpenApiResponse(description="Confirmation invalide ou mot de passe incorrect"),
+            403: OpenApiResponse(description="Accès refusé — Super Admin requis"),
+            404: OpenApiResponse(description="Restaurant introuvable"),
+        },
+        tags=["Restaurants"],
+    )
+    def delete(self, request, pk):
+        restaurant = self.get_object(pk)
+        serializer = RestaurantDeleteSerializer(
+            data=request.data,
+            context={'restaurant': restaurant, 'user': request.user}
+        )
+        if serializer.is_valid():
+            nom_restaurant = restaurant.nom
+            restaurant.supprimer()
+            return success_response(
+                data=None,
+                message=f"Restaurant '{nom_restaurant}' et toutes ses données supprimés définitivement.",
+                status_code=status.HTTP_200_OK
+            )
+        return error_response(
+            errors=serializer.errors,
+            message="Suppression non confirmée ou données invalides."
+        )
 
 
 class RestaurantSuspendView(APIView):
