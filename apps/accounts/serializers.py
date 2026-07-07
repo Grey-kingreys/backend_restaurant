@@ -4,9 +4,28 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.db import transaction
+import logging
 
 from .models import User, PasswordResetToken, Permission, RoleConfig
 from .services.email_service import send_password_reset_email
+
+logger = logging.getLogger(__name__)
+
+
+def get_role_config_for_role(role: str) -> RoleConfig | None:
+    """
+    Récupère le RoleConfig système pour un rôle donné.
+    Utilisé lors de la création d'utilisateurs pour assigner automatiquement
+    les permissions appropriées au rôle.
+    """
+    try:
+        return RoleConfig.objects.get(slug=role, is_system=True)
+    except RoleConfig.DoesNotExist:
+        logger.warning(
+            f"RoleConfig système introuvable pour le rôle '{role}' — "
+            f"l'utilisateur n'aura pas de permissions"
+        )
+        return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -323,6 +342,9 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
         login = self._generate_login(restaurant, role)
 
+        # Assigner automatiquement le RoleConfig en fonction du rôle
+        role_config = get_role_config_for_role(role)
+
         user = User.objects.create_user(
             login=login,
             password=password,
@@ -333,6 +355,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             telephone=validated_data.get('telephone'),
             must_change_password=True,
             actif=True,
+            role_config=role_config,  # Assigner les permissions du rôle
         )
         return user
 

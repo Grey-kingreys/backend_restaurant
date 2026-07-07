@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 
 from .models import Restaurant, OnboardingToken
 from .services.email_service import send_welcome_email
+from apps.accounts.serializers import get_role_config_for_role
 
 User = get_user_model()
 
@@ -90,6 +91,9 @@ class RestaurantCreateSerializer(serializers.ModelSerializer):
             counter += 1
 
         # 3. Creer le compte Admin
+        # Assigner automatiquement le RoleConfig Radmin avec toutes les permissions
+        radmin_role_config = get_role_config_for_role('Radmin')
+
         admin_user = User.objects.create_user(
             login=login,
             password=None,  # Pas de mot de passe — l'Admin le definit via le token
@@ -100,6 +104,7 @@ class RestaurantCreateSerializer(serializers.ModelSerializer):
             is_staff=True,
             must_change_password=True,
             actif=True,
+            role_config=radmin_role_config,  # Assigner les permissions Radmin
         )
         # Desactiver le compte jusqu'a la premiere connexion via le token
         admin_user.is_active = False
