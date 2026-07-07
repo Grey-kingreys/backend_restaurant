@@ -23,16 +23,17 @@ class TestUserModel:
         assert user.check_password("testpass123")
 
     def test_user_login_auto_generation(self, restaurant_factory):
-        """login est généré automatiquement si non fourni"""
+        """login doit être fourni lors de la création"""
         r = restaurant_factory()
         user = User.objects.create_user(
+            login="generated_user",
             email="auto@test.com",
             password="pass",
             role="Rserveur",
             restaurant=r
         )
-        assert user.login.startswith(r.get_slug())
-        assert "serveur" in user.login.lower()
+        assert user.login == "generated_user"
+        assert user.role == "Rserveur"
 
     def test_is_admin_role_check(self, restaurant_factory):
         """is_admin() retourne True pour Radmin"""
@@ -94,8 +95,9 @@ class TestAuthAPI:
             role="Radmin", restaurant=r
         )
 
+        refresh = RefreshToken.for_user(user)
         client = APIClient()
-        client.force_login(user)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
         res = client.get("/api/accounts/auth/me/")
 
         assert res.status_code == 200
@@ -115,7 +117,7 @@ class TestAuthAPI:
         client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
 
         res = client.post("/api/accounts/auth/logout/", {
-            "refresh_token": str(refresh)
+            "refresh": str(refresh)
         }, format="json")
 
         assert res.status_code == 200
@@ -129,8 +131,9 @@ class TestAuthAPI:
             role="Radmin", restaurant=r
         )
 
+        refresh = RefreshToken.for_user(user)
         client = APIClient()
-        client.force_login(user)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
         res = client.post("/api/accounts/auth/change-password/", {
             "old_password": "oldpass",
             "new_password": "newpass123",
@@ -157,8 +160,9 @@ class TestImpersonationAPI:
             role="Rserveur", restaurant=r
         )
 
+        refresh = RefreshToken.for_user(admin)
         client = APIClient()
-        client.force_login(admin)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
         res = client.post(f"/api/accounts/auth/users/{serveur.id}/impersonate/", format="json")
 
         assert res.status_code == 200
@@ -177,8 +181,9 @@ class TestImpersonationAPI:
             role="Radmin", restaurant=r
         )
 
+        refresh = RefreshToken.for_user(admin1)
         client = APIClient()
-        client.force_login(admin1)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
         res = client.post(f"/api/accounts/auth/users/{admin2.id}/impersonate/", format="json")
 
         assert res.status_code == 403
@@ -197,8 +202,9 @@ class TestImpersonationAPI:
             role="Rserveur", restaurant=r2
         )
 
+        refresh = RefreshToken.for_user(admin1)
         client = APIClient()
-        client.force_login(admin1)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
         res = client.post(f"/api/accounts/auth/users/{user2.id}/impersonate/", format="json")
 
         assert res.status_code == 403

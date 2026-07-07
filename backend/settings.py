@@ -117,6 +117,7 @@ if os.getenv('DB_NAME'):
                 'connect_timeout': 10,
             },
             'CONN_MAX_AGE': 300,
+            'ATOMIC_REQUESTS': True,
         }
     }
 else:
@@ -124,6 +125,7 @@ else:
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
+            'ATOMIC_REQUESTS': True,
         }
     }
 

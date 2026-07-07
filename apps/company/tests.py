@@ -3,6 +3,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
+from rest_framework_simplejwt.tokens import RefreshToken
 from apps.company.models import Restaurant, OnboardingToken
 
 User = get_user_model()
@@ -67,8 +68,9 @@ class TestRestaurantAPI:
         restaurant_factory()
         restaurant_factory()
 
+        refresh = RefreshToken.for_user(superadmin_user)
         client = APIClient()
-        client.force_login(superadmin_user)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
         res = client.get("/api/company/restaurants/")
 
         assert res.status_code == 200
@@ -77,8 +79,9 @@ class TestRestaurantAPI:
 
     def test_create_restaurant_superadmin_only(self, superadmin_user):
         """Seul Super Admin peut créer un restaurant"""
+        refresh = RefreshToken.for_user(superadmin_user)
         client = APIClient()
-        client.force_login(superadmin_user)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
 
         payload = {
             "nom": "Nouveau Restaurant",
@@ -93,8 +96,9 @@ class TestRestaurantAPI:
     def test_get_restaurant_detail(self, superadmin_user, restaurant_factory):
         """Récupérer les détails d'un restaurant"""
         r = restaurant_factory(nom="Detail Test")
+        refresh = RefreshToken.for_user(superadmin_user)
         client = APIClient()
-        client.force_login(superadmin_user)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
 
         res = client.get(f"/api/company/restaurants/{r.id}/")
 
@@ -104,8 +108,9 @@ class TestRestaurantAPI:
     def test_patch_restaurant(self, superadmin_user, restaurant_factory):
         """Modifier un restaurant (PATCH)"""
         r = restaurant_factory(nom="Old Name")
+        refresh = RefreshToken.for_user(superadmin_user)
         client = APIClient()
-        client.force_login(superadmin_user)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
 
         res = client.patch(f"/api/company/restaurants/{r.id}/", {
             "nom": "New Name"
@@ -118,8 +123,9 @@ class TestRestaurantAPI:
     def test_suspend_restaurant(self, superadmin_user, restaurant_factory):
         """Suspendre un restaurant"""
         r = restaurant_factory(is_active=True)
+        refresh = RefreshToken.for_user(superadmin_user)
         client = APIClient()
-        client.force_login(superadmin_user)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
 
         res = client.post(f"/api/company/restaurants/{r.id}/suspend/", format="json")
 
@@ -130,8 +136,9 @@ class TestRestaurantAPI:
     def test_activate_restaurant(self, superadmin_user, restaurant_factory):
         """Réactiver un restaurant"""
         r = restaurant_factory(is_active=False)
+        refresh = RefreshToken.for_user(superadmin_user)
         client = APIClient()
-        client.force_login(superadmin_user)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
 
         res = client.post(f"/api/company/restaurants/{r.id}/activate/", format="json")
 
@@ -151,8 +158,9 @@ class TestMonRestaurantAPI:
             role="Radmin", restaurant=r
         )
 
+        refresh = RefreshToken.for_user(admin)
         client = APIClient()
-        client.force_login(admin)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
         res = client.get("/api/company/mon-restaurant/")
 
         assert res.status_code == 200
@@ -166,8 +174,9 @@ class TestMonRestaurantAPI:
             role="Radmin", restaurant=r
         )
 
+        refresh = RefreshToken.for_user(admin)
         client = APIClient()
-        client.force_login(admin)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
         res = client.patch("/api/company/mon-restaurant/", {
             "nom": "Updated"
         }, format="json")
@@ -198,12 +207,14 @@ class TestPlatformStatsAPI:
         client = APIClient()
 
         # Admin ne peut pas accéder
-        client.force_login(admin)
+        refresh = RefreshToken.for_user(admin)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
         res = client.get("/api/company/stats/")
         assert res.status_code == 403
 
         # Super Admin peut accéder
-        client.force_login(superadmin)
+        refresh_sa = RefreshToken.for_user(superadmin)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh_sa.access_token}")
         res = client.get("/api/company/stats/")
         assert res.status_code == 200
         assert res.data["success"] is True
