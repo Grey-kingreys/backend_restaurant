@@ -307,7 +307,27 @@ class QRCodeInfoView(APIView):
                 message="Aucun QR Code généré pour cette table."
             )
 
-        return ok(data=QRCodeInfoSerializer(token_obj).data)
+        # Rend l'image QR depuis le token existant — sans créer de nouveau token.
+        qr_url = token_obj.get_qr_url(request)
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(qr_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        qr_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+        return ok(data={
+            'qr_code_url': f"data:image/png;base64,{qr_b64}",
+            'qr_login_url': qr_url,
+            'table': table.numero_table,
+            'a_qr_code': True,
+        })
 
 
 class QRCodeGenererView(APIView):
