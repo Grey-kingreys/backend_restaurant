@@ -266,7 +266,8 @@ class RestaurantActivateView(APIView):
 class MonRestaurantView(APIView):
     """
     GET   /api/company/mon-restaurant/  — Voir son restaurant (Admin)
-    PATCH /api/company/mon-restaurant/  — Modifier nom, telephone, adresse (Admin)
+    PATCH /api/company/mon-restaurant/  — Modifier les infos, la géolocalisation,
+          la commande en ligne et les réservations (Admin)
     """
     permission_classes = [IsAuthenticated]
 
@@ -284,7 +285,11 @@ class MonRestaurantView(APIView):
 
     @extend_schema(
         summary="Mon restaurant — mise à jour",
-        description="Met à jour le nom, téléphone ou adresse du restaurant (Admin uniquement).",
+        description=(
+            "Met à jour les informations du restaurant : nom, téléphone, adresse, "
+            "géolocalisation QR (latitude, longitude, rayon, durée de session), "
+            "commande en ligne et réservations (Admin uniquement)."
+        ),
         request=MonRestaurantUpdateSerializer,
         responses={200: RestaurantSerializer, 400: OpenApiResponse(description="Données invalides"), 403: OpenApiResponse(description="Admin uniquement")},
         tags=["Restaurants"],

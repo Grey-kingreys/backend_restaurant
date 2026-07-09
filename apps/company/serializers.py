@@ -221,12 +221,14 @@ class MonRestaurantUpdateSerializer(serializers.ModelSerializer):
     """
     Mise à jour partielle du restaurant par son propre Admin.
     L'email_admin et is_active sont gérés par le Super Admin uniquement.
-    Inclut la configuration de la commande en ligne (livraison / emporter).
+    Inclut la géolocalisation (restriction QR), la configuration de la commande
+    en ligne (livraison / emporter) et les réservations.
     """
     class Meta:
         model = Restaurant
         fields = [
             'nom', 'telephone', 'adresse',
+            'latitude', 'longitude', 'rayon_connexion', 'duree_session_table',
             'accept_livraison', 'accept_emporter', 'frais_livraison',
             'reservation_validation_auto', 'reservation_delai_annulation_heures',
         ]
@@ -234,6 +236,26 @@ class MonRestaurantUpdateSerializer(serializers.ModelSerializer):
     def validate_reservation_delai_annulation_heures(self, value):
         if value is not None and (value < 0 or value > 72):
             raise serializers.ValidationError("Le délai doit être compris entre 0 et 72 heures.")
+        return value
+
+    def validate_latitude(self, value):
+        if value is not None and (value < -90 or value > 90):
+            raise serializers.ValidationError("La latitude doit être comprise entre -90 et 90.")
+        return value
+
+    def validate_longitude(self, value):
+        if value is not None and (value < -180 or value > 180):
+            raise serializers.ValidationError("La longitude doit être comprise entre -180 et 180.")
+        return value
+
+    def validate_rayon_connexion(self, value):
+        if value is not None and (value < 50 or value > 2000):
+            raise serializers.ValidationError("Le rayon de connexion doit être compris entre 50 et 2000 mètres.")
+        return value
+
+    def validate_duree_session_table(self, value):
+        if value is not None and (value < 15 or value > 480):
+            raise serializers.ValidationError("La durée de session doit être comprise entre 15 et 480 minutes.")
         return value
 
     def validate_nom(self, value):

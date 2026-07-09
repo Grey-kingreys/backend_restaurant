@@ -185,6 +185,56 @@ class TestMonRestaurantAPI:
         r.refresh_from_db()
         assert r.nom == "Updated"
 
+    def test_patch_mon_restaurant_persiste_geolocalisation(self, restaurant_factory):
+        """Régression : latitude/longitude/rayon/durée doivent être enregistrés.
+
+        Ces champs étaient absents de MonRestaurantUpdateSerializer.Meta.fields :
+        DRF les ignorait silencieusement, donc la position n'était jamais sauvegardée.
+        """
+        r = restaurant_factory(nom="Geo")
+        admin = User.objects.create_user(
+            login="admin", email="a@test.com", password="pass",
+            role="Radmin", restaurant=r
+        )
+
+        refresh = RefreshToken.for_user(admin)
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
+        res = client.patch("/api/company/mon-restaurant/", {
+            "latitude": 9.641185,
+            "longitude": -13.578401,
+            "rayon_connexion": 350,
+            "duree_session_table": 90,
+        }, format="json")
+
+        assert res.status_code == 200
+        r.refresh_from_db()
+        assert float(r.latitude) == pytest.approx(9.641185)
+        assert float(r.longitude) == pytest.approx(-13.578401)
+        assert r.rayon_connexion == 350
+        assert r.duree_session_table == 90
+
+    def test_patch_mon_restaurant_rejette_coordonnees_invalides(self, restaurant_factory):
+        """Une latitude hors bornes est refusée (400) et rien n'est enregistré."""
+        r = restaurant_factory(nom="GeoKO")
+        admin = User.objects.create_user(
+            login="admin", email="a@test.com", password="pass",
+            role="Radmin", restaurant=r
+        )
+
+        refresh = RefreshToken.for_user(admin)
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
+        res = client.patch("/api/company/mon-restaurant/", {
+            "latitude": 200,
+            "longitude": 0,
+        }, format="json")
+
+        assert res.status_code == 400
+        r.refresh_from_db()
+        assert r.latitude is None
+
+
 @pytest.mark.django_db
 class TestPlatformStatsAPI:
     """Tests de /api/company/stats/"""
