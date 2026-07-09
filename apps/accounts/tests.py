@@ -208,3 +208,54 @@ class TestImpersonationAPI:
         res = client.post(f"/api/accounts/auth/users/{user2.id}/impersonate/", format="json")
 
         assert res.status_code == 403
+
+
+@pytest.mark.django_db
+class TestUserCreateSerializer:
+    """Le mot de passe initial est obligatoire — pas d'auto-génération.
+
+    Régression : password était `required=False`, donc un mot de passe vide
+    produisait un compte à mot de passe inutilisable (connexion impossible).
+    """
+
+    def _serializer(self, creator, data):
+        from apps.accounts.serializers import UserCreateSerializer
+        from rest_framework.test import APIRequestFactory
+        req = APIRequestFactory().post("/")
+        req.user = creator
+        return UserCreateSerializer(data=data, context={"request": req})
+
+    def _admin(self, restaurant_factory):
+        return User.objects.create_user(
+            login="admin", email="a@test.com", password="pass",
+            role="Radmin", restaurant=restaurant_factory(),
+        )
+
+    def test_password_manquant_refuse(self, restaurant_factory):
+        admin = self._admin(restaurant_factory)
+        s = self._serializer(admin, {
+            "role": "Rserveur", "nom_complet": "Awa Diallo", "email": "awa@test.com",
+        })
+        assert not s.is_valid()
+        assert "password" in s.errors
+
+    def test_password_trop_court_refuse(self, restaurant_factory):
+        admin = self._admin(restaurant_factory)
+        s = self._serializer(admin, {
+            "role": "Rserveur", "nom_complet": "Awa Diallo",
+            "email": "awa@test.com", "password": "court",
+        })
+        assert not s.is_valid()
+        assert "password" in s.errors
+
+    def test_password_valide_cree_compte_utilisable(self, restaurant_factory):
+        admin = self._admin(restaurant_factory)
+        s = self._serializer(admin, {
+            "role": "Rserveur", "nom_complet": "Awa Diallo",
+            "email": "awa@test.com", "password": "MotDePasse1",
+        })
+        assert s.is_valid(), s.errors
+        user = s.save()
+        assert user.has_usable_password() is True
+        assert user.check_password("MotDePasse1")
+        assert user.must_change_password is True

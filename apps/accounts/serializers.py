@@ -265,7 +265,14 @@ class UserCreateSerializer(serializers.ModelSerializer):
     - must_change_password = True par défaut
     - Email requis pour tous sauf Rtable
     """
-    password = serializers.CharField(write_only=True, min_length=8, required=False)
+    password = serializers.CharField(
+        write_only=True, min_length=8, required=True, allow_blank=False,
+        error_messages={
+            'required': "Le mot de passe est obligatoire.",
+            'blank': "Le mot de passe est obligatoire.",
+            'min_length': "Le mot de passe doit contenir au moins 8 caractères.",
+        },
+    )
 
     class Meta:
         model = User
