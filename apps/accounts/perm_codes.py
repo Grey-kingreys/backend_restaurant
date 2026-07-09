@@ -3,9 +3,10 @@
 # Importez ces constantes partout où vous avez besoin de vérifier une permission.
 
 # ── Équipe ────────────────────────────────────────────────────────────────────
-PERM_MANAGE_EQUIPE   = 'manage_equipe'    # CRUD users, toggle, reset password
-PERM_IMPERSONATE     = 'impersonate'      # Simuler un membre
-PERM_MANAGE_ROLES    = 'manage_roles'     # Créer / modifier les rôles custom
+PERM_MANAGE_EQUIPE     = 'manage_equipe'      # Créer / modifier / réinitialiser MDP
+PERM_DEACTIVATE_EQUIPE = 'deactivate_equipe'  # Activer / désactiver / supprimer un membre
+PERM_IMPERSONATE       = 'impersonate'        # Simuler un membre
+PERM_MANAGE_ROLES      = 'manage_roles'       # Créer / modifier les rôles custom
 
 # ── Menu ──────────────────────────────────────────────────────────────────────
 PERM_MANAGE_MENU     = 'manage_menu'      # Créer / modifier / supprimer / toggle plats
@@ -38,7 +39,8 @@ PERM_MANAGE_RESTAURANT = 'manage_restaurant'  # Modifier les paramètres du rest
 # (code, label, catégorie)
 ALL_PERMISSIONS = [
     # Équipe
-    (PERM_MANAGE_EQUIPE,            "Gérer l'équipe",                       "Équipe"),
+    (PERM_MANAGE_EQUIPE,            "Gérer l'équipe (créer / modifier)",    "Équipe"),
+    (PERM_DEACTIVATE_EQUIPE,        "Activer / désactiver / supprimer un membre", "Équipe"),
     (PERM_IMPERSONATE,              "Simuler un membre",                    "Équipe"),
     (PERM_MANAGE_ROLES,             "Gérer les rôles personnalisés",        "Équipe"),
     # Menu
@@ -68,7 +70,7 @@ ALL_PERMISSIONS = [
 
 SYSTEM_ROLE_PERMISSIONS = {
     'Radmin': [
-        PERM_MANAGE_EQUIPE, PERM_IMPERSONATE, PERM_MANAGE_ROLES,
+        PERM_MANAGE_EQUIPE, PERM_DEACTIVATE_EQUIPE, PERM_IMPERSONATE, PERM_MANAGE_ROLES,
         PERM_MANAGE_MENU,
         PERM_VIEW_COMMANDES, PERM_MANAGE_COMMANDES,
         PERM_VIEW_CUISINE, PERM_MANAGE_CUISINE,

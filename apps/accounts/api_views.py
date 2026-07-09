@@ -13,7 +13,7 @@ from .permissions import (
     IsRestaurantActive, IsSameRestaurant,
     HasManageEquipe, HasImpersonate, HasManageRoles,
 )
-from .perm_codes import PERM_MANAGE_ROLES
+from .perm_codes import PERM_MANAGE_ROLES, PERM_DEACTIVATE_EQUIPE
 from .serializers import (
     LoginSerializer,
     LogoutSerializer,
@@ -314,10 +314,10 @@ class UserDetailView(APIView):
         tags=["Utilisateurs"],
     )
     def delete(self, request, pk):
-        # Désactivation réservée à l'Admin uniquement (pas Manager)
-        if not request.user.is_admin():
+        # Réservée à la permission deactivate_equipe (Admin, ou rôle custom l'ayant)
+        if not request.user.has_permission(PERM_DEACTIVATE_EQUIPE):
             return error_response(
-                message="Seul l'Administrateur peut désactiver un utilisateur.",
+                message="Vous n'avez pas la permission de désactiver un membre.",
                 status_code=status.HTTP_403_FORBIDDEN
             )
         user = self.get_object(pk, request)
@@ -355,6 +355,11 @@ class UserToggleView(APIView):
         tags=["Utilisateurs"],
     )
     def post(self, request, pk):
+        if not request.user.has_permission(PERM_DEACTIVATE_EQUIPE):
+            return error_response(
+                message="Vous n'avez pas la permission d'activer/désactiver un membre.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
         user = get_object_or_404(
             User, pk=pk, restaurant=request.user.restaurant
         )
