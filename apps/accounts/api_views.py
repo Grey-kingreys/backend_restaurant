@@ -172,7 +172,7 @@ class ChangePasswordView(APIView):
         if serializer.is_valid():
             serializer.save()
             return success_response(message="Mot de passe modifié avec succès.")
-        return error_response(errors=serializer.errors)
+        return error_response(errors=serializer.errors, message="Impossible de changer le mot de passe.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
