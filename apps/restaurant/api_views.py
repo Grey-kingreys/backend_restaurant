@@ -657,6 +657,48 @@ class CheckPositionView(APIView):
         })
 
 
+class CheckDistanceView(APIView):
+    """
+    POST /api/restaurant/tables/check-distance/
+
+    Vérification de DISTANCE GPS pour une table connectée en login+password
+    (sans session QR). Applique UNIQUEMENT la restriction de distance — pas
+    d'expiration de session ni de déconnexion post-paiement (spécifiques au QR).
+
+    Retourne { in_range: bool, distance?, message? }.
+    Tolérant : si le restaurant n'a pas de coordonnées configurées ou si le GPS
+    est indisponible, renvoie in_range=True (pas de blocage).
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(summary="Vérification distance table (login+password)", tags=["Sessions"])
+    def post(self, request):
+        from .models import haversine
+
+        if request.user.role != 'Rtable':
+            return err(message="Réservé aux tables.", code=status.HTTP_403_FORBIDDEN)
+
+        restaurant = request.user.restaurant
+        lat = request.data.get('lat')
+        lng = request.data.get('lng')
+
+        if not (restaurant and restaurant.latitude and restaurant.longitude) or lat is None or lng is None:
+            return ok(data={'in_range': True})
+
+        try:
+            dist = haversine(float(lat), float(lng), float(restaurant.latitude), float(restaurant.longitude))
+        except (TypeError, ValueError):
+            return ok(data={'in_range': True})
+
+        if dist > restaurant.rayon_connexion:
+            return ok(data={
+                'in_range': False,
+                'distance': int(dist),
+                'message': f"Vous devez être à moins de {restaurant.rayon_connexion} m du restaurant.",
+            })
+        return ok(data={'in_range': True, 'distance': int(dist)})
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # DASHBOARD SERVEUR — Commandes actives par table
 # CDC §5.2 Serveur : tableau de bord des tables en temps réel
