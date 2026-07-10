@@ -401,13 +401,16 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 class AdminPasswordResetSerializer(serializers.Serializer):
     """
     Reset du mot de passe d'un utilisateur par l'Admin.
-    Génère un nouveau mot de passe temporaire et force must_change_password=True.
+    Force must_change_password=True — sauf pour les tables, dont le mot de passe
+    est géré par l'admin (connexion partagée, pas de premier login à changer).
     """
     new_password = serializers.CharField(min_length=8, write_only=True)
 
     def save(self, user):
         user.set_password(self.validated_data['new_password'])
-        user.must_change_password = True
+        # Les tables se connectent avec le mot de passe défini par l'admin —
+        # pas de changement forcé qui les bloquerait sur /auth/change-password.
+        user.must_change_password = not user.is_table()
         user.save(update_fields=['password', 'must_change_password'])
         return user
 
