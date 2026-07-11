@@ -334,17 +334,17 @@ class CommandePayeeSerializer(serializers.Serializer):
             defaults={'montant': commande.montant_total},
         )
  
-        # ── Declencher la creation de la RemiseServeur (async) ─────────
+        # ── Creation de la RemiseServeur (synchrone : pas de worker Celery requis) ──
+        # La remise doit exister dès le paiement pour que le comptable la valide.
         if created:
             try:
                 from apps.paiements.tasks import creer_remise_pour_paiement
-                creer_remise_pour_paiement.delay(paiement.id)
+                creer_remise_pour_paiement.apply(args=[paiement.id])
             except Exception:
-                # Ne pas bloquer le flux si Celery est indisponible
+                # Ne pas bloquer le paiement si la creation de la remise echoue
                 import logging
                 logging.getLogger(__name__).warning(
-                    "Impossible de planifier creer_remise_pour_paiement "
-                    "pour paiement %d — Celery indisponible ?",
+                    "Echec creation RemiseServeur pour paiement %d",
                     paiement.id,
                 )
  
