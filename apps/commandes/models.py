@@ -219,7 +219,14 @@ class Commande(models.Model):
         return self.statut == 'en_attente'
 
     def peut_passer_en_livraison(self):
-        return self.statut == 'prete' and self.type_commande == 'livraison'
+        # Une livraison part en course depuis l'état "prête à expédier" :
+        #   - 'prete' si un plat passe par la cuisine ;
+        #   - 'en_attente' si aucun plat ne nécessite la cuisine (étape sautée).
+        if self.type_commande != 'livraison':
+            return False
+        if self.necessite_passage_cuisine():
+            return self.statut == 'prete'
+        return self.statut == 'en_attente'
 
     def est_livraison(self):
         return self.type_commande == 'livraison'
@@ -234,7 +241,13 @@ class Commande(models.Model):
         return self.statut == 'en_attente'
 
     def peut_etre_servie(self):
-        return self.statut in ('prete', 'en_attente', 'en_livraison')
+        # Une livraison ne peut être marquée "Livrée" qu'après être partie en course
+        # (statut 'en_livraison') — on ne saute jamais l'étape de livraison.
+        if self.type_commande == 'livraison':
+            return self.statut == 'en_livraison'
+        # Sur place / à emporter : servie depuis 'prete', ou directement depuis
+        # 'en_attente' quand aucun plat ne passe par la cuisine.
+        return self.statut in ('prete', 'en_attente')
 
     def peut_etre_payee(self):
         return self.statut == 'servie'

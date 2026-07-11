@@ -407,8 +407,8 @@ class CommandeEnLivraisonView(APIView):
 
         if commande.type_commande != 'livraison':
             return err(message="Cette action est réservée aux commandes de livraison.")
-        if commande.statut != 'prete':
-            return err(message=f"Statut actuel : {commande.statut}. La commande doit être PRÊTE.")
+        if not commande.peut_passer_en_livraison():
+            return err(message=f"Statut actuel : {commande.get_statut_display()}. La commande n'est pas prête à partir en livraison.")
 
         commande.statut = 'en_livraison'
         commande.save(update_fields=['statut'])

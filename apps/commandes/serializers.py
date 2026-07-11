@@ -129,6 +129,7 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
     cuisinier_login         = serializers.SerializerMethodField()
     necessite_passage_cuisine = serializers.SerializerMethodField()
     peut_etre_marquee_prete = serializers.BooleanField(read_only=True)
+    peut_passer_en_livraison = serializers.BooleanField(read_only=True)
     peut_etre_servie        = serializers.BooleanField(read_only=True)
     peut_etre_payee         = serializers.BooleanField(read_only=True)
 
@@ -144,7 +145,7 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
             'serveur_ayant_servi', 'serveur_login',
             'cuisinier_ayant_prepare', 'cuisinier_login',
             'items',
-            'peut_etre_marquee_prete', 'peut_etre_servie', 'peut_etre_payee',
+            'peut_etre_marquee_prete', 'peut_passer_en_livraison', 'peut_etre_servie', 'peut_etre_payee',
             'necessite_passage_cuisine',
             'date_commande', 'date_modification', 'date_paiement',
         ]

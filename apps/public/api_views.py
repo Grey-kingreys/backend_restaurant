@@ -689,10 +689,15 @@ class SuiviCommandeView(APIView):
         except Commande.DoesNotExist:
             return err(message="Commande introuvable.", code=status.HTTP_404_NOT_FOUND)
 
-        # Pour les commandes à emporter, EN_LIVRAISON n'est pas une étape
-        steps = STATUT_STEPS if cmd.type_commande == 'livraison' else [
-            s for s in STATUT_STEPS if s != 'en_livraison'
-        ]
+        # Étapes réellement suivies par CETTE commande :
+        #   - EN_LIVRAISON seulement pour les livraisons ;
+        #   - PRETE seulement si un plat passe par la cuisine.
+        necessite_cuisine = cmd.necessite_passage_cuisine()
+        steps = list(STATUT_STEPS)
+        if cmd.type_commande != 'livraison':
+            steps = [s for s in steps if s != 'en_livraison']
+        if not necessite_cuisine:
+            steps = [s for s in steps if s != 'prete']
         current_index = steps.index(cmd.statut) if cmd.statut in steps else 0
 
         items = [
@@ -712,6 +717,7 @@ class SuiviCommandeView(APIView):
             'statut_label': STATUT_LABELS.get(cmd.statut, cmd.statut),
             'statut_index': current_index,
             'statut_total': len(steps),
+            'necessite_passage_cuisine': necessite_cuisine,
             'type_commande': cmd.type_commande,
             'mode_paiement': cmd.mode_paiement,
             'montant_total': str(cmd.montant_total),
