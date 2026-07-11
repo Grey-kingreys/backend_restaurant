@@ -292,6 +292,12 @@ class CommanderView(APIView):
         adresse      = (data.get('adresse_livraison') or '').strip()
         telephone    = (data.get('telephone') or user.telephone or '').strip()
         items        = data.get('items') or []
+        # Position choisie sur la carte (optionnelle) — livraison uniquement
+        try:
+            client_lat = float(data['latitude']) if data.get('latitude') not in (None, '') else None
+            client_lng = float(data['longitude']) if data.get('longitude') not in (None, '') else None
+        except (TypeError, ValueError, KeyError):
+            client_lat = client_lng = None
 
         # Validations
         errors = {}
@@ -339,6 +345,8 @@ class CommanderView(APIView):
             client_nom=user.nom_complet,
             client_telephone=telephone,
             client_adresse_livraison=adresse if type_cmd == 'livraison' else None,
+            client_latitude=client_lat if type_cmd == 'livraison' else None,
+            client_longitude=client_lng if type_cmd == 'livraison' else None,
             mode_paiement=mode_pmt,
             montant_total=montant,
             statut='en_attente',

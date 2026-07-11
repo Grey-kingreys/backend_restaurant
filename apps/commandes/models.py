@@ -120,6 +120,14 @@ class Commande(models.Model):
     client_adresse_livraison = models.TextField(
         null=True, blank=True, verbose_name="Adresse de livraison"
     )
+    client_latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        verbose_name="Latitude livraison"
+    )
+    client_longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        verbose_name="Longitude livraison"
+    )
     mode_paiement = models.CharField(
         max_length=20,
         choices=MODE_PAIEMENT_CHOICES,

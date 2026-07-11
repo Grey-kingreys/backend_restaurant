@@ -138,6 +138,7 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
             'id', 'restaurant', 'table', 'table_login', 'session',
             'type_commande', 'type_commande_display', 'client_display',
             'client_nom', 'client_telephone', 'client_adresse_livraison',
+            'client_latitude', 'client_longitude',
             'mode_paiement', 'mode_paiement_display',
             'statut', 'statut_display', 'montant_total',
             'serveur_ayant_servi', 'serveur_login',
