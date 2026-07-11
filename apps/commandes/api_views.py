@@ -261,6 +261,7 @@ class AllCommandesView(APIView):
         qs = Commande.objects.filter(
             restaurant=request.user.restaurant
         ).select_related('table', 'serveur_ayant_servi', 'cuisinier_ayant_prepare')\
+         .prefetch_related('items__plat')\
          .order_by('-date_commande')
 
         statut   = request.query_params.get('statut')

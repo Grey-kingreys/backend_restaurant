@@ -89,13 +89,14 @@ class CommandeListSerializer(serializers.ModelSerializer):
     type_commande_display = serializers.CharField(source='get_type_commande_display', read_only=True)
     client_display = serializers.SerializerMethodField()
     nb_items       = serializers.SerializerMethodField()
+    necessite_passage_cuisine = serializers.SerializerMethodField()
 
     class Meta:
         model  = Commande
         fields = [
             'id', 'table', 'table_login', 'statut', 'statut_display',
             'type_commande', 'type_commande_display', 'client_display', 'client_nom',
-            'montant_total', 'nb_items',
+            'montant_total', 'nb_items', 'necessite_passage_cuisine',
             'date_commande', 'date_modification',
         ]
 
@@ -108,7 +109,12 @@ class CommandeListSerializer(serializers.ModelSerializer):
         return obj.client_nom or "—"
 
     def get_nb_items(self, obj):
-        return obj.items.count()
+        # items préfetchés (items__plat) → pas de requête supplémentaire
+        return len(obj.items.all())
+
+    def get_necessite_passage_cuisine(self, obj):
+        # Un plat au moins nécessite la validation cuisine ? (items préfetchés)
+        return any(i.plat.necessite_validation_cuisine for i in obj.items.all())
 
 
 class CommandeDetailSerializer(serializers.ModelSerializer):
