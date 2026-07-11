@@ -128,6 +128,34 @@ class PanierItemView(APIView):
         item.delete()
         return ok(message=f"« {nom} » retiré du panier.")
 
+    @extend_schema(
+        summary="Mettre à jour la quantité d'un plat du panier",
+        description="Définit la quantité d'un plat déjà présent dans le panier (1 à 10). Accès : Table uniquement.",
+        responses={
+            200: PanierItemSerializer,
+            400: OpenApiResponse(description="Quantité invalide"),
+            403: OpenApiResponse(description="Accès réservé aux Tables"),
+            404: OpenApiResponse(description="Plat non trouvé dans le panier"),
+        },
+        tags=["Panier"],
+    )
+    def patch(self, request, plat_id):
+        if not request.user.is_table():
+            return err(message="Accès réservé aux Tables.", code=status.HTTP_403_FORBIDDEN)
+        item = get_object_or_404(PanierItem, table=request.user, plat_id=plat_id)
+        try:
+            quantite = int(request.data.get('quantite'))
+        except (TypeError, ValueError):
+            return err(message="Quantité invalide.", code=status.HTTP_400_BAD_REQUEST)
+        if quantite < 1 or quantite > 10:
+            return err(message="La quantité doit être comprise entre 1 et 10.", code=status.HTTP_400_BAD_REQUEST)
+        item.quantite = quantite
+        item.save(update_fields=['quantite'])
+        return ok(
+            data=PanierItemSerializer(item, context={'request': request}).data,
+            message="Quantité mise à jour.",
+        )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VALIDATION COMMANDE — Table uniquement
@@ -171,7 +199,7 @@ class MesCommandesView(APIView):
         summary="Mes commandes (session courante)",
         description="Retourne les commandes de la table connectée filtrées par session QR courante. Accès : Table uniquement.",
         responses={
-            200: CommandeListSerializer(many=True),
+            200: CommandeDetailSerializer(many=True),
             403: OpenApiResponse(description="Accès réservé aux Tables"),
         },
         tags=["Commandes"],
@@ -195,9 +223,11 @@ class MesCommandesView(APIView):
                 session__isnull=True,
             ).order_by('-date_commande')
 
+        # mes-commandes affiche le détail des plats → inclure items (prefetch anti N+1)
+        qs = qs.prefetch_related('items__plat')
         return ok(data={
             'count': qs.count(),
-            'commandes': CommandeListSerializer(qs, many=True).data,
+            'commandes': CommandeDetailSerializer(qs, many=True, context={'request': request}).data,
         })
 
 
