@@ -488,11 +488,11 @@ class DashboardView(APIView):
             .first()
         )
 
-        # Suggestions : plats populaires du restaurant
+        # Suggestions : plats populaires du restaurant (uniquement ceux encore disponibles)
         top_plats = (
             CommandeItem.objects
-            .filter(commande__restaurant=restaurant)
-            .values('plat__nom', 'plat__categorie', 'plat__prix_unitaire')
+            .filter(commande__restaurant=restaurant, plat__disponible=True)
+            .values('plat__id', 'plat__nom', 'plat__categorie', 'plat__prix_unitaire')
             .annotate(total=Sum('quantite'))
             .order_by('-total')[:4]
         )
@@ -521,6 +521,7 @@ class DashboardView(APIView):
             'nb_plats_disponibles': nb_plats,
             'suggestions': [
                 {
+                    'id': p['plat__id'],
                     'nom': p['plat__nom'],
                     'categorie': p['plat__categorie'],
                     'prix': str(p['plat__prix_unitaire']),
