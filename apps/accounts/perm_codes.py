@@ -19,6 +19,11 @@ PERM_MANAGE_COMMANDES  = 'manage_commandes'  # Marquer servie / payée / supprim
 PERM_VIEW_CUISINE    = 'view_cuisine'     # Voir la file d'attente cuisine
 PERM_MANAGE_CUISINE  = 'manage_cuisine'   # Marquer une commande comme prête
 
+# ── Livraison ─────────────────────────────────────────────────────────────────
+PERM_VIEW_LIVRAISONS       = 'view_livraisons'        # Voir les livraisons à faire
+PERM_MANAGE_LIVRAISONS     = 'manage_livraisons'      # Marquer en course / livrée
+PERM_MANAGE_LIVRAISON_LINKS = 'manage_livraison_links'  # Générer un lien / QR de livraison externe
+
 # ── Tables ────────────────────────────────────────────────────────────────────
 PERM_MANAGE_TABLES   = 'manage_tables'    # CRUD tables + génération QR
 PERM_VIEW_TABLES     = 'view_tables'      # Voir les tables et leur statut
@@ -51,6 +56,10 @@ ALL_PERMISSIONS = [
     # Cuisine
     (PERM_VIEW_CUISINE,             "Voir la file cuisine",                 "Cuisine"),
     (PERM_MANAGE_CUISINE,           "Marquer les commandes prêtes",         "Cuisine"),
+    # Livraison
+    (PERM_VIEW_LIVRAISONS,          "Voir les livraisons à faire",          "Livraison"),
+    (PERM_MANAGE_LIVRAISONS,        "Marquer en course / livrée",           "Livraison"),
+    (PERM_MANAGE_LIVRAISON_LINKS,   "Générer un lien / QR de livraison",    "Livraison"),
     # Tables
     (PERM_MANAGE_TABLES,            "Gérer les tables et QR codes",         "Tables"),
     (PERM_VIEW_TABLES,              "Voir les tables",                      "Tables"),
@@ -74,6 +83,7 @@ SYSTEM_ROLE_PERMISSIONS = {
         PERM_MANAGE_MENU,
         PERM_VIEW_COMMANDES, PERM_MANAGE_COMMANDES,
         PERM_VIEW_CUISINE, PERM_MANAGE_CUISINE,
+        PERM_VIEW_LIVRAISONS, PERM_MANAGE_LIVRAISONS, PERM_MANAGE_LIVRAISON_LINKS,
         PERM_MANAGE_TABLES, PERM_VIEW_TABLES,
         PERM_VIEW_CAISSE_GLOBALE, PERM_MANAGE_CAISSE_GLOBALE,
         PERM_VIEW_CAISSE_GENERALE,
@@ -85,14 +95,19 @@ SYSTEM_ROLE_PERMISSIONS = {
         PERM_MANAGE_MENU,
         PERM_VIEW_COMMANDES, PERM_MANAGE_COMMANDES,
         PERM_VIEW_CUISINE,
+        PERM_VIEW_LIVRAISONS, PERM_MANAGE_LIVRAISONS, PERM_MANAGE_LIVRAISON_LINKS,
         PERM_VIEW_TABLES,
         PERM_VIEW_CAISSE_GLOBALE,
         PERM_VIEW_CAISSE_GENERALE,
     ],
     'Rserveur': [
         PERM_VIEW_COMMANDES, PERM_MANAGE_COMMANDES,
+        PERM_VIEW_LIVRAISONS, PERM_MANAGE_LIVRAISON_LINKS,
         PERM_VIEW_TABLES,
         PERM_VIEW_REMISES,
+    ],
+    'Rlivreur': [
+        PERM_VIEW_LIVRAISONS, PERM_MANAGE_LIVRAISONS,
     ],
     'Rchef_cuisinier': [
         PERM_MANAGE_MENU,
@@ -120,4 +135,5 @@ SYSTEM_ROLE_DASHBOARD = {
     'Rchef_cuisinier': 'cuisine',
     'Rcuisinier':      'cuisine',
     'Rcomptable':      'comptable',
+    'Rlivreur':        'livreur',
 }

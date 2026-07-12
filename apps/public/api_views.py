@@ -12,9 +12,10 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
+from django.utils import timezone
 from apps.company.models import Restaurant
 from apps.menu.models import Plat
-from apps.commandes.models import Commande, CommandeItem
+from apps.commandes.models import Commande, CommandeItem, LivraisonToken
 
 User = get_user_model()
 
@@ -726,3 +727,108 @@ class SuiviCommandeView(APIView):
             'date_commande': cmd.date_commande.isoformat(),
             'items': items,
         })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LIVRAISON EXTERNE — Public (token de livraison)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _serialize_livraison_publique(cmd):
+    """Vue livreur externe : coordonnées client + articles + actions autorisées."""
+    resto = cmd.restaurant
+    paiement_autorise = resto.livraison_lien_autorise_paiement
+    return {
+        'commande_id': cmd.id,
+        'restaurant': resto.nom,
+        'restaurant_telephone': resto.telephone,
+        'statut': cmd.statut,
+        'statut_label': STATUT_LABELS.get(cmd.statut, cmd.statut),
+        'client_nom': cmd.client_nom,
+        'client_telephone': cmd.client_telephone,
+        'adresse_livraison': cmd.client_adresse_livraison,
+        'latitude': str(cmd.client_latitude) if cmd.client_latitude is not None else None,
+        'longitude': str(cmd.client_longitude) if cmd.client_longitude is not None else None,
+        'mode_paiement': cmd.mode_paiement,
+        'montant_total': str(cmd.montant_total),
+        'items': [
+            {
+                'nom': i.plat.nom,
+                'quantite': i.quantite,
+                'sous_total': str(i.quantite * i.prix_unitaire),
+            }
+            for i in cmd.items.select_related('plat').all()
+        ],
+        'paiement_autorise': paiement_autorise,
+        'actions': {
+            'peut_passer_en_livraison': cmd.peut_passer_en_livraison(),
+            'peut_etre_servie': cmd.peut_etre_servie(),
+            'peut_encaisser': bool(paiement_autorise and cmd.peut_etre_payee()),
+        },
+    }
+
+
+class LivraisonPubliqueView(APIView):
+    """
+    GET /api/public/livraison/<token>/
+    Vue publique d'une commande de livraison pour un livreur externe (sans compte).
+    Accès : Public (token).
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(summary="Livraison externe — détail", tags=["Public - Livraison"])
+    def get(self, request, token):
+        try:
+            lt = LivraisonToken.objects.select_related('commande', 'commande__restaurant').get(token=token)
+        except LivraisonToken.DoesNotExist:
+            return err(message="Lien de livraison invalide ou expiré.", code=status.HTTP_404_NOT_FOUND)
+        return ok(data=_serialize_livraison_publique(lt.commande))
+
+
+class LivraisonPubliqueActionView(APIView):
+    """
+    POST /api/public/livraison/<token>/action/   body: {"action": "en_livraison" | "servie" | "payee"}
+    Le livreur externe fait avancer la commande. L'encaissement ('payee') n'est
+    possible que si le restaurant l'autorise ; il est attribué au créateur du lien.
+    Accès : Public (token).
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(summary="Livraison externe — action", tags=["Public - Livraison"])
+    def post(self, request, token):
+        try:
+            lt = LivraisonToken.objects.select_related('commande', 'commande__restaurant', 'cree_par').get(token=token)
+        except LivraisonToken.DoesNotExist:
+            return err(message="Lien de livraison invalide ou expiré.", code=status.HTTP_404_NOT_FOUND)
+
+        cmd = lt.commande
+        action = (request.data.get('action') or '').strip()
+
+        if action == 'en_livraison':
+            if not cmd.peut_passer_en_livraison():
+                return err(message="La commande n'est pas prête à partir en livraison.")
+            cmd.statut = 'en_livraison'
+            cmd.save(update_fields=['statut', 'date_modification'])
+
+        elif action == 'servie':
+            if not cmd.peut_etre_servie():
+                return err(message="La commande doit d'abord être en cours de livraison.")
+            cmd.statut = 'servie'
+            cmd.save(update_fields=['statut', 'date_modification'])
+
+        elif action == 'payee':
+            if not cmd.restaurant.livraison_lien_autorise_paiement:
+                return err(message="L'encaissement par lien n'est pas autorisé par le restaurant.", code=status.HTTP_403_FORBIDDEN)
+            if not cmd.peut_etre_payee():
+                return err(message="La commande doit d'abord être livrée.")
+            from apps.commandes.serializers import CommandePayeeSerializer
+            s = CommandePayeeSerializer(data={}, context={'commande': cmd})
+            if not s.is_valid():
+                return err(errors=s.errors, message="Encaissement impossible.")
+            cmd = s.save(serveur=lt.cree_par)  # remise attribuée au responsable du lien
+
+        else:
+            return err(message="Action inconnue.")
+
+        lt.date_derniere_utilisation = timezone.now()
+        lt.save(update_fields=['date_derniere_utilisation'])
+        return ok(data=_serialize_livraison_publique(cmd), message="Commande mise à jour.")

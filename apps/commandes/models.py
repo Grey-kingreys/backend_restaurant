@@ -1,4 +1,5 @@
 # apps/commandes/models.py
+import secrets
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.conf import settings
@@ -307,3 +308,49 @@ class CommandeItem(models.Model):
         if not self.prix_unitaire:
             self.prix_unitaire = self.plat.prix_unitaire
         super().save(*args, **kwargs)
+
+
+class LivraisonToken(models.Model):
+    """
+    Lien / QR public permettant à un livreur externe (sans compte) de suivre
+    une commande de livraison précise et de la faire avancer
+    (en course → livrée, et l'encaissement si le restaurant l'autorise).
+    Le token est révocable : le régénérer invalide l'ancien lien.
+    """
+    commande = models.OneToOneField(
+        Commande,
+        on_delete=models.CASCADE,
+        related_name='livraison_token',
+        verbose_name="Commande",
+    )
+    token = models.CharField(max_length=64, unique=True, db_index=True, verbose_name="Token")
+    cree_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='livraison_tokens_crees',
+        verbose_name="Créé par",
+        help_text="Membre du staff responsable du lien (attribution du paiement)",
+    )
+    date_creation = models.DateTimeField(auto_now_add=True)
+    date_derniere_utilisation = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Lien de livraison'
+        verbose_name_plural = 'Liens de livraison'
+
+    def __str__(self):
+        return f"Lien livraison commande #{self.commande_id}"
+
+    @classmethod
+    def generer(cls, commande, cree_par=None):
+        """Crée ou régénère le token d'une commande (invalide l'ancien lien)."""
+        obj, _ = cls.objects.update_or_create(
+            commande=commande,
+            defaults={'token': secrets.token_urlsafe(48), 'cree_par': cree_par},
+        )
+        return obj
+
+    def get_public_url(self):
+        base = (getattr(settings, 'FRONTEND_URL', '') or '').rstrip('/')
+        return f"{base}/livraison/{self.token}"

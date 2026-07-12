@@ -26,6 +26,7 @@ class RestaurantSerializer(serializers.ModelSerializer):
             'id', 'nom', 'email_admin', 'telephone', 'adresse',
             'latitude', 'longitude', 'rayon_connexion', 'duree_session_table',
             'accept_livraison', 'accept_emporter', 'frais_livraison',
+            'livraison_lien_autorise_paiement',
             'reservation_validation_auto', 'reservation_delai_annulation_heures',
             'has_geo', 'is_active', 'statut', 'nombre_utilisateurs',
             'created_at', 'updated_at',
@@ -230,6 +231,7 @@ class MonRestaurantUpdateSerializer(serializers.ModelSerializer):
             'nom', 'telephone', 'adresse',
             'latitude', 'longitude', 'rayon_connexion', 'duree_session_table',
             'accept_livraison', 'accept_emporter', 'frais_livraison',
+            'livraison_lien_autorise_paiement',
             'reservation_validation_auto', 'reservation_delai_annulation_heures',
         ]
 

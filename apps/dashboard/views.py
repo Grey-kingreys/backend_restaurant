@@ -48,6 +48,8 @@ class DashboardView(APIView):
             return self._dashboard_cuisine(request, restaurant)
         if dtype == 'comptable':
             return self._dashboard_comptable(request, restaurant)
+        if dtype == 'livreur':
+            return self._dashboard_livreur(request, restaurant)
         if dtype == 'table':
             return self._dashboard_table(request)
         return self._dashboard_superadmin()
@@ -258,6 +260,44 @@ class DashboardView(APIView):
             'par_heure': par_heure,
             'tables_statuts': tables_statuts,
             'revenus_actifs': str(revenus_actifs),
+        })
+
+    # ── Livreur ────────────────────────────────────────────────────────────────
+
+    def _dashboard_livreur(self, request, restaurant):
+        today = timezone.localdate()
+
+        actives = list(
+            Commande.objects
+            .filter(restaurant=restaurant, type_commande='livraison',
+                    statut__in=['en_attente', 'prete', 'en_livraison'])
+            .order_by('date_commande')
+        )
+        en_cours   = sum(1 for c in actives if c.statut == 'en_livraison')
+        a_expedier = len(actives) - en_cours
+        livrees_jour = Commande.objects.filter(
+            restaurant=restaurant, type_commande='livraison',
+            statut__in=['servie', 'payee'], date_commande__date=today,
+        ).count()
+
+        def fmt(c):
+            return {
+                'id': c.id,
+                'client': c.client_nom or '—',
+                'adresse': c.client_adresse_livraison or '',
+                'montant': str(c.montant_total),
+                'statut': c.statut,
+                'heure': c.date_commande.strftime('%H:%M'),
+            }
+
+        return success_response(data={
+            'type': 'livreur',
+            'kpis': {
+                'a_expedier': a_expedier,
+                'en_cours': en_cours,
+                'livrees_jour': livrees_jour,
+            },
+            'livraisons': [fmt(c) for c in actives[:20]],
         })
 
     # ── Cuisine ────────────────────────────────────────────────────────────────

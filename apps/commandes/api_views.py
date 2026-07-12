@@ -1,5 +1,8 @@
 # apps/commandes/api_views.py
 import logging
+import base64
+from io import BytesIO
+import qrcode
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -12,8 +15,9 @@ from drf_spectacular.types import OpenApiTypes
 from apps.accounts.perm_codes import (
     PERM_VIEW_COMMANDES, PERM_MANAGE_COMMANDES,
     PERM_VIEW_CUISINE, PERM_MANAGE_CUISINE,
+    PERM_VIEW_LIVRAISONS, PERM_MANAGE_LIVRAISONS, PERM_MANAGE_LIVRAISON_LINKS,
 )
-from .models import Commande, PanierItem
+from .models import Commande, PanierItem, LivraisonToken
 from .serializers import (
     PanierItemSerializer,
     PanierItemCreateSerializer,
@@ -278,6 +282,95 @@ class AllCommandesView(APIView):
         })
 
 
+class LivraisonsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Livraisons à traiter",
+        description="Commandes de type livraison actives (à expédier / en cours). "
+                    "Par défaut : ni livrées ni payées. Accès : permission view_livraisons.",
+        parameters=[
+            OpenApiParameter('statut', OpenApiTypes.STR, description="Filtre optionnel : en_attente | prete | en_livraison | servie | payee", required=False),
+        ],
+        responses={
+            200: CommandeDetailSerializer(many=True),
+            403: OpenApiResponse(description="Permission view_livraisons requise"),
+        },
+        tags=["Livraison"],
+    )
+    def get(self, request):
+        if not request.user.has_permission(PERM_VIEW_LIVRAISONS):
+            return err(
+                message="Vous n'avez pas accès aux livraisons.",
+                code=status.HTTP_403_FORBIDDEN,
+            )
+
+        qs = Commande.objects.filter(
+            restaurant=request.user.restaurant,
+            type_commande='livraison',
+        ).select_related('table', 'serveur_ayant_servi', 'cuisinier_ayant_prepare')\
+         .prefetch_related('items__plat')\
+         .order_by('date_commande')
+
+        statut = request.query_params.get('statut')
+        if statut in ('en_attente', 'prete', 'en_livraison', 'servie', 'payee'):
+            qs = qs.filter(statut=statut)
+        else:
+            # défaut : livraisons actives (à expédier ou en cours)
+            qs = qs.filter(statut__in=('en_attente', 'prete', 'en_livraison'))
+
+        return ok(data={
+            'count': qs.count(),
+            'commandes': CommandeDetailSerializer(qs, many=True, context={'request': request}).data,
+        })
+
+
+class LivraisonLienView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Générer le lien / QR de livraison externe",
+        description="Crée (ou régénère) un lien public + QR Code pour qu'un livreur externe "
+                    "sans compte puisse suivre et faire avancer la commande. "
+                    "Accès : permission manage_livraison_links.",
+        responses={
+            200: OpenApiResponse(description="Lien + QR Code (base64)"),
+            403: OpenApiResponse(description="Permission manage_livraison_links requise"),
+            404: OpenApiResponse(description="Commande non trouvée"),
+        },
+        tags=["Livraison"],
+    )
+    def post(self, request, pk):
+        if not request.user.has_permission(PERM_MANAGE_LIVRAISON_LINKS):
+            return err(message="Vous n'avez pas la permission de générer un lien de livraison.", code=status.HTTP_403_FORBIDDEN)
+
+        commande = get_object_or_404(Commande, pk=pk, restaurant=request.user.restaurant)
+        if commande.type_commande != 'livraison':
+            return err(message="Un lien de livraison ne concerne que les commandes de livraison.")
+
+        token_obj = LivraisonToken.generer(commande, cree_par=request.user)
+        public_url = token_obj.get_public_url()
+
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(public_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        qr_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+        return ok(data={
+            'qr_code_url': f"data:image/png;base64,{qr_b64}",
+            'lien': public_url,
+            'token': token_obj.token,
+        }, message=f"Lien de livraison prêt pour la commande #{commande.id}.")
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # DÉTAIL D'UNE COMMANDE
 # ─────────────────────────────────────────────────────────────────────────────
@@ -400,8 +493,8 @@ class CommandeEnLivraisonView(APIView):
         tags=["Service"],
     )
     def post(self, request, pk):
-        if not request.user.has_permission(PERM_MANAGE_COMMANDES):
-            return err(message="Vous n'avez pas la permission de gérer les commandes.", code=status.HTTP_403_FORBIDDEN)
+        if not (request.user.has_permission(PERM_MANAGE_COMMANDES) or request.user.has_permission(PERM_MANAGE_LIVRAISONS)):
+            return err(message="Vous n'avez pas la permission de gérer les livraisons.", code=status.HTTP_403_FORBIDDEN)
 
         commande = get_object_or_404(Commande, pk=pk, restaurant=request.user.restaurant)
 
@@ -433,10 +526,15 @@ class CommandeServieView(APIView):
         tags=["Service"],
     )
     def post(self, request, pk):
-        if not request.user.has_permission(PERM_MANAGE_COMMANDES):
-            return err(message="Vous n'avez pas la permission de gérer les commandes.", code=status.HTTP_403_FORBIDDEN)
-
         commande = get_object_or_404(Commande, pk=pk, restaurant=request.user.restaurant)
+        # Le staff (manage_commandes) sert toute commande ; le livreur (manage_livraisons)
+        # ne peut marquer LIVRÉE qu'une commande de type livraison.
+        autorise = request.user.has_permission(PERM_MANAGE_COMMANDES) or (
+            commande.type_commande == 'livraison' and request.user.has_permission(PERM_MANAGE_LIVRAISONS)
+        )
+        if not autorise:
+            return err(message="Vous n'avez pas la permission de servir cette commande.", code=status.HTTP_403_FORBIDDEN)
+
         s = CommandeServieSerializer(data={}, context={'commande': commande})
         if s.is_valid():
             commande = s.save(serveur=request.user)
