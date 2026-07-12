@@ -1,5 +1,5 @@
 # apps/paiements/models.py
-from django.db import models
+from django.db import models, transaction
 from django.core.validators import MinValueValidator
 from django.conf import settings
 from django.utils import timezone
@@ -283,27 +283,50 @@ class CaisseComptable(models.Model):
         self.solde += Decimal(str(montant))
         self.save(update_fields=['solde'])
 
-    def fermer(self, montant_physique, motif_ecart=None):
+    def fermer(self, montant_physique, motif_ecart=None, fermee_par=None):
         """
         Ferme la caisse — IRREVERSIBLE.
-        Transfete le solde restant dans la Caisse Generale.
+        Transfere le MONTANT PHYSIQUE reellement compte dans la Caisse Generale
+        (le coffre reflete le cash reel) et trace l'ecart eventuel
+        (physique - virtuel) comme perte/gain.
         """
         if self.is_closed:
             raise ValueError("Cette caisse est deja fermee")
 
-        ecart = abs(self.solde - Decimal(str(montant_physique)))
-        if ecart > 0 and not motif_ecart:
+        montant_physique = Decimal(str(montant_physique))
+        solde_virtuel = self.solde
+        ecart = montant_physique - solde_virtuel  # >0 excedent, <0 manquant
+        if ecart != 0 and not motif_ecart:
             raise ValueError("Le motif d'ecart est obligatoire")
 
         self.is_closed = True
         self.closed_at = timezone.now()
-        self.montant_physique_fermeture = Decimal(str(montant_physique))
+        self.montant_physique_fermeture = montant_physique
         self.motif_ecart = motif_ecart
         self.save()
 
-        # Transfert solde restant vers Caisse Generale
+        # Transfert du cash reellement compte vers la Caisse Generale
         caisse_generale = self.restaurant.caisse_generale
-        caisse_generale.crediter(self.solde)
+        if montant_physique > 0:
+            caisse_generale.crediter(montant_physique)
+            MouvementCaisse.objects.create(
+                caisse_comptable=self,
+                type_mouvement='fermeture',
+                montant=montant_physique,
+                motif="Transfert du montant physique vers la Caisse Generale a la fermeture",
+                effectue_par=fermee_par,
+            )
+
+        # Ecart (physique - virtuel) trace comme perte/gain
+        if ecart != 0:
+            sens = "Excedent" if ecart > 0 else "Manquant"
+            MouvementCaisse.objects.create(
+                caisse_comptable=self,
+                type_mouvement='ecart',
+                montant=abs(ecart),
+                motif=f"{sens} a la fermeture (solde virtuel {solde_virtuel:.0f} GNF) : {motif_ecart or '-'}",
+                effectue_par=fermee_par,
+            )
 
         return self
 
@@ -321,6 +344,8 @@ class MouvementCaisse(models.Model):
     TYPE_CHOICES = [
         ('approvisionnement', 'Approvisionnement'),
         ('depense',           'Depense'),
+        ('fermeture',         'Fermeture (transfert vers Caisse Generale)'),
+        ('ecart',             'Ecart de caisse'),
     ]
 
     caisse_comptable = models.ForeignKey(
@@ -369,6 +394,100 @@ class MouvementCaisse(models.Model):
 
     def __str__(self):
         return f"{self.get_type_mouvement_display()} — {self.montant} GNF — {self.created_at.date()}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEMANDE D'APPROVISIONNEMENT (validation Admin / Manager)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class DemandeApprovisionnement(models.Model):
+    """
+    Demande d'approvisionnement d'une Caisse Comptable depuis la Caisse Generale.
+    Le comptable cree une demande ; un Admin ou Manager la valide ou la refuse.
+    L'argent ne bouge QU'A la validation (separation des taches).
+    """
+    STATUT_CHOICES = [
+        ('en_attente', 'En attente'),
+        ('approuvee',  'Approuvee'),
+        ('refusee',    'Refusee'),
+    ]
+
+    restaurant = models.ForeignKey(
+        'company.Restaurant', on_delete=models.CASCADE,
+        related_name='demandes_appro', verbose_name="Restaurant",
+    )
+    caisse_comptable = models.ForeignKey(
+        CaisseComptable, on_delete=models.CASCADE,
+        related_name='demandes_appro', verbose_name="Caisse comptable",
+    )
+    montant = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+        verbose_name="Montant demande (GNF)",
+    )
+    motif = models.CharField(max_length=255, verbose_name="Motif de la demande")
+    statut = models.CharField(
+        max_length=12, choices=STATUT_CHOICES, default='en_attente',
+        verbose_name="Statut",
+    )
+    demande_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name='demandes_appro_creees', verbose_name="Demande par",
+    )
+    validee_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='demandes_appro_validees', verbose_name="Validee/refusee par",
+    )
+    motif_refus = models.TextField(null=True, blank=True, verbose_name="Motif du refus")
+    created_at = models.DateTimeField(auto_now_add=True)
+    validated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Demande d'approvisionnement"
+        verbose_name_plural = "Demandes d'approvisionnement"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Demande appro {self.montant} GNF — {self.get_statut_display()}"
+
+    @transaction.atomic
+    def approuver(self, validee_par):
+        """Valide la demande : l'argent bouge ENFIN (coffre → caisse comptable)."""
+        if self.statut != 'en_attente':
+            raise ValueError("Cette demande a deja ete traitee.")
+        caisse = self.caisse_comptable
+        if caisse.is_closed:
+            raise ValueError("La caisse comptable est fermee.")
+        caisse_generale = self.restaurant.caisse_generale
+        if not caisse_generale.peut_debiter(self.montant):
+            raise ValueError(
+                f"Solde insuffisant dans la Caisse Generale : {caisse_generale.solde:.0f} GNF disponibles."
+            )
+        caisse_generale.debiter(self.montant)
+        caisse.crediter(self.montant)
+        MouvementCaisse.objects.create(
+            caisse_comptable=caisse,
+            type_mouvement='approvisionnement',
+            montant=self.montant,
+            motif=self.motif,
+            effectue_par=validee_par,
+        )
+        self.statut = 'approuvee'
+        self.validee_par = validee_par
+        self.validated_at = timezone.now()
+        self.save(update_fields=['statut', 'validee_par', 'validated_at'])
+        return self
+
+    def refuser(self, validee_par, motif_refus):
+        """Refuse la demande : aucun mouvement d'argent."""
+        if self.statut != 'en_attente':
+            raise ValueError("Cette demande a deja ete traitee.")
+        self.statut = 'refusee'
+        self.validee_par = validee_par
+        self.motif_refus = motif_refus
+        self.validated_at = timezone.now()
+        self.save(update_fields=['statut', 'validee_par', 'motif_refus', 'validated_at'])
+        return self
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -35,6 +35,7 @@ PERM_MANAGE_CAISSE_GLOBALE   = 'manage_caisse_globale'    # Fermer / ouvrir manu
 PERM_VIEW_CAISSE_GENERALE    = 'view_caisse_generale'     # Voir la caisse générale permanente
 PERM_VIEW_REMISES            = 'view_remises'             # Voir ses propres remises
 PERM_MANAGE_REMISES          = 'manage_remises'           # Valider les remises des serveurs
+PERM_VALIDATE_APPRO          = 'validate_approvisionnement'  # Valider/refuser les demandes d'appro comptable
 
 # ── Restaurant ────────────────────────────────────────────────────────────────
 PERM_MANAGE_RESTAURANT = 'manage_restaurant'  # Modifier les paramètres du restaurant
@@ -70,6 +71,7 @@ ALL_PERMISSIONS = [
     (PERM_VIEW_CAISSE_GENERALE,     "Voir la caisse générale",              "Finance"),
     (PERM_VIEW_REMISES,             "Voir ses remises",                     "Finance"),
     (PERM_MANAGE_REMISES,           "Valider les remises des serveurs",     "Finance"),
+    (PERM_VALIDATE_APPRO,           "Valider les demandes d'approvisionnement", "Finance"),
     # Restaurant
     (PERM_MANAGE_RESTAURANT,        "Modifier les paramètres du restaurant","Restaurant"),
 ]
@@ -88,6 +90,7 @@ SYSTEM_ROLE_PERMISSIONS = {
         PERM_VIEW_CAISSE_GLOBALE, PERM_MANAGE_CAISSE_GLOBALE,
         PERM_VIEW_CAISSE_GENERALE,
         PERM_VIEW_REMISES, PERM_MANAGE_REMISES,
+        PERM_VALIDATE_APPRO,
         PERM_MANAGE_RESTAURANT,
     ],
     'Rmanager': [
@@ -99,6 +102,7 @@ SYSTEM_ROLE_PERMISSIONS = {
         PERM_VIEW_TABLES,
         PERM_VIEW_CAISSE_GLOBALE,
         PERM_VIEW_CAISSE_GENERALE,
+        PERM_VALIDATE_APPRO,
     ],
     'Rserveur': [
         PERM_VIEW_COMMANDES, PERM_MANAGE_COMMANDES,
