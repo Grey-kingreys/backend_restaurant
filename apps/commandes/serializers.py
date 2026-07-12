@@ -241,18 +241,36 @@ class CommandeCuisinierSerializer(serializers.ModelSerializer):
     items          = CommandeItemSerializer(many=True, read_only=True)
     items_cuisine  = serializers.SerializerMethodField()
     table_login    = serializers.CharField(source='table.login', read_only=True)
+    table_numero   = serializers.SerializerMethodField()
+    type_commande_display = serializers.CharField(source='get_type_commande_display', read_only=True)
+    client_display = serializers.SerializerMethodField()
     statut_display = serializers.CharField(source='get_statut_display', read_only=True)
 
     class Meta:
         model  = Commande
         fields = [
-            'id', 'table_login', 'statut', 'statut_display',
+            'id', 'table_login', 'table_numero',
+            'type_commande', 'type_commande_display', 'client_display',
+            'statut', 'statut_display',
             'montant_total', 'items', 'items_cuisine', 'date_commande',
         ]
 
     def get_items_cuisine(self, obj):
         items = obj.items.filter(plat__necessite_validation_cuisine=True)
         return CommandeItemSerializer(items, many=True).data
+
+    def get_table_numero(self, obj):
+        # Numéro de table pour une commande sur place ; None pour une commande en ligne
+        try:
+            return obj.table.table_restaurant.numero_table
+        except Exception:
+            return None
+
+    def get_client_display(self, obj):
+        # Nom du client pour une commande en ligne (livraison / emporter)
+        if obj.type_commande in ('livraison', 'emporter'):
+            return obj.client_nom
+        return None
 
 
 class CommandePreteSerializer(serializers.Serializer):
