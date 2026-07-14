@@ -278,8 +278,8 @@ class MonRestaurantView(APIView):
         tags=["Restaurants"],
     )
     def get(self, request):
-        if not request.user.is_admin():
-            return error_response(message="Accès réservé à l'Admin.", status_code=status.HTTP_403_FORBIDDEN)
+        if not request.user.has_permission('manage_restaurant'):
+            return error_response(message="Permission requise.", status_code=status.HTTP_403_FORBIDDEN)
         serializer = RestaurantSerializer(request.user.restaurant, context={'request': request})
         return success_response(data=serializer.data)
 
@@ -295,8 +295,8 @@ class MonRestaurantView(APIView):
         tags=["Restaurants"],
     )
     def patch(self, request):
-        if not request.user.is_admin():
-            return error_response(message="Accès réservé à l'Admin.", status_code=status.HTTP_403_FORBIDDEN)
+        if not request.user.has_permission('manage_restaurant'):
+            return error_response(message="Permission requise.", status_code=status.HTTP_403_FORBIDDEN)
         serializer = MonRestaurantUpdateSerializer(
             request.user.restaurant, data=request.data, partial=True
         )
