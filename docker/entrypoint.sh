@@ -6,6 +6,16 @@ echo "========================================"
 echo " Restaurant Manager Pro — Demarrage"
 echo "========================================"
 
+# Chaque etape est pilotable par variable d'env (defaut : activee = comportement dev).
+# En prod Dokploy :
+#   - service web        : RUN_MAKEMIGRATIONS=false RUN_SEED=false (migrate + collectstatic restent true)
+#   - worker / beat celery : RUN_MIGRATIONS=false RUN_COLLECTSTATIC=false RUN_SEED=false
+#     (un seul service doit toucher la base au demarrage)
+RUN_MIGRATIONS="${RUN_MIGRATIONS:-true}"
+RUN_MAKEMIGRATIONS="${RUN_MAKEMIGRATIONS:-true}"
+RUN_SEED="${RUN_SEED:-true}"
+RUN_COLLECTSTATIC="${RUN_COLLECTSTATIC:-true}"
+
 # ── 1. Attente PostgreSQL ─────────────────────────────────────────────────
 echo "[1/5] Attente de PostgreSQL..."
 until python -c "
@@ -27,33 +37,42 @@ except Exception as e:
   sleep 2
 done
 
-# ── 2. Makemigrations ─────────────────────────────────────────────────────
-echo "[2/5] Generation des migrations..."
-
-python manage.py makemigrations company    --no-input || echo "  [WARN] company : pas de changement"
-python manage.py makemigrations accounts  --no-input || echo "  [WARN] accounts : pas de changement"
-python manage.py makemigrations menu      --no-input || echo "  [WARN] menu : pas de changement"
-python manage.py makemigrations restaurant --no-input || echo "  [WARN] restaurant : pas de changement"
-python manage.py makemigrations commandes --no-input || echo "  [WARN] commandes : pas de changement"
-python manage.py makemigrations paiements --no-input || echo "  [WARN] paiements : pas de changement"
-python manage.py makemigrations dashboard --no-input || echo "  [WARN] dashboard : pas de changement"
+# ── 2. Makemigrations (dev uniquement — en prod les migrations sont committees) ──
+if [ "$RUN_MAKEMIGRATIONS" = "true" ]; then
+  echo "[2/5] Generation des migrations..."
+  for app in company accounts menu restaurant commandes paiements dashboard; do
+    python manage.py makemigrations "$app" --no-input || echo "  [WARN] $app : pas de changement"
+  done
+else
+  echo "[2/5] Makemigrations ignore (RUN_MAKEMIGRATIONS=false)"
+fi
 
 # ── 3. Migrate ────────────────────────────────────────────────────────────
-echo "[3/5] Application des migrations..."
-python manage.py migrate --no-input
+if [ "$RUN_MIGRATIONS" = "true" ]; then
+  echo "[3/5] Application des migrations..."
+  python manage.py migrate --no-input
+else
+  echo "[3/5] Migrate ignore (RUN_MIGRATIONS=false)"
+fi
 
 # ── 4. Seed de demo (idempotent) ──────────────────────────────────────────
-echo "[4/5] Seed des donnees de demo..."
-python manage.py seed_demo
+if [ "$RUN_SEED" = "true" ]; then
+  echo "[4/5] Seed des donnees de demo..."
+  python manage.py seed_demo
+else
+  echo "[4/5] Seed ignore (RUN_SEED=false)"
+fi
 
 # ── 5. Collectstatic ─────────────────────────────────────────────────────
-echo "[5/5] Collectstatic..."
-python manage.py collectstatic --no-input --clear
+if [ "$RUN_COLLECTSTATIC" = "true" ]; then
+  echo "[5/5] Collectstatic..."
+  python manage.py collectstatic --no-input --clear
+else
+  echo "[5/5] Collectstatic ignore (RUN_COLLECTSTATIC=false)"
+fi
 
 echo "========================================"
 echo " Demarrage du serveur..."
-echo "========================================"
-echo " URL : http://localhost:8000"
 echo "========================================"
 
 exec "$@"
