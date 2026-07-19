@@ -77,10 +77,12 @@ RUN_SEED=false
 
 # Super admin plateforme — OBLIGATOIRE en prod (le seed de démo est désactivé, donc
 # aucun compte n'existe sans ça → site inaccessible). Créé/réactivé à chaque boot du web.
-SUPERADMIN_PASSWORD=<mot de passe fort du super admin>
-SUPERADMIN_EMAIL=admin@mondomaine.com     # sert à se connecter (login staff = email + mdp)
-SUPERADMIN_LOGIN=superadmin                # optionnel (défaut: superadmin)
-# SUPERADMIN_RESET_PASSWORD=true           # optionnel : force la réinit. du mdp au prochain boot
+# ⚠️ PASSWORD *et* EMAIL sont requis : la connexion staff se fait par EMAIL (pas le login),
+# donc sans SUPERADMIN_EMAIL le compte n'est pas créé (il serait inutilisable).
+SUPERADMIN_PASSWORD=<mot de passe fort du super admin>   # requis
+SUPERADMIN_EMAIL=admin@mondomaine.com                    # requis — identifiant de connexion
+SUPERADMIN_LOGIN=superadmin                              # optionnel (défaut: superadmin)
+# SUPERADMIN_RESET_PASSWORD=true                         # optionnel : force la réinit. du mdp au boot
 ```
 
 > L'entrypoint attend Postgres, applique `migrate`, **crée/réactive le super admin** si

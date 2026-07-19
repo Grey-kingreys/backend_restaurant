@@ -56,6 +56,16 @@ class Command(BaseCommand):
         with transaction.atomic():
             user = User.objects.filter(login=login).first()
             created = user is None
+
+            # L'email est OBLIGATOIRE pour créer le compte : la connexion d'un compte staff
+            # se fait par email (pas par login), donc un super admin sans email est inutilisable.
+            if created and not email:
+                self.stdout.write(self.style.WARNING(
+                    "SUPERADMIN_EMAIL non défini — création ignorée : un super admin se "
+                    "connecte par email, un compte sans email serait inutilisable."
+                ))
+                return
+
             if created:
                 user = User(login=login)
 
