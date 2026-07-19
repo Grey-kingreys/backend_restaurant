@@ -136,44 +136,26 @@ la commande (`celery -A backend worker -l info` / `celery -A backend beat -l inf
 - **Build** : Dockerfile, contexte = `frontend/`.
 - **Port exposé** : `3000`. Domaine public : `https://mondomaine.com`.
 
-Il y a **deux façons** de dire au frontend où est le backend. Choisir l'une :
+### `NEXT_PUBLIC_API_URL` est configurable au RUNTIME (recommandé)
 
-### Option A (recommandée) — `NEXT_PUBLIC_API_URL` en Build Arg
+Les `NEXT_PUBLIC_*` de Next sont normalement figées au build. L'image frontend contourne ça :
+elle compile avec des **sentinelles** qu'un entrypoint remplace au démarrage par les valeurs
+de l'environnement du conteneur. Résultat : tu poses simplement une **variable d'env Dokploy**
+(pas un Build Arg), et un **redémarrage** suffit — pas besoin de rebuild par environnement.
 
-Le navigateur appelle directement `https://api.mondomaine.com`. La valeur est **inlinée au
-build** (les `NEXT_PUBLIC_*` de Next sont figées à la compilation, PAS au runtime — c'est le
-piège classique). Dans Dokploy, la renseigner en **Build Arg**, surtout pas en variable
-runtime, sinon l'appli retombe sur le défaut relatif `/api` (jamais localhost) et n'atteint
-pas le backend.
-
-```
-NEXT_PUBLIC_API_URL=https://api.mondomaine.com/api    # Build Arg (⚠️ pas runtime)
-NEXT_PUBLIC_MAPBOX_TOKEN=pk.<token public mapbox>     # Build Arg
+```env
+NEXT_PUBLIC_API_URL=https://api.mondomaine.com/api    # variable d'env RUNTIME (pas Build Arg)
+NEXT_PUBLIC_MAPBOX_TOKEN=pk.<token public mapbox>     # runtime aussi
 ```
 
-Nécessite : le domaine public `api.` sur le backend + `CORS_ALLOWED_ORIGINS` côté backend.
+- Bien mettre **`/api` à la fin** et le **même schéma** (`https://`) que le backend.
+- Nécessite : domaine public du backend + `CORS_ALLOWED_ORIGINS` = domaine frontend côté backend.
+- Non défini → défaut relatif `/api` (jamais localhost) → utile si tu routes `/api` et `/media`
+  vers le backend au niveau du proxy Dokploy (une seule origine, CORS inutile).
 
-> `NEXT_PUBLIC_*` figées dans le bundle → **une image = un environnement** (2 builds pour
-> staging + prod).
-
-### Option B (runtime, sans rebuild) — routage de chemin au niveau du proxy
-
-Une seule origine publique `mondomaine.com`. Dans Dokploy/Traefik, router
-`mondomaine.com/api/*` **et** `mondomaine.com/media/*` vers le service **backend** (le reste
-vers le frontend). On **ne définit pas** `NEXT_PUBLIC_API_URL` → l'appli utilise le défaut
-relatif `/api` (same-origin). Aucun localhost, **CORS inutile** (même origine), et tout est
-configurable au runtime.
-
-```
-# (aucune var d'URL API côté frontend)
-NEXT_PUBLIC_MAPBOX_TOKEN=pk.<token public mapbox>     # Build Arg
-```
-
-Nécessite côté backend : ajouter `mondomaine.com` à `ALLOWED_HOSTS` (les requêtes /api et
-/media y arrivent avec ce Host via le proxy).
-
-> Le code frontend ne contient plus aucun `localhost:8000` : sans configuration, la base API
-> est le chemin relatif `/api`.
+> Le Build Arg reste possible (`--build-arg NEXT_PUBLIC_API_URL=…`) : la valeur est alors
+> **figée** dans l'image et l'env runtime est ignoré. Préfère l'env runtime — c'est ce qui
+> évite le piège « build arg non transmis → l'app tape son propre domaine → 404 ».
 
 ---
 
