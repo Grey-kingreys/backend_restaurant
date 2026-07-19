@@ -98,16 +98,18 @@ SUPERADMIN_LOGIN=superadmin                # optionnel (défaut: superadmin)
 - **Commande** : `celery -A backend worker --loglevel=info`
 - Monter le **même volume** `/app/media` si des tâches génèrent/lisent des fichiers.
 
-Variables : **identiques au backend** pour `DB_*` et `REDIS_URL`, plus :
+Variables : **identiques au backend** pour `DB_*` et `REDIS_URL`, plus (tout désactivé) :
 
 ```env
+RUN_MAKEMIGRATIONS=false
 RUN_MIGRATIONS=false
 RUN_COLLECTSTATIC=false
 RUN_SEED=false
+# NE PAS définir SUPERADMIN_PASSWORD ici (géré par le web ; ignoré si RUN_MIGRATIONS=false)
 ```
 
-> Ces flags évitent que le worker relance migrate/collectstatic/seed en parallèle du web :
-> **un seul service** (le web) doit toucher la base au démarrage.
+> Ces flags évitent que le worker relance makemigrations/migrate/collectstatic/seed en
+> parallèle du web : **un seul service** (le web) doit toucher la base au démarrage.
 
 ---
 
@@ -117,16 +119,18 @@ RUN_SEED=false
 - **Commande** :
   `celery -A backend beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler`
 
-Variables : mêmes `DB_*` / `REDIS_URL` que le backend, plus :
+Variables : mêmes `DB_*` / `REDIS_URL` que le backend, plus (tout désactivé) :
 
 ```env
+RUN_MAKEMIGRATIONS=false
 RUN_MIGRATIONS=false
 RUN_COLLECTSTATIC=false
 RUN_SEED=false
 ```
 
 > Beat déclenche notamment l'ouverture quotidienne de la Caisse Globale à 05:00
-> (timezone `Africa/Conakry`). Ne lancer **qu'une seule** instance de beat.
+> (timezone `Africa/Conakry`). Ne lancer **qu'une seule** instance de beat, et seulement
+> après que le web ait migré (beat lit la table `django_celery_beat`).
 
 ---
 

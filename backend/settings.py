@@ -46,7 +46,11 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'drf_spectacular',
- 
+
+    # Celery Beat — planificateur de tâches périodiques stocké en base (DatabaseScheduler).
+    # Requis par CELERY_BEAT_SCHEDULER ; fournit les tables schedule migrées par le web.
+    'django_celery_beat',
+
     # Storage S3 — chargé uniquement si USE_S3=True
     *(['storages'] if USE_S3 else []),
  
