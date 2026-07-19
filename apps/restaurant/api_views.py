@@ -481,8 +481,10 @@ class QRLoginView(APIView):
         duree = (restaurant.duree_session_table if restaurant else 60)
         expires_at = timezone.now() + timedelta(minutes=duree)
 
-        session = TableSession.objects.create(
-            table=table,
+        # ouvrir_pour désactive les autres sessions actives de la table
+        # (une seule session active à la fois) — évite l'empilement d'anciens scans.
+        session = TableSession.ouvrir_pour(
+            table,
             django_session_key=str(uuid.uuid4()),
             expires_at=expires_at,
             lat_connexion=lat,

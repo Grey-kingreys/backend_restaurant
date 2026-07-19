@@ -226,6 +226,18 @@ class TableSession(models.Model):
     def __str__(self):
         return f"Session {self.table.login} — {self.date_creation}"
 
+    @classmethod
+    def ouvrir_pour(cls, table, **kwargs):
+        """Ouvre une nouvelle session pour la table en garantissant qu'elle est
+        la seule active : désactive d'abord toute autre session active de la table.
+
+        Sans ça, chaque scan QR empile une session `est_active=True`, et les vues
+        qui font `.get(table=..., est_active=True)` finissent par lever
+        MultipleObjectsReturned. Voir `nettoyer_sessions_actives_multiples`.
+        """
+        cls.objects.filter(table=table, est_active=True).update(est_active=False)
+        return cls.objects.create(table=table, **kwargs)
+
     def marquer_payement(self, commande):
         self.commande_payee = commande
         self.date_paiement = timezone.now()
@@ -266,6 +278,28 @@ class TableSession(models.Model):
             date_paiement__lt=timezone.now() - timedelta(minutes=1)
         )
         return sessions.update(est_active=False)
+
+    @classmethod
+    def nettoyer_sessions_actives_multiples(cls):
+        """Ne garde qu'une session active par table (la plus récente).
+
+        Corrige les données existantes où plusieurs `est_active=True`
+        coexistent pour une même table (empilement d'anciens scans QR).
+        Retourne le nombre de sessions désactivées.
+        """
+        from django.db.models import Count, Max
+        tables_en_double = (
+            cls.objects.filter(est_active=True)
+            .values('table')
+            .annotate(n=Count('id'), derniere=Max('id'))
+            .filter(n__gt=1)
+        )
+        total = 0
+        for row in tables_en_double:
+            total += cls.objects.filter(
+                table_id=row['table'], est_active=True
+            ).exclude(id=row['derniere']).update(est_active=False)
+        return total
 
 # ─────────────────────────────────────────────────────────────────────────────
 # RÉSERVATION DE TABLE (Client externe Rclient)

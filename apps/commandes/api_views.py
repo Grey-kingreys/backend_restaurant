@@ -44,10 +44,15 @@ def err(errors=None, message="", code=status.HTTP_400_BAD_REQUEST):
 
 def _session_active(request):
     from apps.restaurant.models import TableSession
-    try:
-        return TableSession.objects.get(table=request.user, est_active=True)
-    except TableSession.DoesNotExist:
-        return None
+    # filter().first() et pas get() : si plusieurs sessions actives coexistent
+    # (empilement d'anciens scans QR), get() lèverait MultipleObjectsReturned → 500.
+    # On prend simplement la plus récente.
+    return (
+        TableSession.objects
+        .filter(table=request.user, est_active=True)
+        .order_by('-date_creation')
+        .first()
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
