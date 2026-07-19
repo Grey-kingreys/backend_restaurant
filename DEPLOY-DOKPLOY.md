@@ -1,24 +1,26 @@
 # Déploiement Dokploy — resfly
 
-Topologie cible : **6 services** dans un même projet Dokploy, sur le **réseau interne** du projet.
-`postgres` et `redis` sont des services dédiés Dokploy ; `backend`, `celery`, `celery-beat`
-partagent **la même image** (`backend/Dockerfile`) avec des commandes différentes ; `frontend`
-est une app Next.js autonome (`frontend/Dockerfile`).
+Topologie cible : **4 services** dans un même projet Dokploy, sur le **réseau interne** du projet.
+`postgres` et `redis` sont des services dédiés Dokploy ; le `backend` est **un seul conteneur
+tout-en-un** (`backend/Dockerfile`) qui fait tourner gunicorn + Celery worker + Celery beat via
+`supervisord` (pas besoin de compose ni de services Celery séparés) ; `frontend` est une app
+Next.js autonome (`frontend/Dockerfile`).
 
 ```
                         Internet (HTTPS via Traefik/Dokploy)
                            │                         │
-                  frontend (:3000)            backend web (:8000)
-                           │                    │        │
-                           └── appels API ──────┘        │  (mêmes réseau interne)
-                                                  ┌───────┴────────┐
-                                              postgres:5432    redis:6379
-                                                  ▲   ▲            ▲   ▲
-                                          celery ─┘   └─ celery-beat ─┘
+                  frontend (:3000)            backend (:8000)  ── conteneur unique ──┐
+                           │                    │     supervisord ┬ gunicorn (web)    │
+                           └── appels API ──────┘                 ├ celery worker     │
+                                                  ┌───────────────┤ celery beat       │
+                                              postgres:5432   redis:6379 ◄────────────┘
 ```
 
 Point clé de câblage : **les services se joignent par leur nom interne Dokploy**, pas par
 `localhost`. Seuls `frontend` et `backend` ont un domaine public.
+
+> Celery tourne **dans le conteneur backend** (démarré automatiquement par supervisord,
+> `RUN_CELERY=true` par défaut). Voir §3. Rien à lancer manuellement.
 
 ---
 
@@ -85,58 +87,51 @@ SUPERADMIN_LOGIN=superadmin                              # optionnel (défaut: s
 # SUPERADMIN_RESET_PASSWORD=true                         # optionnel : force la réinit. du mdp au boot
 ```
 
+Options facultatives (déjà des valeurs par défaut dans l'image) :
+
+```env
+GUNICORN_WORKERS=3        # nb de workers gunicorn (défaut 3)
+RUN_CELERY=true           # démarre celery worker + beat dans ce conteneur (défaut true)
+```
+
 > L'entrypoint attend Postgres, applique `migrate`, **crée/réactive le super admin** si
-> `SUPERADMIN_PASSWORD` est défini (idempotent), lance `collectstatic`, puis démarre gunicorn
-> (`--workers 4`). WhiteNoise sert les fichiers statiques (admin, Swagger, DRF).
+> `SUPERADMIN_PASSWORD` est défini (idempotent), lance `collectstatic`, puis démarre
+> **supervisord** qui fait tourner gunicorn + Celery worker + Celery beat. WhiteNoise sert
+> les fichiers statiques (admin, Swagger, DRF).
 >
 > Connexion : le super admin est un compte **staff** → on se connecte avec **l'email**
 > (`SUPERADMIN_EMAIL`) + le mot de passe, pas avec le login.
 
 ---
 
-## 3. celery — worker (même image, commande surchargée)
+## 3. Celery — intégré au conteneur backend (aucun service à créer)
 
-- **Même image** que le backend. **Pas de domaine, pas de port.**
-- **Commande** : `celery -A backend worker --loglevel=info`
-- Monter le **même volume** `/app/media` si des tâches génèrent/lisent des fichiers.
+**Rien à faire de plus** : le worker et le beat démarrent **automatiquement** dans le conteneur
+backend, gérés par `supervisord` (`docker/supervisord.conf`). Démarrage auto + **redémarrage
+auto** si un process crashe, logs redirigés vers la sortie du conteneur (visibles dans Dokploy).
 
-Variables : **identiques au backend** pour `DB_*` et `REDIS_URL`, plus (tout désactivé) :
+- **celery worker** : `celery -A backend worker` — exécute les tâches (ex. `creer_remise_pour_paiement`).
+- **celery beat** : `celery -A backend beat` (DatabaseScheduler) — déclenche les tâches
+  périodiques (ex. ouverture de la Caisse Globale à 05:00, timezone `Africa/Conakry`).
 
-```env
-RUN_MAKEMIGRATIONS=false
-RUN_MIGRATIONS=false
-RUN_COLLECTSTATIC=false
-RUN_SEED=false
-# NE PAS définir SUPERADMIN_PASSWORD ici (géré par le web ; ignoré si RUN_MIGRATIONS=false)
-```
+Ils utilisent le même `REDIS_URL` / `DB_*` que gunicorn (même conteneur). Monter le volume
+`/app/media` sur le backend suffit (partagé par tout le conteneur).
 
-> Ces flags évitent que le worker relance makemigrations/migrate/collectstatic/seed en
-> parallèle du web : **un seul service** (le web) doit toucher la base au démarrage.
+> ⚠️ **beat = une seule horloge** : ne **pas** scaler ce conteneur au-delà de **1 réplique**,
+> sinon plusieurs beat → tâches périodiques dupliquées. Pour scaler l'app, il faut sortir
+> Celery (voir ci-dessous).
 
----
+**Pour désactiver Celery ici** (ex. si tu veux le faire tourner ailleurs) : `RUN_CELERY=false`.
 
-## 4. celery-beat — planificateur (même image, commande surchargée)
-
-- **Même image**. Pas de domaine, pas de port, pas de volume media nécessaire.
-- **Commande** :
-  `celery -A backend beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler`
-
-Variables : mêmes `DB_*` / `REDIS_URL` que le backend, plus (tout désactivé) :
-
-```env
-RUN_MAKEMIGRATIONS=false
-RUN_MIGRATIONS=false
-RUN_COLLECTSTATIC=false
-RUN_SEED=false
-```
-
-> Beat déclenche notamment l'ouverture quotidienne de la Caisse Globale à 05:00
-> (timezone `Africa/Conakry`). Ne lancer **qu'une seule** instance de beat, et seulement
-> après que le web ait migré (beat lit la table `django_celery_beat`).
+**Option avancée — sortir Celery dans des services dédiés** (pour scaler le web à plusieurs
+répliques) : créer 1 ou 2 apps Dokploy supplémentaires sur la **même image**, en surchargeant
+la commande (`celery -A backend worker -l info` / `celery -A backend beat -l info`) et avec
+`RUN_MAKEMIGRATIONS=false RUN_MIGRATIONS=false RUN_COLLECTSTATIC=false RUN_SEED=false`
+(pour qu'un seul service touche la base). Mettre alors `RUN_CELERY=false` sur le web.
 
 ---
 
-## 5. frontend — app Next.js (`frontend/Dockerfile`)
+## 4. frontend — app Next.js (`frontend/Dockerfile`)
 
 - **Build** : Dockerfile, contexte = `frontend/`.
 - **Port exposé** : `3000`. Domaine public : `https://mondomaine.com`.
@@ -190,16 +185,16 @@ Nécessite côté backend : ajouter `mondomaine.com` à `ALLOWED_HOSTS` (les req
 | navigateur → backend (**Option A**) | Build Arg | `NEXT_PUBLIC_API_URL=https://api.mondomaine.com/api` |
 | navigateur → backend (**Option B**) | routage proxy | `mondomaine.com/api` + `/media` → service backend |
 | backend → postgres | réseau interne | `DB_HOST=resfly-db:5432` |
-| backend/celery/beat → redis | réseau interne | `REDIS_URL=redis://resfly-redis:6379/0` |
+| backend (web+celery) → redis | réseau interne | `REDIS_URL=redis://resfly-redis:6379/0` |
 | backend → frontend (CORS/CSRF) | env (Option A) | `CORS_ALLOWED_ORIGINS` + `CSRF_TRUSTED_ORIGINS` |
 | accès initial au site | env backend | `SUPERADMIN_PASSWORD` + `SUPERADMIN_EMAIL` |
 
 ## Ordre de premier déploiement
 
 1. `postgres` puis `redis` (services d'infra).
-2. `backend` web → applique migrations + collectstatic (attend automatiquement Postgres).
-3. `celery` et `celery-beat`.
-4. `frontend`.
+2. `backend` → migrate + collectstatic + super admin, puis supervisord lance gunicorn +
+   Celery worker + beat (le tout dans ce conteneur ; attend automatiquement Postgres).
+3. `frontend`.
 
 ## Notes / dette à surveiller
 

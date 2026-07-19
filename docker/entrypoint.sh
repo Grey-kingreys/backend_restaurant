@@ -14,11 +14,11 @@ echo "========================================"
 #   - Seed de demo (seed_demo)        : donnees de demonstration, DEV UNIQUEMENT.
 #     Piloté par RUN_SEED — a mettre a false en prod pour ne pas injecter les restos de demo.
 #
-# En prod Dokploy :
-#   - service web          : RUN_MAKEMIGRATIONS=false RUN_SEED=false + SUPERADMIN_PASSWORD=...
-#                            (migrate + collectstatic + create_superadmin restent actifs)
-#   - worker / beat celery : RUN_MIGRATIONS=false RUN_COLLECTSTATIC=false RUN_SEED=false
-#                            (un seul service — le web — doit toucher la base au demarrage)
+# En prod Dokploy (conteneur unique tout-en-un) :
+#   - RUN_MAKEMIGRATIONS=false RUN_SEED=false + SUPERADMIN_PASSWORD=... + SUPERADMIN_EMAIL=...
+#   - migrate + collectstatic + create_superadmin s'executent, puis supervisord lance
+#     gunicorn + celery worker + celery beat (voir docker/supervisord.conf).
+#   - RUN_CELERY=false pour desactiver celery dans ce conteneur (ex. si worker/beat ailleurs).
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-true}"
 RUN_MAKEMIGRATIONS="${RUN_MAKEMIGRATIONS:-true}"
 RUN_SEED="${RUN_SEED:-true}"

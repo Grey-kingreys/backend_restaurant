@@ -26,12 +26,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Dependances systeme runtime uniquement
+# Dependances systeme runtime uniquement (+ supervisor : gunicorn + celery dans 1 conteneur)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     libjpeg62-turbo \
     zlib1g \
     libfreetype6 \
+    supervisor \
     && rm -rf /var/lib/apt/lists/*
 
 # Copier les packages installes depuis le builder
@@ -53,12 +54,18 @@ USER django
 # Variables d'environnement par defaut
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DJANGO_SETTINGS_MODULE=backend.settings
+    DJANGO_SETTINGS_MODULE=backend.settings \
+    GUNICORN_WORKERS=3 \
+    RUN_CELERY=true
 
 EXPOSE 8000
 
 COPY --chown=django:django docker/entrypoint.sh /entrypoint.sh
+COPY docker/supervisord.conf /etc/supervisor/supervisord.conf
 RUN chmod +x /entrypoint.sh
 
+# L'entrypoint prepare la base (migrate, super admin, collectstatic) puis lance supervisord,
+# qui fait tourner gunicorn + celery worker + celery beat. Pour un service dedie (web seul,
+# ou celery seul), surcharger la commande dans Dokploy (ex. "gunicorn ..." ou "celery ...").
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["gunicorn", "backend.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "120"]
+CMD ["supervisord", "-c", "/etc/supervisor/supervisord.conf", "-n"]
