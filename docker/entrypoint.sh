@@ -55,6 +55,14 @@ else
   echo "[3/5] Migrate ignore (RUN_MIGRATIONS=false)"
 fi
 
+# ── 3bis. Super admin plateforme (prod) ───────────────────────────────────
+# S'exécute là où les migrations tournent (service web) si SUPERADMIN_PASSWORD est
+# défini. Idempotent. Débloque l'accès quand le seed de démo est désactivé.
+if [ "$RUN_MIGRATIONS" = "true" ] && [ -n "$SUPERADMIN_PASSWORD" ]; then
+  echo "[*] Création/réactivation du super admin..."
+  python manage.py create_superadmin
+fi
+
 # ── 4. Seed de demo (idempotent) ──────────────────────────────────────────
 if [ "$RUN_SEED" = "true" ]; then
   echo "[4/5] Seed des donnees de demo..."
