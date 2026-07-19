@@ -1,0 +1,49 @@
+# Secrets & environnement local (les vars sont injectées par Dokploy au runtime)
+.env
+.env.*
+!.env.example
+
+# Git & CI
+.git
+.gitignore
+.github
+
+# Python — caches & artefacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Tests & couverture
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+conftest.py
+pytest.ini
+requirements.dev.txt
+
+# Données locales (persistées via volumes Dokploy, pas dans l'image)
+media/
+staticfiles/
+logs/
+*.sqlite3
+
+# Docs & notes
+CLAUDE.md
+commandeDocker.md
+*.md
+
+# Stack d'observabilité (services dédiés, configs montées à part si besoin)
+docker/loki
+docker/mimir
+docker/prometheus
+docker/tempo
+docker/grafana
+
+# OS / éditeurs
+.DS_Store
+.idea/
+.vscode/

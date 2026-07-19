@@ -7,6 +7,7 @@ from decimal import Decimal
 from .models import (
     CaisseGenerale, CaisseGlobale, CaisseComptable,
     MouvementCaisse, RemiseServeur, Paiement, Depense,
+    DemandeApprovisionnement,
 )
 
 
@@ -186,6 +187,7 @@ class CaisseComptableListSerializer(serializers.ModelSerializer):
             'id', 'comptable', 'comptable_nom', 'comptable_login',
             'solde', 'solde_formate',
             'is_closed', 'statut',
+            'montant_physique_fermeture', 'motif_ecart',
             'opened_at', 'closed_at',
         ]
         read_only_fields = fields
@@ -277,6 +279,57 @@ class ApprovisionnerSerializer(serializers.Serializer):
         return caisse
 
 
+class DemandeApprovisionnementSerializer(serializers.ModelSerializer):
+    """Lecture d'une demande d'approvisionnement."""
+    statut_display     = serializers.CharField(source='get_statut_display', read_only=True)
+    demande_par_nom    = serializers.CharField(source='demande_par.nom_complet', read_only=True, default=None)
+    demande_par_login  = serializers.CharField(source='demande_par.login', read_only=True, default=None)
+    validee_par_login  = serializers.CharField(source='validee_par.login', read_only=True, default=None)
+    comptable_nom      = serializers.CharField(source='caisse_comptable.comptable.nom_complet', read_only=True, default=None)
+
+    class Meta:
+        model  = DemandeApprovisionnement
+        fields = [
+            'id', 'caisse_comptable', 'comptable_nom', 'montant', 'motif',
+            'statut', 'statut_display',
+            'demande_par', 'demande_par_nom', 'demande_par_login',
+            'validee_par', 'validee_par_login', 'motif_refus',
+            'created_at', 'validated_at',
+        ]
+
+
+class DemandeApprovisionnementCreateSerializer(serializers.Serializer):
+    """Le comptable cree une demande d'approvisionnement (aucun mouvement d'argent)."""
+    montant = serializers.DecimalField(
+        max_digits=14, decimal_places=2, min_value=Decimal('0.01'),
+    )
+    motif = serializers.CharField(max_length=255, min_length=5)
+
+    def validate(self, data):
+        caisse = self.context['caisse']
+        if caisse.is_closed:
+            raise serializers.ValidationError(
+                "Impossible de demander un approvisionnement sur une caisse fermee."
+            )
+        return data
+
+    @transaction.atomic
+    def save(self, demande_par):
+        caisse = self.context['caisse']
+        return DemandeApprovisionnement.objects.create(
+            restaurant=caisse.restaurant,
+            caisse_comptable=caisse,
+            montant=self.validated_data['montant'],
+            motif=self.validated_data['motif'],
+            demande_par=demande_par,
+        )
+
+
+class DemandeRefusSerializer(serializers.Serializer):
+    """Motif de refus d'une demande d'approvisionnement."""
+    motif_refus = serializers.CharField(max_length=255, min_length=3)
+
+
 class DepenseCreateSerializer(serializers.Serializer):
     """
     Enregistrement d'une depense depuis la Caisse Comptable.
@@ -358,11 +411,12 @@ class CaisseComptableFermerSerializer(serializers.Serializer):
         return data
 
     @transaction.atomic
-    def save(self):
+    def save(self, fermee_par=None):
         caisse = self.context['caisse']
         return caisse.fermer(
             montant_physique=self.validated_data['montant_physique'],
             motif_ecart=self.validated_data.get('motif_ecart', '') or None,
+            fermee_par=fermee_par,
         )
 
 

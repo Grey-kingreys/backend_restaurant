@@ -14,6 +14,18 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# Derrière le reverse-proxy de Dokploy (Traefik), les requêtes arrivent en HTTP mais
+# le client est en HTTPS : on fait confiance à l'en-tête X-Forwarded-Proto.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Origines de confiance pour le CSRF (admin Django, sessions) — schéma https:// obligatoire.
+# Ex : CSRF_TRUSTED_ORIGINS=https://api.mondomaine.com,https://mondomaine.com
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+
 # ------------------------------------------
 # APPLICATIONS
 # ------------------------------------------
@@ -68,6 +80,8 @@ SPECTACULAR_SETTINGS = {
 MIDDLEWARE = [
     'django_prometheus.middleware.PrometheusBeforeMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    # WhiteNoise : sert les fichiers statiques sous gunicorn (prod, sans runserver)
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -117,6 +131,7 @@ if os.getenv('DB_NAME'):
                 'connect_timeout': 10,
             },
             'CONN_MAX_AGE': 300,
+            'ATOMIC_REQUESTS': True,
         }
     }
 else:
@@ -124,6 +139,7 @@ else:
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
+            'ATOMIC_REQUESTS': True,
         }
     }
 
@@ -213,6 +229,21 @@ USE_TZ = True
 # ------------------------------------------
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Les statics sont toujours servis par WhiteNoise (compression + hash), même si les
+# médias vont sur S3. En dev, runserver les sert directement.
+STORAGES = {
+    'default': {
+        'BACKEND': (
+            'storages.backends.s3boto3.S3Boto3Storage' if USE_S3
+            else 'django.core.files.storage.FileSystemStorage'
+        ),
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
+
 if USE_S3:
     AWS_ACCESS_KEY_ID      = os.getenv('AWS_ACCESS_KEY_ID', '')
     AWS_SECRET_ACCESS_KEY  = os.getenv('AWS_SECRET_ACCESS_KEY', '')
@@ -233,13 +264,12 @@ if USE_S3:
         )
  
     MEDIA_ROOT = ''
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
- 
+    # Backend de stockage par défaut (S3) défini via STORAGES['default'] plus haut.
+
 else:
-    # Développement — stockage local (inchangé)
+    # Dev / volume local — stockage fichier (défini via STORAGES['default'])
     MEDIA_URL  = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
-    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
  
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

@@ -11,7 +11,7 @@ from drf_spectacular.types import OpenApiTypes
 
 from .models import (
     CaisseGenerale, CaisseGlobale, CaisseComptable,
-    RemiseServeur, Paiement, Depense,
+    RemiseServeur, Paiement, Depense, DemandeApprovisionnement,
 )
 from .serializers import (
     CaisseGeneraleSerializer,
@@ -22,6 +22,9 @@ from .serializers import (
     CaisseComptableListSerializer,
     CaisseComptableOuvrirSerializer,
     ApprovisionnerSerializer,
+    DemandeApprovisionnementSerializer,
+    DemandeApprovisionnementCreateSerializer,
+    DemandeRefusSerializer,
     DepenseCreateSerializer,
     DepenseSerializer,
     CaisseComptableFermerSerializer,
@@ -36,6 +39,7 @@ from apps.accounts.perm_codes import (
     PERM_MANAGE_CAISSE_COMPTABLE,
     PERM_VIEW_CAISSE_GLOBALE, PERM_MANAGE_CAISSE_GLOBALE,
     PERM_VIEW_REMISES, PERM_MANAGE_REMISES,
+    PERM_VALIDATE_APPRO,
 )
 
 logger = logging.getLogger(__name__)
@@ -506,48 +510,140 @@ class CaisseComptableActiveView(APIView):
 
 
 class CaisseComptableApprovisionnerView(APIView):
-    """POST /api/paiements/caisse-comptable/<pk>/approvisionner/"""
+    """POST /api/paiements/caisse-comptable/<pk>/approvisionner/ — cree une DEMANDE."""
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
     @extend_schema(
-        summary="Approvisionner la Caisse Comptable",
+        summary="Demander un approvisionnement",
         description=(
-            "Transfere un montant de la Caisse Generale vers la Caisse Comptable. "
-            "Verifie que la Caisse Generale a un solde suffisant. "
-            "Acces : Comptable (sa propre caisse), Admin, Manager."
+            "Le comptable cree une demande d'approvisionnement de sa caisse. "
+            "AUCUN mouvement d'argent : la demande doit d'abord etre validee par "
+            "un Admin ou Manager. Acces : Comptable (sa propre caisse)."
         ),
-        request=ApprovisionnerSerializer,
+        request=DemandeApprovisionnementCreateSerializer,
         responses={
-            200: CaisseComptableSerializer,
-            400: OpenApiResponse(description="Solde insuffisant ou caisse fermee"),
+            201: DemandeApprovisionnementSerializer,
+            400: OpenApiResponse(description="Donnees invalides ou caisse fermee"),
             403: OpenApiResponse(description="Acces refuse"),
             404: OpenApiResponse(description="Caisse introuvable"),
         },
         tags=["Paiements - Caisse Comptable"],
     )
     def post(self, request, pk):
-        if not (request.user.has_permission(PERM_MANAGE_CAISSE_COMPTABLE)
-                or request.user.has_permission(PERM_VIEW_CAISSE_GLOBALE)):
-            return err(
-                message="Acces reserve.",
-                code=status.HTTP_403_FORBIDDEN,
-            )
-        qs = CaisseComptable.objects.filter(restaurant=request.user.restaurant)
-        if not request.user.has_permission(PERM_VIEW_CAISSE_GLOBALE):
-            qs = qs.filter(comptable=request.user)
-        caisse = get_object_or_404(qs, pk=pk)
+        if not request.user.has_permission(PERM_MANAGE_CAISSE_COMPTABLE):
+            return err(message="Acces reserve au comptable.", code=status.HTTP_403_FORBIDDEN)
 
-        s = ApprovisionnerSerializer(
-            data=request.data,
-            context={'caisse': caisse},
+        caisse = get_object_or_404(
+            CaisseComptable, pk=pk,
+            comptable=request.user, restaurant=request.user.restaurant,
         )
+        s = DemandeApprovisionnementCreateSerializer(data=request.data, context={'caisse': caisse})
         if s.is_valid():
-            caisse = s.save(effectue_par=request.user)
+            demande = s.save(demande_par=request.user)
             return ok(
-                data=CaisseComptableSerializer(caisse).data,
-                message=f"Caisse approvisionnee de {s.validated_data['montant']:,.0f} GNF.".replace(',', ' '),
+                data=DemandeApprovisionnementSerializer(demande).data,
+                message=(
+                    f"Demande d'approvisionnement de {demande.montant:,.0f} GNF envoyee. "
+                    "En attente de validation.".replace(',', ' ')
+                ),
+                code=status.HTTP_201_CREATED,
             )
-        return err(errors=s.errors, message="Donnees invalides.")
+        return err(errors=s.errors, message="Demande invalide.")
+
+
+class DemandeApprovisionnementListView(APIView):
+    """GET /api/paiements/approvisionnements/ — demandes d'appro."""
+    permission_classes = [IsAuthenticated, IsRestaurantActive]
+
+    @extend_schema(
+        summary="Lister les demandes d'approvisionnement",
+        description=(
+            "Comptable : ses propres demandes. Admin/Manager (validate_approvisionnement) : "
+            "toutes les demandes du restaurant. Filtre optionnel ?statut=en_attente|approuvee|refusee."
+        ),
+        parameters=[OpenApiParameter('statut', OpenApiTypes.STR, required=False)],
+        responses={200: DemandeApprovisionnementSerializer(many=True)},
+        tags=["Paiements - Caisse Comptable"],
+    )
+    def get(self, request):
+        peut_valider = request.user.has_permission(PERM_VALIDATE_APPRO)
+        if not (peut_valider or request.user.has_permission(PERM_MANAGE_CAISSE_COMPTABLE)):
+            return err(message="Acces reserve.", code=status.HTTP_403_FORBIDDEN)
+
+        qs = DemandeApprovisionnement.objects.filter(
+            restaurant=request.user.restaurant
+        ).select_related('demande_par', 'validee_par', 'caisse_comptable__comptable')
+        if not peut_valider:
+            # Un comptable ne voit que ses propres demandes
+            qs = qs.filter(demande_par=request.user)
+
+        statut = request.query_params.get('statut')
+        if statut in ('en_attente', 'approuvee', 'refusee'):
+            qs = qs.filter(statut=statut)
+
+        return ok(data={
+            'count': qs.count(),
+            'demandes': DemandeApprovisionnementSerializer(qs, many=True).data,
+        })
+
+
+class DemandeApprovisionnementApprouverView(APIView):
+    """POST /api/paiements/approvisionnements/<pk>/approuver/ — Admin/Manager."""
+    permission_classes = [IsAuthenticated, IsRestaurantActive]
+
+    @extend_schema(
+        summary="Approuver une demande d'approvisionnement",
+        description="L'argent bouge ENFIN (Caisse Generale -> Caisse Comptable). Acces : permission validate_approvisionnement.",
+        request=None,
+        responses={200: DemandeApprovisionnementSerializer, 400: OpenApiResponse(description="Impossible"), 403: OpenApiResponse(description="Acces refuse")},
+        tags=["Paiements - Caisse Comptable"],
+    )
+    def post(self, request, pk):
+        if not request.user.has_permission(PERM_VALIDATE_APPRO):
+            return err(message="Vous n'avez pas la permission de valider un approvisionnement.", code=status.HTTP_403_FORBIDDEN)
+
+        demande = get_object_or_404(
+            DemandeApprovisionnement, pk=pk, restaurant=request.user.restaurant,
+        )
+        try:
+            demande.approuver(validee_par=request.user)
+        except ValueError as e:
+            return err(message=str(e))
+        return ok(
+            data=DemandeApprovisionnementSerializer(demande).data,
+            message=f"Approvisionnement de {demande.montant:,.0f} GNF approuve et transfere.".replace(',', ' '),
+        )
+
+
+class DemandeApprovisionnementRefuserView(APIView):
+    """POST /api/paiements/approvisionnements/<pk>/refuser/ — Admin/Manager."""
+    permission_classes = [IsAuthenticated, IsRestaurantActive]
+
+    @extend_schema(
+        summary="Refuser une demande d'approvisionnement",
+        description="Aucun mouvement d'argent. Motif de refus requis. Acces : permission validate_approvisionnement.",
+        request=DemandeRefusSerializer,
+        responses={200: DemandeApprovisionnementSerializer, 400: OpenApiResponse(description="Impossible"), 403: OpenApiResponse(description="Acces refuse")},
+        tags=["Paiements - Caisse Comptable"],
+    )
+    def post(self, request, pk):
+        if not request.user.has_permission(PERM_VALIDATE_APPRO):
+            return err(message="Vous n'avez pas la permission de refuser un approvisionnement.", code=status.HTTP_403_FORBIDDEN)
+
+        demande = get_object_or_404(
+            DemandeApprovisionnement, pk=pk, restaurant=request.user.restaurant,
+        )
+        s = DemandeRefusSerializer(data=request.data)
+        if not s.is_valid():
+            return err(errors=s.errors, message="Motif de refus requis (min 3 caracteres).")
+        try:
+            demande.refuser(validee_par=request.user, motif_refus=s.validated_data['motif_refus'])
+        except ValueError as e:
+            return err(message=str(e))
+        return ok(
+            data=DemandeApprovisionnementSerializer(demande).data,
+            message="Demande d'approvisionnement refusee.",
+        )
 
 
 class DepenseCreateView(APIView):
@@ -668,12 +764,13 @@ class CaisseComptableFermerView(APIView):
             context={'caisse': caisse},
         )
         if s.is_valid():
-            caisse = s.save()
+            caisse = s.save(fermee_par=request.user)
+            montant_transfere = caisse.montant_physique_fermeture or 0
             return ok(
                 data=CaisseComptableSerializer(caisse).data,
                 message=(
                     "Caisse Comptable fermee. "
-                    f"Solde de {caisse.solde:,.0f} GNF transfere dans la Caisse Generale.".replace(',', ' ')
+                    f"Montant physique de {montant_transfere:,.0f} GNF transfere dans la Caisse Generale.".replace(',', ' ')
                 ),
             )
         return err(errors=s.errors, message="Donnees invalides.")

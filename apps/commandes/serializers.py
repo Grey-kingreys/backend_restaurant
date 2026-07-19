@@ -89,13 +89,14 @@ class CommandeListSerializer(serializers.ModelSerializer):
     type_commande_display = serializers.CharField(source='get_type_commande_display', read_only=True)
     client_display = serializers.SerializerMethodField()
     nb_items       = serializers.SerializerMethodField()
+    necessite_passage_cuisine = serializers.SerializerMethodField()
 
     class Meta:
         model  = Commande
         fields = [
             'id', 'table', 'table_login', 'statut', 'statut_display',
             'type_commande', 'type_commande_display', 'client_display', 'client_nom',
-            'montant_total', 'nb_items',
+            'montant_total', 'nb_items', 'necessite_passage_cuisine',
             'date_commande', 'date_modification',
         ]
 
@@ -108,7 +109,12 @@ class CommandeListSerializer(serializers.ModelSerializer):
         return obj.client_nom or "—"
 
     def get_nb_items(self, obj):
-        return obj.items.count()
+        # items préfetchés (items__plat) → pas de requête supplémentaire
+        return len(obj.items.all())
+
+    def get_necessite_passage_cuisine(self, obj):
+        # Un plat au moins nécessite la validation cuisine ? (items préfetchés)
+        return any(i.plat.necessite_validation_cuisine for i in obj.items.all())
 
 
 class CommandeDetailSerializer(serializers.ModelSerializer):
@@ -123,6 +129,7 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
     cuisinier_login         = serializers.SerializerMethodField()
     necessite_passage_cuisine = serializers.SerializerMethodField()
     peut_etre_marquee_prete = serializers.BooleanField(read_only=True)
+    peut_passer_en_livraison = serializers.BooleanField(read_only=True)
     peut_etre_servie        = serializers.BooleanField(read_only=True)
     peut_etre_payee         = serializers.BooleanField(read_only=True)
 
@@ -132,12 +139,13 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
             'id', 'restaurant', 'table', 'table_login', 'session',
             'type_commande', 'type_commande_display', 'client_display',
             'client_nom', 'client_telephone', 'client_adresse_livraison',
+            'client_latitude', 'client_longitude',
             'mode_paiement', 'mode_paiement_display',
             'statut', 'statut_display', 'montant_total',
             'serveur_ayant_servi', 'serveur_login',
             'cuisinier_ayant_prepare', 'cuisinier_login',
             'items',
-            'peut_etre_marquee_prete', 'peut_etre_servie', 'peut_etre_payee',
+            'peut_etre_marquee_prete', 'peut_passer_en_livraison', 'peut_etre_servie', 'peut_etre_payee',
             'necessite_passage_cuisine',
             'date_commande', 'date_modification', 'date_paiement',
         ]
@@ -233,18 +241,36 @@ class CommandeCuisinierSerializer(serializers.ModelSerializer):
     items          = CommandeItemSerializer(many=True, read_only=True)
     items_cuisine  = serializers.SerializerMethodField()
     table_login    = serializers.CharField(source='table.login', read_only=True)
+    table_numero   = serializers.SerializerMethodField()
+    type_commande_display = serializers.CharField(source='get_type_commande_display', read_only=True)
+    client_display = serializers.SerializerMethodField()
     statut_display = serializers.CharField(source='get_statut_display', read_only=True)
 
     class Meta:
         model  = Commande
         fields = [
-            'id', 'table_login', 'statut', 'statut_display',
+            'id', 'table_login', 'table_numero',
+            'type_commande', 'type_commande_display', 'client_display',
+            'statut', 'statut_display',
             'montant_total', 'items', 'items_cuisine', 'date_commande',
         ]
 
     def get_items_cuisine(self, obj):
         items = obj.items.filter(plat__necessite_validation_cuisine=True)
         return CommandeItemSerializer(items, many=True).data
+
+    def get_table_numero(self, obj):
+        # Numéro de table pour une commande sur place ; None pour une commande en ligne
+        try:
+            return obj.table.table_restaurant.numero_table
+        except Exception:
+            return None
+
+    def get_client_display(self, obj):
+        # Nom du client pour une commande en ligne (livraison / emporter)
+        if obj.type_commande in ('livraison', 'emporter'):
+            return obj.client_nom
+        return None
 
 
 class CommandePreteSerializer(serializers.Serializer):
@@ -334,17 +360,17 @@ class CommandePayeeSerializer(serializers.Serializer):
             defaults={'montant': commande.montant_total},
         )
  
-        # ── Declencher la creation de la RemiseServeur (async) ─────────
+        # ── Creation de la RemiseServeur (synchrone : pas de worker Celery requis) ──
+        # La remise doit exister dès le paiement pour que le comptable la valide.
         if created:
             try:
                 from apps.paiements.tasks import creer_remise_pour_paiement
-                creer_remise_pour_paiement.delay(paiement.id)
+                creer_remise_pour_paiement.apply(args=[paiement.id])
             except Exception:
-                # Ne pas bloquer le flux si Celery est indisponible
+                # Ne pas bloquer le paiement si la creation de la remise echoue
                 import logging
                 logging.getLogger(__name__).warning(
-                    "Impossible de planifier creer_remise_pour_paiement "
-                    "pour paiement %d — Celery indisponible ?",
+                    "Echec creation RemiseServeur pour paiement %d",
                     paiement.id,
                 )
  

@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 
 from .models import Restaurant, OnboardingToken
 from .services.email_service import send_welcome_email
+from apps.accounts.serializers import get_role_config_for_role
 
 User = get_user_model()
 
@@ -25,6 +26,7 @@ class RestaurantSerializer(serializers.ModelSerializer):
             'id', 'nom', 'email_admin', 'telephone', 'adresse',
             'latitude', 'longitude', 'rayon_connexion', 'duree_session_table',
             'accept_livraison', 'accept_emporter', 'frais_livraison',
+            'livraison_lien_autorise_paiement',
             'reservation_validation_auto', 'reservation_delai_annulation_heures',
             'has_geo', 'is_active', 'statut', 'nombre_utilisateurs',
             'created_at', 'updated_at',
@@ -90,6 +92,9 @@ class RestaurantCreateSerializer(serializers.ModelSerializer):
             counter += 1
 
         # 3. Creer le compte Admin
+        # Assigner automatiquement le RoleConfig Radmin avec toutes les permissions
+        radmin_role_config = get_role_config_for_role('Radmin')
+
         admin_user = User.objects.create_user(
             login=login,
             password=None,  # Pas de mot de passe — l'Admin le definit via le token
@@ -100,6 +105,7 @@ class RestaurantCreateSerializer(serializers.ModelSerializer):
             is_staff=True,
             must_change_password=True,
             actif=True,
+            role_config=radmin_role_config,  # Assigner les permissions Radmin
         )
         # Desactiver le compte jusqu'a la premiere connexion via le token
         admin_user.is_active = False
@@ -216,19 +222,42 @@ class MonRestaurantUpdateSerializer(serializers.ModelSerializer):
     """
     Mise à jour partielle du restaurant par son propre Admin.
     L'email_admin et is_active sont gérés par le Super Admin uniquement.
-    Inclut la configuration de la commande en ligne (livraison / emporter).
+    Inclut la géolocalisation (restriction QR), la configuration de la commande
+    en ligne (livraison / emporter) et les réservations.
     """
     class Meta:
         model = Restaurant
         fields = [
             'nom', 'telephone', 'adresse',
+            'latitude', 'longitude', 'rayon_connexion', 'duree_session_table',
             'accept_livraison', 'accept_emporter', 'frais_livraison',
+            'livraison_lien_autorise_paiement',
             'reservation_validation_auto', 'reservation_delai_annulation_heures',
         ]
 
     def validate_reservation_delai_annulation_heures(self, value):
         if value is not None and (value < 0 or value > 72):
             raise serializers.ValidationError("Le délai doit être compris entre 0 et 72 heures.")
+        return value
+
+    def validate_latitude(self, value):
+        if value is not None and (value < -90 or value > 90):
+            raise serializers.ValidationError("La latitude doit être comprise entre -90 et 90.")
+        return value
+
+    def validate_longitude(self, value):
+        if value is not None and (value < -180 or value > 180):
+            raise serializers.ValidationError("La longitude doit être comprise entre -180 et 180.")
+        return value
+
+    def validate_rayon_connexion(self, value):
+        if value is not None and (value < 50 or value > 2000):
+            raise serializers.ValidationError("Le rayon de connexion doit être compris entre 50 et 2000 mètres.")
+        return value
+
+    def validate_duree_session_table(self, value):
+        if value is not None and (value < 15 or value > 480):
+            raise serializers.ValidationError("La durée de session doit être comprise entre 15 et 480 minutes.")
         return value
 
     def validate_nom(self, value):
@@ -243,6 +272,44 @@ class MonRestaurantUpdateSerializer(serializers.ModelSerializer):
         if value is not None and value < 0:
             raise serializers.ValidationError("Les frais de livraison ne peuvent pas être négatifs.")
         return value
+
+
+class RestaurantDeleteSerializer(serializers.Serializer):
+    """
+    Serializer pour la suppression d'un restaurant.
+    Requiert une confirmation : le nom exact du restaurant + mot de passe du Super Admin.
+    Cela empeche les suppressions accidentelles.
+    """
+    nom_confirmation = serializers.CharField(
+        max_length=200,
+        help_text="Le nom exact du restaurant a supprimer (case-sensitive)"
+    )
+    password = serializers.CharField(
+        write_only=True,
+        min_length=6,
+        help_text="Mot de passe du Super Admin pour confirmer la suppression"
+    )
+
+    def validate(self, data):
+        restaurant = self.context.get('restaurant')
+        user = self.context.get('user')
+
+        if not restaurant or not user:
+            raise serializers.ValidationError("Context manquant.")
+
+        # Verifier que le nom correspond exactement
+        if data['nom_confirmation'] != restaurant.nom:
+            raise serializers.ValidationError({
+                'nom_confirmation': f"Le nom doit correspondre exactement : '{restaurant.nom}'"
+            })
+
+        # Verifier le mot de passe du Super Admin
+        if not user.check_password(data['password']):
+            raise serializers.ValidationError({
+                'password': "Mot de passe incorrect."
+            })
+
+        return data
 
 
 class PlatformStatsSerializer(serializers.Serializer):

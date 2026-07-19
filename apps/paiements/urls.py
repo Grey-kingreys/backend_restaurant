@@ -82,6 +82,23 @@ urlpatterns = [
         name='caisse-comptable-fermer',
     ),
 
+    # ── Demandes d'approvisionnement (validation Admin / Manager) ──────────
+    path(
+        'approvisionnements/',
+        api_views.DemandeApprovisionnementListView.as_view(),
+        name='approvisionnements-list',
+    ),
+    path(
+        'approvisionnements/<int:pk>/approuver/',
+        api_views.DemandeApprovisionnementApprouverView.as_view(),
+        name='approvisionnement-approuver',
+    ),
+    path(
+        'approvisionnements/<int:pk>/refuser/',
+        api_views.DemandeApprovisionnementRefuserView.as_view(),
+        name='approvisionnement-refuser',
+    ),
+
     # ── Remises Serveur ───────────────────────────────────────────────────
     path(
         'remises/',

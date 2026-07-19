@@ -84,6 +84,12 @@ class Restaurant(models.Model):
         help_text="Laisser vide pour gratuit"
     )
 
+    livraison_lien_autorise_paiement = models.BooleanField(
+        default=False,
+        verbose_name="Encaissement via lien de livraison",
+        help_text="Autorise un livreur externe (lien / QR) à valider le paiement à la livraison"
+    )
+
     # ── Réservations ──────────────────────────────────────────────────────
     reservation_validation_auto = models.BooleanField(
         default=True,
@@ -129,6 +135,10 @@ class Restaurant(models.Model):
     def reactiver(self):
         self.is_active = True
         self.save(update_fields=['is_active', 'updated_at'])
+
+    def supprimer(self):
+        """Supprime le restaurant et toutes ses donnees associees (cascade)."""
+        self.delete()
 
     def get_slug(self):
         """

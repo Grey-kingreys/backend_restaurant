@@ -129,6 +129,7 @@ class Command(BaseCommand):
         u_chef     = mkuser("lebaobab_chef",     "Rchef_cuisinier", r1, "Oumar Kouyaté",     "oumar.kouyate@lebaobab.gn",      "+224620100004")
         u_cuis     = mkuser("lebaobab_cuisinier","Rcuisinier",      r1, "Sekou Traoré",      "sekou.traore@lebaobab.gn",       "+224620100005")
         u_cpt      = mkuser("lebaobab_comptable","Rcomptable",      r1, "Aissatou Sow",      "aissatou.sow@lebaobab.gn",       "+224620100006")
+        u_livreur  = mkuser("lebaobab_livreur",  "Rlivreur",        r1, "Thierno Barry",     "thierno.barry@lebaobab.gn",      "+224620100007")
         u_t1       = mkuser("lebaobab_table_01", "Rtable",          r1)
         u_t2       = mkuser("lebaobab_table_02", "Rtable",          r1)
         u_t3       = mkuser("lebaobab_table_03", "Rtable",          r1)

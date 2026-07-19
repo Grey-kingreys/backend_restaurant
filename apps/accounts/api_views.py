@@ -13,7 +13,7 @@ from .permissions import (
     IsRestaurantActive, IsSameRestaurant,
     HasManageEquipe, HasImpersonate, HasManageRoles,
 )
-from .perm_codes import PERM_MANAGE_ROLES
+from .perm_codes import PERM_MANAGE_ROLES, PERM_DEACTIVATE_EQUIPE
 from .serializers import (
     LoginSerializer,
     LogoutSerializer,
@@ -172,7 +172,7 @@ class ChangePasswordView(APIView):
         if serializer.is_valid():
             serializer.save()
             return success_response(message="Mot de passe modifié avec succès.")
-        return error_response(errors=serializer.errors)
+        return error_response(errors=serializer.errors, message="Impossible de changer le mot de passe.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -199,13 +199,15 @@ class UserListCreateView(APIView):
             restaurant=request.user.restaurant
         ).exclude(role='Rsuper_admin').order_by('role', 'nom_complet')
 
+        # Par défaut : afficher uniquement les utilisateurs actifs
+        # Ajouter ?actif=false pour voir les inactifs
+        actif = request.query_params.get('actif', 'true')
+        qs = qs.filter(actif=actif.lower() == 'true')
+
         # Filtres optionnels
         role = request.query_params.get('role')
-        actif = request.query_params.get('actif')
         if role:
             qs = qs.filter(role=role)
-        if actif is not None:
-            qs = qs.filter(actif=actif.lower() == 'true')
 
         serializer = UserListSerializer(qs, many=True)
         return success_response(
@@ -312,20 +314,26 @@ class UserDetailView(APIView):
         tags=["Utilisateurs"],
     )
     def delete(self, request, pk):
-        # Suppression réservée à l'Admin uniquement (pas Manager)
-        if not request.user.is_admin():
+        # Réservée à la permission deactivate_equipe (Admin, ou rôle custom l'ayant)
+        if not request.user.has_permission(PERM_DEACTIVATE_EQUIPE):
             return error_response(
-                message="Seul l'Administrateur peut supprimer un utilisateur.",
+                message="Vous n'avez pas la permission de désactiver un membre.",
                 status_code=status.HTTP_403_FORBIDDEN
             )
         user = self.get_object(pk, request)
         if user == request.user:
             return error_response(
-                message="Vous ne pouvez pas supprimer votre propre compte."
+                message="Vous ne pouvez pas désactiver votre propre compte."
+            )
+        if not user.actif:
+            return error_response(
+                message=f"Cet utilisateur est déjà désactivé."
             )
         login = user.login
-        user.delete()
-        return success_response(message=f"Utilisateur '{login}' supprimé.")
+        # Soft delete : marquer comme inactif au lieu de supprimer
+        user.actif = False
+        user.save(update_fields=['actif'])
+        return success_response(message=f"Utilisateur '{login}' désactivé. Ses données historiques sont conservées.")
 
 
 class UserToggleView(APIView):
@@ -347,6 +355,11 @@ class UserToggleView(APIView):
         tags=["Utilisateurs"],
     )
     def post(self, request, pk):
+        if not request.user.has_permission(PERM_DEACTIVATE_EQUIPE):
+            return error_response(
+                message="Vous n'avez pas la permission d'activer/désactiver un membre.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
         user = get_object_or_404(
             User, pk=pk, restaurant=request.user.restaurant
         )

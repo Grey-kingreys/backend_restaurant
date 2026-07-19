@@ -75,4 +75,16 @@ urlpatterns = [
         api_views.SuiviCommandeView.as_view(),
         name='suivi-commande'
     ),
+
+    # ── Livraison externe (token) — livreur sans compte ───────────────────
+    path(
+        'livraison/<str:token>/',
+        api_views.LivraisonPubliqueView.as_view(),
+        name='livraison-publique'
+    ),
+    path(
+        'livraison/<str:token>/action/',
+        api_views.LivraisonPubliqueActionView.as_view(),
+        name='livraison-publique-action'
+    ),
 ]

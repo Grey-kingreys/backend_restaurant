@@ -20,11 +20,13 @@ CDC §5.2 Serveur :
   - Remettre l'argent physique au comptable désigné
   - Téléchargement du reçu PDF
 """
+from datetime import timedelta
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
@@ -307,7 +309,27 @@ class QRCodeInfoView(APIView):
                 message="Aucun QR Code généré pour cette table."
             )
 
-        return ok(data=QRCodeInfoSerializer(token_obj).data)
+        # Rend l'image QR depuis le token existant — sans créer de nouveau token.
+        qr_url = token_obj.get_qr_url(request)
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(qr_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        qr_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+        return ok(data={
+            'qr_code_url': f"data:image/png;base64,{qr_b64}",
+            'qr_login_url': qr_url,
+            'table': table.numero_table,
+            'a_qr_code': True,
+        })
 
 
 class QRCodeGenererView(APIView):
@@ -459,8 +481,10 @@ class QRLoginView(APIView):
         duree = (restaurant.duree_session_table if restaurant else 60)
         expires_at = timezone.now() + timedelta(minutes=duree)
 
-        session = TableSession.objects.create(
-            table=table,
+        # ouvrir_pour désactive les autres sessions actives de la table
+        # (une seule session active à la fois) — évite l'empilement d'anciens scans.
+        session = TableSession.ouvrir_pour(
+            table,
             django_session_key=str(uuid.uuid4()),
             expires_at=expires_at,
             lat_connexion=lat,
@@ -635,6 +659,48 @@ class CheckPositionView(APIView):
             'expires_at': session.expires_at.isoformat() if session.expires_at else None,
             'minutes_remaining': minutes_remaining,
         })
+
+
+class CheckDistanceView(APIView):
+    """
+    POST /api/restaurant/tables/check-distance/
+
+    Vérification de DISTANCE GPS pour une table connectée en login+password
+    (sans session QR). Applique UNIQUEMENT la restriction de distance — pas
+    d'expiration de session ni de déconnexion post-paiement (spécifiques au QR).
+
+    Retourne { in_range: bool, distance?, message? }.
+    Tolérant : si le restaurant n'a pas de coordonnées configurées ou si le GPS
+    est indisponible, renvoie in_range=True (pas de blocage).
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(summary="Vérification distance table (login+password)", tags=["Sessions"])
+    def post(self, request):
+        from .models import haversine
+
+        if request.user.role != 'Rtable':
+            return err(message="Réservé aux tables.", code=status.HTTP_403_FORBIDDEN)
+
+        restaurant = request.user.restaurant
+        lat = request.data.get('lat')
+        lng = request.data.get('lng')
+
+        if not (restaurant and restaurant.latitude and restaurant.longitude) or lat is None or lng is None:
+            return ok(data={'in_range': True})
+
+        try:
+            dist = haversine(float(lat), float(lng), float(restaurant.latitude), float(restaurant.longitude))
+        except (TypeError, ValueError):
+            return ok(data={'in_range': True})
+
+        if dist > restaurant.rayon_connexion:
+            return ok(data={
+                'in_range': False,
+                'distance': int(dist),
+                'message': f"Vous devez être à moins de {restaurant.rayon_connexion} m du restaurant.",
+            })
+        return ok(data={'in_range': True, 'distance': int(dist)})
 
 
 # ─────────────────────────────────────────────────────────────────────────────

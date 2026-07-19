@@ -151,15 +151,22 @@ class TableRestaurantCreateSerializer(serializers.ModelSerializer):
     """
     Création d'une table physique + compte Rtable en un seul appel.
 
-    login et nom_complet servent à créer le User Rtable associé — le mot de
-    passe est généré aléatoirement (la connexion se fait via QR code).
+    login et nom_complet servent à créer le User Rtable associé. Le mot de passe
+    est optionnel : fourni → la table peut se connecter en login+password ;
+    laissé vide → généré aléatoirement (connexion via QR code uniquement).
     """
     login       = serializers.CharField(write_only=True, max_length=50)
     nom_complet = serializers.CharField(write_only=True, max_length=150, required=False, allow_blank=True)
+    password    = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model  = TableRestaurant
-        fields = ['numero_table', 'nombre_places', 'login', 'nom_complet']
+        fields = ['numero_table', 'nombre_places', 'login', 'nom_complet', 'password']
+
+    def validate_password(self, value):
+        if value and len(value) < 8:
+            raise serializers.ValidationError("Le mot de passe doit contenir au moins 8 caractères.")
+        return value
 
     def validate_login(self, value):
         v = value.strip().lower()
@@ -190,13 +197,15 @@ class TableRestaurantCreateSerializer(serializers.ModelSerializer):
         login       = validated_data.pop('login')
         num         = validated_data.get('numero_table', '')
         nom_complet = validated_data.pop('nom_complet', '').strip() or f"Table {num}"
+        # Mot de passe fourni par l'admin (connexion manuelle) sinon aléatoire (QR only)
+        password    = validated_data.pop('password', '').strip() or secrets.token_urlsafe(20)
 
         user = User.objects.create_user(
             login=login,
             role='Rtable',
             restaurant=restaurant,
             nom_complet=nom_complet,
-            password=secrets.token_urlsafe(20),
+            password=password,
             actif=True,
         )
 

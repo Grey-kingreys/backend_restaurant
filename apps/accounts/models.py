@@ -38,6 +38,7 @@ class RoleConfig(models.Model):
         ('serveur',    'Dashboard Serveur'),
         ('cuisine',    'Dashboard Cuisine'),
         ('comptable',  'Dashboard Comptable'),
+        ('livreur',    'Dashboard Livreur'),
     ]
 
     restaurant = models.ForeignKey(
@@ -133,6 +134,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('Rchef_cuisinier', 'Chef Cuisinier'),
         ('Rcuisinier',      'Cuisinier'),
         ('Rcomptable',      'Comptable'),
+        ('Rlivreur',        'Livreur'),
         ('Rtable',          'Table'),
         ('Rclient',         'Client'),
     ]
@@ -256,6 +258,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def is_comptable(self):
         return self.role == 'Rcomptable'
+
+    def is_livreur(self):
+        return self.role == 'Rlivreur'
 
     def is_table(self):
         return self.role == 'Rtable'

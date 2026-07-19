@@ -4,9 +4,28 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.db import transaction
+import logging
 
 from .models import User, PasswordResetToken, Permission, RoleConfig
 from .services.email_service import send_password_reset_email
+
+logger = logging.getLogger(__name__)
+
+
+def get_role_config_for_role(role: str) -> RoleConfig | None:
+    """
+    Récupère le RoleConfig système pour un rôle donné.
+    Utilisé lors de la création d'utilisateurs pour assigner automatiquement
+    les permissions appropriées au rôle.
+    """
+    try:
+        return RoleConfig.objects.get(slug=role, is_system=True)
+    except RoleConfig.DoesNotExist:
+        logger.warning(
+            f"RoleConfig système introuvable pour le rôle '{role}' — "
+            f"l'utilisateur n'aura pas de permissions"
+        )
+        return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -246,7 +265,14 @@ class UserCreateSerializer(serializers.ModelSerializer):
     - must_change_password = True par défaut
     - Email requis pour tous sauf Rtable
     """
-    password = serializers.CharField(write_only=True, min_length=8, required=False)
+    password = serializers.CharField(
+        write_only=True, min_length=8, required=True, allow_blank=False,
+        error_messages={
+            'required': "Le mot de passe est obligatoire.",
+            'blank': "Le mot de passe est obligatoire.",
+            'min_length': "Le mot de passe doit contenir au moins 8 caractères.",
+        },
+    )
 
     class Meta:
         model = User
@@ -323,6 +349,9 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
         login = self._generate_login(restaurant, role)
 
+        # Assigner automatiquement le RoleConfig en fonction du rôle
+        role_config = get_role_config_for_role(role)
+
         user = User.objects.create_user(
             login=login,
             password=password,
@@ -333,6 +362,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             telephone=validated_data.get('telephone'),
             must_change_password=True,
             actif=True,
+            role_config=role_config,  # Assigner les permissions du rôle
         )
         return user
 
@@ -371,13 +401,16 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 class AdminPasswordResetSerializer(serializers.Serializer):
     """
     Reset du mot de passe d'un utilisateur par l'Admin.
-    Génère un nouveau mot de passe temporaire et force must_change_password=True.
+    Force must_change_password=True — sauf pour les tables, dont le mot de passe
+    est géré par l'admin (connexion partagée, pas de premier login à changer).
     """
     new_password = serializers.CharField(min_length=8, write_only=True)
 
     def save(self, user):
         user.set_password(self.validated_data['new_password'])
-        user.must_change_password = True
+        # Les tables se connectent avec le mot de passe défini par l'admin —
+        # pas de changement forcé qui les bloquerait sur /auth/change-password.
+        user.must_change_password = not user.is_table()
         user.save(update_fields=['password', 'must_change_password'])
         return user
 

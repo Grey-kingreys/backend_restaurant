@@ -1,4 +1,5 @@
 # apps/commandes/models.py
+import secrets
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.conf import settings
@@ -120,6 +121,14 @@ class Commande(models.Model):
     client_adresse_livraison = models.TextField(
         null=True, blank=True, verbose_name="Adresse de livraison"
     )
+    client_latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        verbose_name="Latitude livraison"
+    )
+    client_longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        verbose_name="Longitude livraison"
+    )
     mode_paiement = models.CharField(
         max_length=20,
         choices=MODE_PAIEMENT_CHOICES,
@@ -211,7 +220,14 @@ class Commande(models.Model):
         return self.statut == 'en_attente'
 
     def peut_passer_en_livraison(self):
-        return self.statut == 'prete' and self.type_commande == 'livraison'
+        # Une livraison part en course depuis l'état "prête à expédier" :
+        #   - 'prete' si un plat passe par la cuisine ;
+        #   - 'en_attente' si aucun plat ne nécessite la cuisine (étape sautée).
+        if self.type_commande != 'livraison':
+            return False
+        if self.necessite_passage_cuisine():
+            return self.statut == 'prete'
+        return self.statut == 'en_attente'
 
     def est_livraison(self):
         return self.type_commande == 'livraison'
@@ -226,7 +242,13 @@ class Commande(models.Model):
         return self.statut == 'en_attente'
 
     def peut_etre_servie(self):
-        return self.statut in ('prete', 'en_attente', 'en_livraison')
+        # Une livraison ne peut être marquée "Livrée" qu'après être partie en course
+        # (statut 'en_livraison') — on ne saute jamais l'étape de livraison.
+        if self.type_commande == 'livraison':
+            return self.statut == 'en_livraison'
+        # Sur place / à emporter : servie depuis 'prete', ou directement depuis
+        # 'en_attente' quand aucun plat ne passe par la cuisine.
+        return self.statut in ('prete', 'en_attente')
 
     def peut_etre_payee(self):
         return self.statut == 'servie'
@@ -286,3 +308,49 @@ class CommandeItem(models.Model):
         if not self.prix_unitaire:
             self.prix_unitaire = self.plat.prix_unitaire
         super().save(*args, **kwargs)
+
+
+class LivraisonToken(models.Model):
+    """
+    Lien / QR public permettant à un livreur externe (sans compte) de suivre
+    une commande de livraison précise et de la faire avancer
+    (en course → livrée, et l'encaissement si le restaurant l'autorise).
+    Le token est révocable : le régénérer invalide l'ancien lien.
+    """
+    commande = models.OneToOneField(
+        Commande,
+        on_delete=models.CASCADE,
+        related_name='livraison_token',
+        verbose_name="Commande",
+    )
+    token = models.CharField(max_length=64, unique=True, db_index=True, verbose_name="Token")
+    cree_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='livraison_tokens_crees',
+        verbose_name="Créé par",
+        help_text="Membre du staff responsable du lien (attribution du paiement)",
+    )
+    date_creation = models.DateTimeField(auto_now_add=True)
+    date_derniere_utilisation = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Lien de livraison'
+        verbose_name_plural = 'Liens de livraison'
+
+    def __str__(self):
+        return f"Lien livraison commande #{self.commande_id}"
+
+    @classmethod
+    def generer(cls, commande, cree_par=None):
+        """Crée ou régénère le token d'une commande (invalide l'ancien lien)."""
+        obj, _ = cls.objects.update_or_create(
+            commande=commande,
+            defaults={'token': secrets.token_urlsafe(48), 'cree_par': cree_par},
+        )
+        return obj
+
+    def get_public_url(self):
+        base = (getattr(settings, 'FRONTEND_URL', '') or '').rstrip('/')
+        return f"{base}/livraison/{self.token}"

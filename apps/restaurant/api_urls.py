@@ -52,6 +52,11 @@ urlpatterns = [
         api_views.CheckPositionView.as_view(),
         name='check-position'
     ),
+    path(
+        'tables/check-distance/',
+        api_views.CheckDistanceView.as_view(),
+        name='check-distance'
+    ),
 
     # ── Dashboard Serveur ─────────────────────────────────────────────────
     path(

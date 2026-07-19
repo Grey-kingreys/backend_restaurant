@@ -16,6 +16,10 @@ urlpatterns = [
     # ── Mes commandes — Table (session QR courante) ───────────────────────
     path('mes-commandes/',      api_views.MesCommandesView.as_view(),  name='mes-commandes'),
 
+    # ── Livraisons à traiter — Livreur, Serveur, Admin, Manager ───────────
+    path('livraisons/',         api_views.LivraisonsView.as_view(),    name='livraisons'),
+    path('<int:pk>/livraison-lien/', api_views.LivraisonLienView.as_view(), name='livraison-lien'),
+
     # ── Toutes les commandes — Serveur, Chef, Admin, Manager ──────────────
     path('',                    api_views.AllCommandesView.as_view(),  name='all-commandes'),
 

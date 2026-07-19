@@ -12,6 +12,7 @@ from .serializers import (
     RestaurantSerializer,
     RestaurantCreateSerializer,
     RestaurantUpdateSerializer,
+    RestaurantDeleteSerializer,
     OnboardingTokenValidateSerializer,
     PlatformStatsSerializer,
     MonRestaurantUpdateSerializer,
@@ -151,6 +152,43 @@ class RestaurantDetailView(APIView):
             )
         return error_response(errors=serializer.errors, message="Donnees invalides.")
 
+    @extend_schema(
+        summary="Supprimer un restaurant",
+        description=(
+            "Supprime définitivement un restaurant et toutes ses données associées "
+            "(utilisateurs, plats, commandes, paiements, etc.). "
+            "Opération IRREVERSIBLE. Requiert la confirmation du nom exact "
+            "et le mot de passe du Super Admin. "
+            "Accès Super Admin uniquement."
+        ),
+        request=RestaurantDeleteSerializer,
+        responses={
+            200: OpenApiResponse(description="Restaurant supprimé avec succès"),
+            400: OpenApiResponse(description="Confirmation invalide ou mot de passe incorrect"),
+            403: OpenApiResponse(description="Accès refusé — Super Admin requis"),
+            404: OpenApiResponse(description="Restaurant introuvable"),
+        },
+        tags=["Restaurants"],
+    )
+    def delete(self, request, pk):
+        restaurant = self.get_object(pk)
+        serializer = RestaurantDeleteSerializer(
+            data=request.data,
+            context={'restaurant': restaurant, 'user': request.user}
+        )
+        if serializer.is_valid():
+            nom_restaurant = restaurant.nom
+            restaurant.supprimer()
+            return success_response(
+                data=None,
+                message=f"Restaurant '{nom_restaurant}' et toutes ses données supprimés définitivement.",
+                status_code=status.HTTP_200_OK
+            )
+        return error_response(
+            errors=serializer.errors,
+            message="Suppression non confirmée ou données invalides."
+        )
+
 
 class RestaurantSuspendView(APIView):
     """
@@ -228,7 +266,8 @@ class RestaurantActivateView(APIView):
 class MonRestaurantView(APIView):
     """
     GET   /api/company/mon-restaurant/  — Voir son restaurant (Admin)
-    PATCH /api/company/mon-restaurant/  — Modifier nom, telephone, adresse (Admin)
+    PATCH /api/company/mon-restaurant/  — Modifier les infos, la géolocalisation,
+          la commande en ligne et les réservations (Admin)
     """
     permission_classes = [IsAuthenticated]
 
@@ -239,21 +278,25 @@ class MonRestaurantView(APIView):
         tags=["Restaurants"],
     )
     def get(self, request):
-        if not request.user.is_admin():
-            return error_response(message="Accès réservé à l'Admin.", status_code=status.HTTP_403_FORBIDDEN)
+        if not request.user.has_permission('manage_restaurant'):
+            return error_response(message="Permission requise.", status_code=status.HTTP_403_FORBIDDEN)
         serializer = RestaurantSerializer(request.user.restaurant, context={'request': request})
         return success_response(data=serializer.data)
 
     @extend_schema(
         summary="Mon restaurant — mise à jour",
-        description="Met à jour le nom, téléphone ou adresse du restaurant (Admin uniquement).",
+        description=(
+            "Met à jour les informations du restaurant : nom, téléphone, adresse, "
+            "géolocalisation QR (latitude, longitude, rayon, durée de session), "
+            "commande en ligne et réservations (Admin uniquement)."
+        ),
         request=MonRestaurantUpdateSerializer,
         responses={200: RestaurantSerializer, 400: OpenApiResponse(description="Données invalides"), 403: OpenApiResponse(description="Admin uniquement")},
         tags=["Restaurants"],
     )
     def patch(self, request):
-        if not request.user.is_admin():
-            return error_response(message="Accès réservé à l'Admin.", status_code=status.HTTP_403_FORBIDDEN)
+        if not request.user.has_permission('manage_restaurant'):
+            return error_response(message="Permission requise.", status_code=status.HTTP_403_FORBIDDEN)
         serializer = MonRestaurantUpdateSerializer(
             request.user.restaurant, data=request.data, partial=True
         )

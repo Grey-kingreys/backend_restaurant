@@ -3,9 +3,10 @@
 # Importez ces constantes partout où vous avez besoin de vérifier une permission.
 
 # ── Équipe ────────────────────────────────────────────────────────────────────
-PERM_MANAGE_EQUIPE   = 'manage_equipe'    # CRUD users, toggle, reset password
-PERM_IMPERSONATE     = 'impersonate'      # Simuler un membre
-PERM_MANAGE_ROLES    = 'manage_roles'     # Créer / modifier les rôles custom
+PERM_MANAGE_EQUIPE     = 'manage_equipe'      # Créer / modifier / réinitialiser MDP
+PERM_DEACTIVATE_EQUIPE = 'deactivate_equipe'  # Activer / désactiver / supprimer un membre
+PERM_IMPERSONATE       = 'impersonate'        # Simuler un membre
+PERM_MANAGE_ROLES      = 'manage_roles'       # Créer / modifier les rôles custom
 
 # ── Menu ──────────────────────────────────────────────────────────────────────
 PERM_MANAGE_MENU     = 'manage_menu'      # Créer / modifier / supprimer / toggle plats
@@ -18,6 +19,11 @@ PERM_MANAGE_COMMANDES  = 'manage_commandes'  # Marquer servie / payée / supprim
 PERM_VIEW_CUISINE    = 'view_cuisine'     # Voir la file d'attente cuisine
 PERM_MANAGE_CUISINE  = 'manage_cuisine'   # Marquer une commande comme prête
 
+# ── Livraison ─────────────────────────────────────────────────────────────────
+PERM_VIEW_LIVRAISONS       = 'view_livraisons'        # Voir les livraisons à faire
+PERM_MANAGE_LIVRAISONS     = 'manage_livraisons'      # Marquer en course / livrée
+PERM_MANAGE_LIVRAISON_LINKS = 'manage_livraison_links'  # Générer un lien / QR de livraison externe
+
 # ── Tables ────────────────────────────────────────────────────────────────────
 PERM_MANAGE_TABLES   = 'manage_tables'    # CRUD tables + génération QR
 PERM_VIEW_TABLES     = 'view_tables'      # Voir les tables et leur statut
@@ -29,6 +35,7 @@ PERM_MANAGE_CAISSE_GLOBALE   = 'manage_caisse_globale'    # Fermer / ouvrir manu
 PERM_VIEW_CAISSE_GENERALE    = 'view_caisse_generale'     # Voir la caisse générale permanente
 PERM_VIEW_REMISES            = 'view_remises'             # Voir ses propres remises
 PERM_MANAGE_REMISES          = 'manage_remises'           # Valider les remises des serveurs
+PERM_VALIDATE_APPRO          = 'validate_approvisionnement'  # Valider/refuser les demandes d'appro comptable
 
 # ── Restaurant ────────────────────────────────────────────────────────────────
 PERM_MANAGE_RESTAURANT = 'manage_restaurant'  # Modifier les paramètres du restaurant
@@ -38,7 +45,8 @@ PERM_MANAGE_RESTAURANT = 'manage_restaurant'  # Modifier les paramètres du rest
 # (code, label, catégorie)
 ALL_PERMISSIONS = [
     # Équipe
-    (PERM_MANAGE_EQUIPE,            "Gérer l'équipe",                       "Équipe"),
+    (PERM_MANAGE_EQUIPE,            "Gérer l'équipe (créer / modifier)",    "Équipe"),
+    (PERM_DEACTIVATE_EQUIPE,        "Activer / désactiver / supprimer un membre", "Équipe"),
     (PERM_IMPERSONATE,              "Simuler un membre",                    "Équipe"),
     (PERM_MANAGE_ROLES,             "Gérer les rôles personnalisés",        "Équipe"),
     # Menu
@@ -49,6 +57,10 @@ ALL_PERMISSIONS = [
     # Cuisine
     (PERM_VIEW_CUISINE,             "Voir la file cuisine",                 "Cuisine"),
     (PERM_MANAGE_CUISINE,           "Marquer les commandes prêtes",         "Cuisine"),
+    # Livraison
+    (PERM_VIEW_LIVRAISONS,          "Voir les livraisons à faire",          "Livraison"),
+    (PERM_MANAGE_LIVRAISONS,        "Marquer en course / livrée",           "Livraison"),
+    (PERM_MANAGE_LIVRAISON_LINKS,   "Générer un lien / QR de livraison",    "Livraison"),
     # Tables
     (PERM_MANAGE_TABLES,            "Gérer les tables et QR codes",         "Tables"),
     (PERM_VIEW_TABLES,              "Voir les tables",                      "Tables"),
@@ -59,6 +71,7 @@ ALL_PERMISSIONS = [
     (PERM_VIEW_CAISSE_GENERALE,     "Voir la caisse générale",              "Finance"),
     (PERM_VIEW_REMISES,             "Voir ses remises",                     "Finance"),
     (PERM_MANAGE_REMISES,           "Valider les remises des serveurs",     "Finance"),
+    (PERM_VALIDATE_APPRO,           "Valider les demandes d'approvisionnement", "Finance"),
     # Restaurant
     (PERM_MANAGE_RESTAURANT,        "Modifier les paramètres du restaurant","Restaurant"),
 ]
@@ -68,14 +81,16 @@ ALL_PERMISSIONS = [
 
 SYSTEM_ROLE_PERMISSIONS = {
     'Radmin': [
-        PERM_MANAGE_EQUIPE, PERM_IMPERSONATE, PERM_MANAGE_ROLES,
+        PERM_MANAGE_EQUIPE, PERM_DEACTIVATE_EQUIPE, PERM_IMPERSONATE, PERM_MANAGE_ROLES,
         PERM_MANAGE_MENU,
         PERM_VIEW_COMMANDES, PERM_MANAGE_COMMANDES,
         PERM_VIEW_CUISINE, PERM_MANAGE_CUISINE,
+        PERM_VIEW_LIVRAISONS, PERM_MANAGE_LIVRAISONS, PERM_MANAGE_LIVRAISON_LINKS,
         PERM_MANAGE_TABLES, PERM_VIEW_TABLES,
         PERM_VIEW_CAISSE_GLOBALE, PERM_MANAGE_CAISSE_GLOBALE,
         PERM_VIEW_CAISSE_GENERALE,
         PERM_VIEW_REMISES, PERM_MANAGE_REMISES,
+        PERM_VALIDATE_APPRO,
         PERM_MANAGE_RESTAURANT,
     ],
     'Rmanager': [
@@ -83,14 +98,22 @@ SYSTEM_ROLE_PERMISSIONS = {
         PERM_MANAGE_MENU,
         PERM_VIEW_COMMANDES, PERM_MANAGE_COMMANDES,
         PERM_VIEW_CUISINE,
-        PERM_VIEW_TABLES,
+        PERM_VIEW_LIVRAISONS, PERM_MANAGE_LIVRAISONS, PERM_MANAGE_LIVRAISON_LINKS,
+        PERM_MANAGE_TABLES, PERM_VIEW_TABLES,
         PERM_VIEW_CAISSE_GLOBALE,
         PERM_VIEW_CAISSE_GENERALE,
+        PERM_VIEW_REMISES,
+        PERM_VALIDATE_APPRO,
+        PERM_MANAGE_RESTAURANT,
     ],
     'Rserveur': [
         PERM_VIEW_COMMANDES, PERM_MANAGE_COMMANDES,
+        PERM_VIEW_LIVRAISONS, PERM_MANAGE_LIVRAISON_LINKS,
         PERM_VIEW_TABLES,
         PERM_VIEW_REMISES,
+    ],
+    'Rlivreur': [
+        PERM_VIEW_LIVRAISONS, PERM_MANAGE_LIVRAISONS,
     ],
     'Rchef_cuisinier': [
         PERM_MANAGE_MENU,
@@ -118,4 +141,5 @@ SYSTEM_ROLE_DASHBOARD = {
     'Rchef_cuisinier': 'cuisine',
     'Rcuisinier':      'cuisine',
     'Rcomptable':      'comptable',
+    'Rlivreur':        'livreur',
 }
