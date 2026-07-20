@@ -56,16 +56,23 @@ class CaisseGenerale(models.Model):
         return f"Caisse Generale — {self.restaurant.nom} — {self.solde} GNF"
 
     def crediter(self, montant):
-        """Ajoute un montant au solde"""
-        self.solde += Decimal(str(montant))
-        self.save(update_fields=['solde', 'updated_at'])
+        """Ajoute un montant au solde — increment atomique via F() (anti-race)."""
+        montant = Decimal(str(montant))
+        type(self).objects.filter(pk=self.pk).update(
+            solde=models.F('solde') + montant, updated_at=timezone.now()
+        )
+        self.refresh_from_db(fields=['solde', 'updated_at'])
 
     def debiter(self, montant):
-        """Retire un montant du solde — verifie la solvabilite avant"""
-        if not self.peut_debiter(montant):
+        """Retire un montant — decrement conditionnel atomique (anti-race)."""
+        montant = Decimal(str(montant))
+        updated = type(self).objects.filter(pk=self.pk, solde__gte=montant).update(
+            solde=models.F('solde') - montant, updated_at=timezone.now()
+        )
+        if not updated:
+            self.refresh_from_db(fields=['solde'])
             raise ValueError(f"Solde insuffisant: {self.solde} GNF < {montant} GNF")
-        self.solde -= Decimal(str(montant))
-        self.save(update_fields=['solde', 'updated_at'])
+        self.refresh_from_db(fields=['solde', 'updated_at'])
 
     def peut_debiter(self, montant):
         return self.solde >= Decimal(str(montant))
@@ -154,19 +161,26 @@ class CaisseGlobale(models.Model):
         return f"Caisse Globale {self.date_ouverture} — {self.restaurant.nom} [{statut}]"
 
     def crediter(self, montant):
-        """Credite la caisse — appele lors de chaque validation de remise serveur"""
-        if self.is_closed:
+        """Credite la caisse (increment atomique) — refuse si fermee."""
+        montant = Decimal(str(montant))
+        updated = type(self).objects.filter(pk=self.pk, is_closed=False).update(
+            solde=models.F('solde') + montant, updated_at=timezone.now()
+        )
+        if not updated:
             raise ValueError("Impossible de crediter une caisse fermee")
-        self.solde += Decimal(str(montant))
-        self.save(update_fields=['solde', 'updated_at'])
+        self.refresh_from_db(fields=['solde', 'updated_at'])
 
+    @transaction.atomic
     def fermer(self, fermee_par, montant_physique, motif_ecart=None):
         """
         Ferme la caisse — IRREVERSIBLE.
         Transfete le solde dans la Caisse Generale.
+        Verrou pessimiste : empeche double fermeture / credit concurrent.
         """
-        if self.is_closed:
+        locked = type(self).objects.select_for_update().get(pk=self.pk)
+        if locked.is_closed:
             raise ValueError("Cette caisse est deja fermee")
+        self.solde = locked.solde  # solde fige sous verrou
 
         ecart = abs(self.solde - Decimal(str(montant_physique)))
         if ecart > 0 and not motif_ecart:
@@ -268,30 +282,41 @@ class CaisseComptable(models.Model):
         return self.solde >= Decimal(str(montant))
 
     def debiter(self, montant):
-        """Debite pour une depense"""
-        if self.is_closed:
-            raise ValueError("Impossible de debiter une caisse fermee")
-        if not self.peut_effectuer_depense(montant):
+        """Debite pour une depense — decrement conditionnel atomique (anti-race)."""
+        montant = Decimal(str(montant))
+        updated = type(self).objects.filter(
+            pk=self.pk, is_closed=False, solde__gte=montant
+        ).update(solde=models.F('solde') - montant)
+        if not updated:
+            self.refresh_from_db(fields=['solde', 'is_closed'])
+            if self.is_closed:
+                raise ValueError("Impossible de debiter une caisse fermee")
             raise ValueError(f"Solde insuffisant: {self.solde} GNF")
-        self.solde -= Decimal(str(montant))
-        self.save(update_fields=['solde'])
+        self.refresh_from_db(fields=['solde'])
 
     def crediter(self, montant):
-        """Credite depuis la Caisse Generale (approvisionnement)"""
-        if self.is_closed:
+        """Credite depuis la Caisse Generale (increment atomique)."""
+        montant = Decimal(str(montant))
+        updated = type(self).objects.filter(pk=self.pk, is_closed=False).update(
+            solde=models.F('solde') + montant
+        )
+        if not updated:
             raise ValueError("Impossible de crediter une caisse fermee")
-        self.solde += Decimal(str(montant))
-        self.save(update_fields=['solde'])
+        self.refresh_from_db(fields=['solde'])
 
+    @transaction.atomic
     def fermer(self, montant_physique, motif_ecart=None, fermee_par=None):
         """
         Ferme la caisse — IRREVERSIBLE.
         Transfere le MONTANT PHYSIQUE reellement compte dans la Caisse Generale
         (le coffre reflete le cash reel) et trace l'ecart eventuel
         (physique - virtuel) comme perte/gain.
+        Verrou pessimiste : empeche double fermeture / mouvement concurrent.
         """
-        if self.is_closed:
+        locked = type(self).objects.select_for_update().get(pk=self.pk)
+        if locked.is_closed:
             raise ValueError("Cette caisse est deja fermee")
+        self.solde = locked.solde  # solde fige sous verrou
 
         montant_physique = Decimal(str(montant_physique))
         solde_virtuel = self.solde
