@@ -635,7 +635,7 @@ class RoleConfigDetailView(APIView):
 
     @extend_schema(
         summary="Modifier un rôle",
-        description="Modification partielle (nom, dashboard_type, permissions). Fonctionne aussi sur les rôles système.",
+        description="Modification partielle (nom, dashboard_type, permissions) d'un rôle custom du restaurant. Les rôles système sont protégés (403).",
         request=RoleConfigUpdateSerializer,
         responses={
             200: RoleConfigDetailSerializer,
@@ -647,7 +647,12 @@ class RoleConfigDetailView(APIView):
         if e := self._check_perm(request):
             return e
         role = self._get_role(pk, request)
-        if not role.is_system and role.restaurant != request.user.restaurant:
+        if role.is_system:
+            return error_response(
+                message="Les rôles système ne sont pas modifiables.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        if role.restaurant != request.user.restaurant:
             return error_response(message="Rôle introuvable.", status_code=status.HTTP_404_NOT_FOUND)
         s = RoleConfigUpdateSerializer(role, data=request.data, partial=True)
         if s.is_valid():
@@ -671,7 +676,12 @@ class RoleConfigDetailView(APIView):
         if e := self._check_perm(request):
             return e
         role = self._get_role(pk, request)
-        if not role.is_system and role.restaurant != request.user.restaurant:
+        if role.is_system:
+            return error_response(
+                message="Les rôles système ne peuvent pas être supprimés.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        if role.restaurant != request.user.restaurant:
             return error_response(message="Rôle introuvable.", status_code=status.HTTP_404_NOT_FOUND)
         nb_users = role.users.count()
         if nb_users > 0:
