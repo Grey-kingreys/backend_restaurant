@@ -90,6 +90,7 @@ class CommandeListSerializer(serializers.ModelSerializer):
     client_display = serializers.SerializerMethodField()
     nb_items       = serializers.SerializerMethodField()
     necessite_passage_cuisine = serializers.SerializerMethodField()
+    peut_annuler_staff = serializers.BooleanField(read_only=True)
 
     class Meta:
         model  = Commande
@@ -97,6 +98,7 @@ class CommandeListSerializer(serializers.ModelSerializer):
             'id', 'table', 'table_login', 'statut', 'statut_display',
             'type_commande', 'type_commande_display', 'client_display', 'client_nom',
             'montant_total', 'nb_items', 'necessite_passage_cuisine',
+            'peut_annuler_staff', 'motif_annulation',
             'date_commande', 'date_modification',
         ]
 
@@ -132,6 +134,9 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
     peut_passer_en_livraison = serializers.BooleanField(read_only=True)
     peut_etre_servie        = serializers.BooleanField(read_only=True)
     peut_etre_payee         = serializers.BooleanField(read_only=True)
+    peut_annuler_client     = serializers.BooleanField(read_only=True)
+    peut_annuler_staff      = serializers.BooleanField(read_only=True)
+    annulee_par_login       = serializers.SerializerMethodField()
 
     class Meta:
         model  = Commande
@@ -146,9 +151,14 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
             'cuisinier_ayant_prepare', 'cuisinier_login',
             'items',
             'peut_etre_marquee_prete', 'peut_passer_en_livraison', 'peut_etre_servie', 'peut_etre_payee',
+            'peut_annuler_client', 'peut_annuler_staff',
+            'annulee_le', 'annulee_par_login', 'motif_annulation',
             'necessite_passage_cuisine',
             'date_commande', 'date_modification', 'date_paiement',
         ]
+
+    def get_annulee_par_login(self, obj):
+        return obj.annulee_par.login if obj.annulee_par else None
 
     def get_client_display(self, obj):
         if obj.type_commande in ('livraison', 'emporter') and obj.client_nom:
@@ -229,6 +239,95 @@ class CommandeValiderSerializer(serializers.Serializer):
         ])
 
         PanierItem.objects.filter(table=table).delete()
+        return commande
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PRISE DE COMMANDE PAR LE SERVEUR (pour une table, sur place)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CommandeServeurCreateSerializer(serializers.Serializer):
+    """
+    Un serveur (ou admin/manager) saisit une commande SUR PLACE pour une table.
+    Les items sont fournis en ligne (pas de panier). Résultat : une commande
+    EN_ATTENTE de type 'sur_table', comme si la table l'avait passée elle-même.
+    """
+    table_id = serializers.IntegerField()
+    items = serializers.ListField(
+        child=serializers.DictField(), allow_empty=False,
+        help_text="Liste de {plat_id, quantite}."
+    )
+
+    def validate_table_id(self, value):
+        # `table_id` = id du TableRestaurant (ce que liste le front) ; on résout
+        # vers son compte Rtable (Commande.table pointe vers le User).
+        from apps.restaurant.models import TableRestaurant
+        request = self.context['request']
+        try:
+            tr = TableRestaurant.objects.select_related('utilisateur').get(
+                pk=value, restaurant=request.user.restaurant,
+            )
+        except TableRestaurant.DoesNotExist:
+            raise serializers.ValidationError("Table introuvable dans ce restaurant.")
+        if not tr.utilisateur_id:
+            raise serializers.ValidationError("Cette table n'a pas de compte associé.")
+        self._table = tr.utilisateur
+        return value
+
+    def validate_items(self, value):
+        request = self.context['request']
+        # Agrège les quantités par plat (évite les doublons de CommandeItem)
+        quantites = {}
+        for raw in value:
+            try:
+                plat_id = int(raw.get('plat_id'))
+                quantite = int(raw.get('quantite'))
+            except (TypeError, ValueError):
+                raise serializers.ValidationError("Chaque item doit avoir plat_id et quantite entiers.")
+            if quantite < 1 or quantite > 50:
+                raise serializers.ValidationError("Quantité invalide (1 à 50).")
+            quantites[plat_id] = quantites.get(plat_id, 0) + quantite
+
+        parsed = []
+        for plat_id, quantite in quantites.items():
+            try:
+                plat = Plat.objects.get(
+                    pk=plat_id, restaurant=request.user.restaurant, disponible=True,
+                )
+            except Plat.DoesNotExist:
+                raise serializers.ValidationError(
+                    f"Plat #{plat_id} introuvable ou non disponible."
+                )
+            parsed.append((plat, quantite))
+        self._parsed_items = parsed
+        return value
+
+    @transaction.atomic
+    def create(self):
+        request = self.context['request']
+        table = self._table
+        items = self._parsed_items
+
+        montant_total = sum(plat.prix_unitaire * qte for plat, qte in items)
+
+        # Rattache la session QR active de la table si elle existe (sinon None)
+        session = TableSession.objects.filter(table=table, est_active=True).first()
+
+        commande = Commande.objects.create(
+            restaurant=request.user.restaurant,
+            table=table,
+            session=session,
+            type_commande='sur_table',
+            montant_total=montant_total,
+            statut='en_attente',
+        )
+        CommandeItem.objects.bulk_create([
+            CommandeItem(
+                commande=commande, plat=plat,
+                quantite=qte, prix_unitaire=plat.prix_unitaire,
+            )
+            for plat, qte in items
+        ])
         return commande
 
 

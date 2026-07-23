@@ -13,6 +13,9 @@ urlpatterns = [
     # ── Validation panier → commande (Table) ──────────────────────────────
     path('valider/',            api_views.CommandeValiderView.as_view(), name='valider'),
 
+    # ── Prise de commande par le serveur (pour une table) ─────────────────
+    path('creer/',              api_views.CommandeServeurCreerView.as_view(), name='serveur-creer'),
+
     # ── Mes commandes — Table (session QR courante) ───────────────────────
     path('mes-commandes/',      api_views.MesCommandesView.as_view(),  name='mes-commandes'),
 
@@ -34,6 +37,9 @@ urlpatterns = [
     path('<int:pk>/servie/',         api_views.CommandeServieView.as_view(),      name='servie'),
     path('<int:pk>/en-livraison/',   api_views.CommandeEnLivraisonView.as_view(), name='en-livraison'),
     path('<int:pk>/payee/',          api_views.CommandePayeeView.as_view(),        name='payee'),
+
+    # ── Annulation (staff avec manage_commandes) ──────────────────────────
+    path('<int:pk>/annuler/',        api_views.CommandeAnnulerView.as_view(),      name='annuler'),
 
     # ── Reçu PDF ──────────────────────────────────────────────────────────
     path('<int:pk>/recu/',      api_views.CommandeRecuView.as_view(),   name='recu'),
