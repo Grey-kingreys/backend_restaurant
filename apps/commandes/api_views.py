@@ -17,6 +17,7 @@ from apps.accounts.perm_codes import (
     PERM_VIEW_CUISINE, PERM_MANAGE_CUISINE,
     PERM_VIEW_LIVRAISONS, PERM_MANAGE_LIVRAISONS, PERM_MANAGE_LIVRAISON_LINKS,
 )
+from apps.accounts.permissions import IsRestaurantActive
 from .models import Commande, PanierItem, LivraisonToken
 from .serializers import (
     PanierItemSerializer,
@@ -24,6 +25,7 @@ from .serializers import (
     CommandeListSerializer,
     CommandeDetailSerializer,
     CommandeValiderSerializer,
+    CommandeServeurCreateSerializer,
     CommandeCuisinierSerializer,
     CommandePreteSerializer,
     CommandeServieSerializer,
@@ -198,6 +200,43 @@ class CommandeValiderView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# PRISE DE COMMANDE PAR LE SERVEUR — Serveur / Admin / Manager
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CommandeServeurCreerView(APIView):
+    permission_classes = [IsAuthenticated, IsRestaurantActive]
+
+    @extend_schema(
+        summary="Créer une commande pour une table (prise de commande serveur)",
+        description="Un serveur (ou admin/manager) saisit une commande SUR PLACE pour une table. "
+                    "Corps : { table_id, items: [{plat_id, quantite}] }. "
+                    "Accès : permission manage_commandes.",
+        request=CommandeServeurCreateSerializer,
+        responses={
+            201: CommandeDetailSerializer,
+            400: OpenApiResponse(description="Données invalides"),
+            403: OpenApiResponse(description="Permission manage_commandes requise"),
+        },
+        tags=["Commandes"],
+    )
+    def post(self, request):
+        if not request.user.has_permission(PERM_MANAGE_COMMANDES):
+            return err(
+                message="Vous n'avez pas la permission de créer des commandes.",
+                code=status.HTTP_403_FORBIDDEN,
+            )
+        s = CommandeServeurCreateSerializer(data=request.data, context={'request': request})
+        if s.is_valid():
+            commande = s.create()
+            return ok(
+                data=CommandeDetailSerializer(commande, context={'request': request}).data,
+                message=f"Commande #{commande.id} créée pour {commande.table.login}.",
+                code=status.HTTP_201_CREATED,
+            )
+        return err(errors=s.errors, message="Validation échouée.")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # MES COMMANDES — Table (isolation session QR)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -276,7 +315,7 @@ class AllCommandesView(APIView):
         statut   = request.query_params.get('statut')
         table_id = request.query_params.get('table_id')
 
-        if statut and statut in ('en_attente', 'prete', 'en_livraison', 'servie', 'payee'):
+        if statut and statut in ('en_attente', 'prete', 'en_livraison', 'servie', 'payee', 'annulee'):
             qs = qs.filter(statut=statut)
         if table_id:
             qs = qs.filter(table_id=table_id)
@@ -580,6 +619,48 @@ class CommandePayeeView(APIView):
                 ),
             )
         return err(errors=s.errors, message="Action impossible.")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ANNULATION (staff)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CommandeAnnulerView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Annuler une commande (staff)",
+        description=(
+            "Le staff (permission manage_commandes) annule une commande tant qu'elle "
+            "n'est ni servie/livrée, ni payée (jusqu'à « en livraison » inclus). "
+            "Le motif est obligatoire."
+        ),
+        responses={
+            200: CommandeDetailSerializer,
+            400: OpenApiResponse(description="Statut invalide ou motif manquant"),
+            403: OpenApiResponse(description="Permission manage_commandes requise"),
+            404: OpenApiResponse(description="Commande non trouvée"),
+        },
+        tags=["Service"],
+    )
+    def post(self, request, pk):
+        if not request.user.has_permission(PERM_MANAGE_COMMANDES):
+            return err(message="Vous n'avez pas la permission de gérer les commandes.", code=status.HTTP_403_FORBIDDEN)
+
+        commande = get_object_or_404(Commande, pk=pk, restaurant=request.user.restaurant)
+
+        if not commande.peut_annuler_staff():
+            return err(message=f"Statut actuel : {commande.get_statut_display()}. Cette commande ne peut plus être annulée.")
+
+        motif = (request.data.get('motif') or "").strip()
+        if not motif:
+            return err(errors={'motif': ["Le motif d'annulation est obligatoire."]}, message="Motif requis.")
+
+        commande.annuler(par=request.user, motif=motif)
+        return ok(
+            data=CommandeDetailSerializer(commande, context={'request': request}).data,
+            message=f"Commande #{commande.id} annulée.",
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

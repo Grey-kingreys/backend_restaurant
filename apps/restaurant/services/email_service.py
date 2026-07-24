@@ -5,7 +5,7 @@ Réutilise l'envoi bas niveau de apps.company.services.email_service.
 """
 
 import logging
-from apps.company.services.email_service import _send
+from apps.company.services.email_service import _send, render_email
 
 logger = logging.getLogger(__name__)
 
@@ -23,17 +23,7 @@ def _heure_fin(heure, duree_minutes):
 
 
 def _wrap(titre, contenu, restaurant_nom):
-    return f"""
-    <!DOCTYPE html>
-    <html>
-    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color:#2d3748;">
-        <h2 style="color:#b45309;">{titre}</h2>
-        {contenu}
-        <hr style="border:none; border-top:1px solid #e2e8f0; margin:28px 0;">
-        <p style="color:#a0aec0; font-size:12px; text-align:center;">{restaurant_nom} — via RestoPro</p>
-    </body>
-    </html>
-    """
+    return render_email(titre, contenu, footer_line=f"{restaurant_nom} — via resfly")
 
 
 def send_reservation_client(resa) -> bool:

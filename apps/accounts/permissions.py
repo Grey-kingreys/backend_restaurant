@@ -39,6 +39,17 @@ class IsTable(BasePermission):
         )
 
 
+class IsClient(BasePermission):
+    message = "Accès réservé aux comptes Client."
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role == 'Rclient'
+        )
+
+
 class IsRestaurantActive(BasePermission):
     """Vérifie que le restaurant de l'utilisateur est actif."""
     message = "Votre restaurant est suspendu. Contactez le support."

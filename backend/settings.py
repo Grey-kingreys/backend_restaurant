@@ -168,6 +168,11 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'EXCEPTION_HANDLER': 'apps.accounts.exceptions.custom_exception_handler',
+    # Throttling ciblé (scoped) — activé seulement sur les vues qui le déclarent.
+    'DEFAULT_THROTTLE_RATES': {
+        'contact': '5/hour',
+        'recu_sms': '5/hour',
+    },
 }
 
 # ------------------------------------------
@@ -305,3 +310,16 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 RESEND_KEY = os.getenv('RESEND_KEY', '')
 RESEND_FROM_EMAIL = os.getenv('RESEND_FROM_EMAIL', 'noreply@kingreys.fr')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+
+# ------------------------------------------
+# Nimba SMS (opérateur guinéen) — envoi de SMS transactionnels
+# Laisser SID/TOKEN vides désactive proprement l'envoi (no-op loggé en dev).
+# Le sender_name doit être validé au préalable sur le dashboard Nimba (24-48h).
+# ------------------------------------------
+NIMBA_SMS_SID = os.getenv('NIMBA_SMS_SID', '')
+NIMBA_SMS_TOKEN = os.getenv('NIMBA_SMS_TOKEN', '')
+NIMBA_SMS_SENDER = os.getenv('NIMBA_SMS_SENDER', 'RESFLY')
+
+# Adresse qui reçoit les messages du formulaire de contact de la vitrine.
+# Temporaire (Gmail) jusqu'à l'achat du domaine.
+CONTACT_EMAIL = os.getenv('CONTACT_EMAIL', 'soulmamoudou0@gmail.com')

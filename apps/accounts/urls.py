@@ -62,6 +62,23 @@ urlpatterns = [
         name='user-impersonate'
     ),
 
+    # ── Carnet d'adresses client ──────────────────────────────────────────
+    path(
+        'adresses/',
+        api_views.AdresseClientListCreateView.as_view(),
+        name='adresse-list-create'
+    ),
+    path(
+        'adresses/<int:pk>/',
+        api_views.AdresseClientDetailView.as_view(),
+        name='adresse-detail'
+    ),
+    path(
+        'adresses/<int:pk>/default/',
+        api_views.AdresseClientSetDefaultView.as_view(),
+        name='adresse-set-default'
+    ),
+
     # ── Reset mot de passe (self-service) ─────────────────────────────────
     path(
         'auth/password/reset-request/',
