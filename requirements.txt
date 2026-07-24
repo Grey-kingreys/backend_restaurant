@@ -38,6 +38,9 @@ requests==2.32.3
 # Resend - Envoi d'emails
 resend==2.27.0
 
+# Nimba SMS - Envoi de SMS / WhatsApp (opérateur guinéen)
+nimbasms==1.0.2
+
 # Prometheus - Monitoring
 django-prometheus==2.3.1
 

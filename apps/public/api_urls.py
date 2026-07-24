@@ -16,6 +16,13 @@ urlpatterns = [
         name='client-register'
     ),
 
+    # ── Contact (formulaire vitrine) ──────────────────────────────────────
+    path(
+        'contact/',
+        api_views.ContactView.as_view(),
+        name='contact'
+    ),
+
     # ── Restaurants publics ───────────────────────────────────────────────
     path(
         'restaurants/',
@@ -68,12 +75,27 @@ urlpatterns = [
         api_views.MesCommandesClientView.as_view(),
         name='mes-commandes'
     ),
+    path(
+        'mes-commandes/<int:pk>/annuler/',
+        api_views.AnnulerCommandeClientView.as_view(),
+        name='annuler-commande'
+    ),
 
     # ── Suivi commande (clé publique) ─────────────────────────────────────
     path(
         'commandes/<str:cle_suivi>/',
         api_views.SuiviCommandeView.as_view(),
         name='suivi-commande'
+    ),
+    path(
+        'commandes/<str:cle_suivi>/recu/',
+        api_views.RecuPdfPublicView.as_view(),
+        name='recu-pdf-public'
+    ),
+    path(
+        'commandes/<str:cle_suivi>/recu/sms/',
+        api_views.RenvoyerRecuSmsView.as_view(),
+        name='recu-sms'
     ),
 
     # ── Livraison externe (token) — livreur sans compte ───────────────────

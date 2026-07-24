@@ -3,6 +3,7 @@ import secrets
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.conf import settings
+from django.utils import timezone
 
 
 class PanierItem(models.Model):
@@ -71,6 +72,7 @@ class Commande(models.Model):
         ('en_livraison', 'En livraison'),
         ('servie',       'Servie / Livree'),
         ('payee',        'Payee'),
+        ('annulee',      'Annulee'),
     ]
 
     TYPE_CHOICES = [
@@ -190,6 +192,21 @@ class Commande(models.Model):
         verbose_name="Date de paiement"
     )
 
+    # ── Annulation ────────────────────────────────────────────────────────
+    annulee_le = models.DateTimeField(
+        null=True, blank=True, verbose_name="Annulée le"
+    )
+    annulee_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='commandes_annulees',
+        verbose_name="Annulée par",
+    )
+    motif_annulation = models.TextField(
+        null=True, blank=True, verbose_name="Motif d'annulation"
+    )
+
     date_commande = models.DateTimeField(
         auto_now_add=True,
         verbose_name="Date de commande"
@@ -252,6 +269,28 @@ class Commande(models.Model):
 
     def peut_etre_payee(self):
         return self.statut == 'servie'
+
+    # ── Annulation ────────────────────────────────────────────────────────
+    def peut_annuler_client(self):
+        """Le client (propriétaire) annule tant que rien n'est engagé en cuisine."""
+        return self.statut == 'en_attente'
+
+    def peut_annuler_staff(self):
+        """
+        Le staff annule tant que la commande n'est ni servie/livrée, ni payée,
+        ni déjà annulée (jusqu'à « en livraison » inclus).
+        """
+        return self.statut in ('en_attente', 'prete', 'en_livraison')
+
+    def annuler(self, par, motif=""):
+        """Passe la commande en ANNULÉE en traçant qui / quand / pourquoi."""
+        self.statut = 'annulee'
+        self.annulee_le = timezone.now()
+        self.annulee_par = par
+        self.motif_annulation = (motif or "").strip() or None
+        self.save(update_fields=[
+            'statut', 'annulee_le', 'annulee_par', 'motif_annulation', 'date_modification',
+        ])
 
     def necessite_passage_cuisine(self):
         return self.items.filter(

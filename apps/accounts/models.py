@@ -348,3 +348,74 @@ class PasswordResetToken(models.Model):
             user=user,
             expires_at=timezone.now() + timedelta(hours=1),
         )
+
+
+class AdresseClient(models.Model):
+    """
+    Carnet d'adresses de livraison d'un client (Rclient).
+
+    En contexte guinéen l'adressage rue/numéro est peu fiable : une adresse est
+    surtout un **point de repère** (description libre) associé à une **épingle GPS**
+    (latitude/longitude), comme le fait déjà le checkout via MapPicker.
+
+    Un client peut enregistrer plusieurs adresses ; une seule est marquée par
+    défaut (`is_default`) et pré-remplie au moment de la commande.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='adresses',
+        verbose_name="Client",
+    )
+
+    libelle = models.CharField(
+        max_length=50,
+        verbose_name="Libellé",
+        help_text="Ex. : Maison, Bureau, Chez maman",
+    )
+
+    description = models.TextField(
+        verbose_name="Adresse / point de repère",
+        help_text="Repère de livraison (ex. « en face de la pharmacie X, portail bleu »)",
+    )
+
+    latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        verbose_name="Latitude",
+    )
+    longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        verbose_name="Longitude",
+    )
+
+    telephone = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        validators=[
+            RegexValidator(
+                regex=r'^\+?[0-9]{9,20}$',
+                message="Format valide: +224XXXXXXXXX ou XXXXXXXXX (9-20 chiffres)"
+            )
+        ],
+        verbose_name="Téléphone du lieu",
+        help_text="Optionnel — contact spécifique à ce lieu, sinon celui du compte",
+    )
+
+    is_default = models.BooleanField(
+        default=False,
+        verbose_name="Adresse par défaut",
+    )
+
+    date_creation = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = 'adresse_client'
+        verbose_name = "Adresse client"
+        verbose_name_plural = "Adresses client"
+        ordering = ['-is_default', '-date_creation']
+
+    def __str__(self):
+        marque = " ★" if self.is_default else ""
+        return f"{self.libelle} — {self.user.login}{marque}"

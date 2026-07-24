@@ -6,7 +6,7 @@ from django.contrib.auth import authenticate
 from django.db import transaction
 import logging
 
-from .models import User, PasswordResetToken, Permission, RoleConfig
+from .models import User, PasswordResetToken, Permission, RoleConfig, AdresseClient
 from .services.email_service import send_password_reset_email
 
 logger = logging.getLogger(__name__)
@@ -209,6 +209,35 @@ class UpdateMeSerializer(serializers.ModelSerializer):
         elif not self.instance.is_table():
             # email obligatoire pour les comptes humains (les Rtable n'en ont pas)
             raise serializers.ValidationError("L'email est requis.")
+        return value
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CARNET D'ADRESSES CLIENT
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AdresseClientSerializer(serializers.ModelSerializer):
+    """Adresse de livraison enregistrée par un client — CRUD self-service."""
+
+    class Meta:
+        model = AdresseClient
+        fields = [
+            'id', 'libelle', 'description',
+            'latitude', 'longitude', 'telephone',
+            'is_default', 'date_creation',
+        ]
+        read_only_fields = ['id', 'date_creation']
+
+    def validate_libelle(self, value):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError("Le libellé est requis.")
+        return value
+
+    def validate_description(self, value):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError("L'adresse / point de repère est requis.")
         return value
 
 

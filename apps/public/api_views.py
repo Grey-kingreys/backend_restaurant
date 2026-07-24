@@ -1,13 +1,16 @@
 # apps/public/api_views.py
 # Endpoints publics pour la vitrine client (commandes livraison / emporter).
 
+import logging
 import secrets
 from django.db.models import Q
 from django.contrib.auth import get_user_model
 from django.core.validators import EmailValidator
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema, OpenApiResponse
@@ -16,8 +19,11 @@ from django.utils import timezone
 from apps.company.models import Restaurant
 from apps.menu.models import Plat
 from apps.commandes.models import Commande, CommandeItem, LivraisonToken
+from apps.commandes.pdf_utils import generer_recu_pdf
+from apps.company.services.sms_service import send_recu_sms
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 def ok(data=None, message="", code=status.HTTP_200_OK):
@@ -361,6 +367,13 @@ class CommanderView(APIView):
                 prix_unitaire=plat.prix_unitaire,
             )
 
+        # Envoi automatique du lien de suivi / reçu par SMS (best-effort — n'échoue
+        # jamais la commande ; no-op si Nimba non configuré).
+        try:
+            send_recu_sms(commande)
+        except Exception:
+            logger.exception("Échec envoi SMS reçu pour la commande #%s", commande.id)
+
         return ok(
             data={
                 'commande_id': commande.id,
@@ -423,6 +436,8 @@ class MesCommandesClientView(APIView):
                 'mode_paiement': cmd.mode_paiement,
                 'montant_total': str(cmd.montant_total),
                 'nb_items': nb_items,
+                'annulable': cmd.peut_annuler_client(),
+                'motif_annulation': cmd.motif_annulation,
                 'date_commande': cmd.date_commande.isoformat(),
             })
 
@@ -434,6 +449,100 @@ class MesCommandesClientView(APIView):
                 'total_depense': str(total_depense),
             },
         })
+
+
+class RecuPdfPublicView(APIView):
+    """
+    GET /api/public/commandes/<cle_suivi>/recu/
+    Reçu PDF téléchargeable depuis la page de suivi publique. La clé de suivi
+    (urlsafe, non devinable) sert de secret — pas d'authentification requise.
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(summary="Télécharger le reçu (PDF public)", tags=["Public - Commandes"])
+    def get(self, request, cle_suivi):
+        try:
+            commande = (
+                Commande.objects
+                .select_related('restaurant', 'table', 'serveur_ayant_servi')
+                .prefetch_related('items__plat')
+                .get(cle_suivi=cle_suivi)
+            )
+        except Commande.DoesNotExist:
+            return err(message="Commande introuvable.", code=status.HTTP_404_NOT_FOUND)
+        try:
+            pdf_buffer = generer_recu_pdf(commande)
+        except Exception:
+            logger.exception("Échec génération PDF reçu (cle=%s)", cle_suivi)
+            return err(message="Impossible de générer le reçu.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        response = HttpResponse(pdf_buffer, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="recu-commande-{commande.id}.pdf"'
+        return response
+
+
+class RenvoyerRecuSmsView(APIView):
+    """
+    POST /api/public/commandes/<cle_suivi>/recu/sms/
+    (Re)envoie le lien du reçu par SMS au numéro de la commande. Throttlé (5/h).
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'recu_sms'
+
+    @extend_schema(summary="Envoyer le reçu par SMS", tags=["Public - Commandes"])
+    def post(self, request, cle_suivi):
+        try:
+            commande = Commande.objects.select_related('restaurant').get(cle_suivi=cle_suivi)
+        except Commande.DoesNotExist:
+            return err(message="Commande introuvable.", code=status.HTTP_404_NOT_FOUND)
+
+        if not (commande.client_telephone or "").strip():
+            return err(message="Aucun numéro de téléphone n'est associé à cette commande.")
+
+        if send_recu_sms(commande):
+            return ok(message="Reçu envoyé par SMS.")
+        return err(
+            message="L'envoi de SMS n'est pas disponible pour le moment.",
+            code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+
+class AnnulerCommandeClientView(APIView):
+    """
+    POST /api/public/mes-commandes/<pk>/annuler/
+    Le client annule sa propre commande tant qu'elle est « en attente »
+    (la cuisine n'a pas encore commencé). Motif optionnel.
+    Accès : Rclient authentifié
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(summary="Annuler ma commande (client)", tags=["Public - Commandes"])
+    def post(self, request, pk):
+        if request.user.role != 'Rclient':
+            return err(message="Réservé aux clients.", code=status.HTTP_403_FORBIDDEN)
+
+        try:
+            cmd = Commande.objects.get(pk=pk, table=request.user)
+        except Commande.DoesNotExist:
+            return err(message="Commande introuvable.", code=status.HTTP_404_NOT_FOUND)
+
+        if not cmd.peut_annuler_client():
+            return err(
+                message="Cette commande ne peut plus être annulée : la préparation a commencé. "
+                        "Contactez le restaurant si besoin.",
+                code=status.HTTP_409_CONFLICT,
+            )
+
+        motif = (request.data.get('motif') or "").strip()
+        cmd.annuler(par=request.user, motif=motif)
+        return ok(
+            data={
+                'commande_id': cmd.id,
+                'statut': cmd.statut,
+                'statut_label': STATUT_LABELS.get(cmd.statut, cmd.statut),
+            },
+            message="Commande annulée.",
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -666,10 +775,11 @@ class AnnulerReservationView(APIView):
 
 STATUT_LABELS = {
     'en_attente':   'Commande reçue',
-    'prete':        'En préparation terminée',
+    'prete':        'Préparation terminée',
     'en_livraison': 'En cours de livraison',
     'servie':       'Livrée / Servie',
     'payee':        'Payée',
+    'annulee':      'Annulée',
 }
 
 STATUT_STEPS = ['en_attente', 'prete', 'en_livraison', 'servie', 'payee']
@@ -832,3 +942,48 @@ class LivraisonPubliqueActionView(APIView):
         lt.date_derniere_utilisation = timezone.now()
         lt.save(update_fields=['date_derniere_utilisation'])
         return ok(data=_serialize_livraison_publique(cmd), message="Commande mise à jour.")
+
+
+# ── Contact (formulaire vitrine) ─────────────────────────────────────────────
+
+class ContactView(APIView):
+    """Formulaire de contact public — envoie un email à l'équipe via Resend."""
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'contact'
+
+    @extend_schema(
+        summary="Envoyer un message via le formulaire de contact",
+        request=None,
+        responses={200: OpenApiResponse(description="Message envoyé")},
+    )
+    def post(self, request):
+        nom = (request.data.get('nom') or '').strip()
+        email = (request.data.get('email') or '').strip()
+        message = (request.data.get('message') or '').strip()
+
+        errors = {}
+        if not nom:
+            errors['nom'] = "Le nom est requis."
+        if not email:
+            errors['email'] = "L'email est requis."
+        else:
+            try:
+                EmailValidator()(email)
+            except DjangoValidationError:
+                errors['email'] = "Adresse email invalide."
+        if not message:
+            errors['message'] = "Le message est requis."
+        elif len(message) > 5000:
+            errors['message'] = "Message trop long (5000 caractères max)."
+        if errors:
+            return err(message="Formulaire invalide.", errors=errors)
+
+        from apps.company.services.email_service import send_contact_message
+        sent = send_contact_message(nom=nom, email=email, message=message)
+        if not sent:
+            return err(
+                message="L'envoi a échoué. Réessayez plus tard ou écrivez-nous directement.",
+                code=status.HTTP_502_BAD_GATEWAY,
+            )
+        return ok(message="Message envoyé. Nous vous répondrons rapidement.")

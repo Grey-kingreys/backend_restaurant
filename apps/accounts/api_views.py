@@ -5,12 +5,13 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 from django.db.models import Q
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
-from .models import User, Permission, RoleConfig
+from .models import User, Permission, RoleConfig, AdresseClient
 from .permissions import (
-    IsRestaurantActive, IsSameRestaurant,
+    IsRestaurantActive, IsSameRestaurant, IsClient,
     HasManageEquipe, HasImpersonate, HasManageRoles,
 )
 from .perm_codes import PERM_MANAGE_ROLES, PERM_DEACTIVATE_EQUIPE
@@ -32,6 +33,7 @@ from .serializers import (
     RoleConfigDetailSerializer,
     RoleConfigCreateSerializer,
     RoleConfigUpdateSerializer,
+    AdresseClientSerializer,
 )
 
 
@@ -635,7 +637,7 @@ class RoleConfigDetailView(APIView):
 
     @extend_schema(
         summary="Modifier un rôle",
-        description="Modification partielle (nom, dashboard_type, permissions). Fonctionne aussi sur les rôles système.",
+        description="Modification partielle (nom, dashboard_type, permissions) d'un rôle custom du restaurant. Les rôles système sont protégés (403).",
         request=RoleConfigUpdateSerializer,
         responses={
             200: RoleConfigDetailSerializer,
@@ -647,7 +649,12 @@ class RoleConfigDetailView(APIView):
         if e := self._check_perm(request):
             return e
         role = self._get_role(pk, request)
-        if not role.is_system and role.restaurant != request.user.restaurant:
+        if role.is_system:
+            return error_response(
+                message="Les rôles système ne sont pas modifiables.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        if role.restaurant != request.user.restaurant:
             return error_response(message="Rôle introuvable.", status_code=status.HTTP_404_NOT_FOUND)
         s = RoleConfigUpdateSerializer(role, data=request.data, partial=True)
         if s.is_valid():
@@ -671,7 +678,12 @@ class RoleConfigDetailView(APIView):
         if e := self._check_perm(request):
             return e
         role = self._get_role(pk, request)
-        if not role.is_system and role.restaurant != request.user.restaurant:
+        if role.is_system:
+            return error_response(
+                message="Les rôles système ne peuvent pas être supprimés.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        if role.restaurant != request.user.restaurant:
             return error_response(message="Rôle introuvable.", status_code=status.HTTP_404_NOT_FOUND)
         nb_users = role.users.count()
         if nb_users > 0:
@@ -681,3 +693,109 @@ class RoleConfigDetailView(APIView):
         nom = role.nom
         role.delete()
         return success_response(message=f"Rôle '{nom}' supprimé.")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CARNET D'ADRESSES CLIENT
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AdresseClientListCreateView(APIView):
+    """Liste et création des adresses de livraison du client connecté."""
+    permission_classes = [IsAuthenticated, IsClient]
+
+    @extend_schema(
+        summary="Lister mes adresses de livraison",
+        description="Retourne le carnet d'adresses du client, l'adresse par défaut en tête.",
+        responses={200: AdresseClientSerializer(many=True)},
+        tags=["Carnet d'adresses"],
+    )
+    def get(self, request):
+        qs = request.user.adresses.all()
+        return success_response(data=AdresseClientSerializer(qs, many=True).data)
+
+    @extend_schema(
+        summary="Ajouter une adresse de livraison",
+        request=AdresseClientSerializer,
+        responses={201: AdresseClientSerializer, 400: OpenApiResponse(description="Données invalides")},
+        tags=["Carnet d'adresses"],
+    )
+    def post(self, request):
+        serializer = AdresseClientSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response(errors=serializer.errors, message="Adresse invalide.")
+        with transaction.atomic():
+            # La première adresse du carnet devient par défaut d'office.
+            is_first = not request.user.adresses.exists()
+            make_default = is_first or serializer.validated_data.get('is_default', False)
+            if make_default:
+                request.user.adresses.filter(is_default=True).update(is_default=False)
+            adresse = serializer.save(user=request.user, is_default=make_default)
+        return success_response(
+            data=AdresseClientSerializer(adresse).data,
+            message="Adresse ajoutée à votre carnet.",
+            status_code=status.HTTP_201_CREATED,
+        )
+
+
+class AdresseClientDetailView(APIView):
+    """Modification et suppression d'une adresse du client connecté."""
+    permission_classes = [IsAuthenticated, IsClient]
+
+    def get_object(self, pk, user):
+        return get_object_or_404(AdresseClient, pk=pk, user=user)
+
+    @extend_schema(
+        summary="Modifier une adresse",
+        request=AdresseClientSerializer,
+        responses={200: AdresseClientSerializer, 404: OpenApiResponse(description="Adresse introuvable")},
+        tags=["Carnet d'adresses"],
+    )
+    def patch(self, request, pk):
+        adresse = self.get_object(pk, request.user)
+        serializer = AdresseClientSerializer(adresse, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return error_response(errors=serializer.errors, message="Adresse invalide.")
+        with transaction.atomic():
+            if serializer.validated_data.get('is_default'):
+                request.user.adresses.exclude(pk=adresse.pk).update(is_default=False)
+            adresse = serializer.save()
+        return success_response(data=AdresseClientSerializer(adresse).data, message="Adresse mise à jour.")
+
+    @extend_schema(
+        summary="Supprimer une adresse",
+        responses={200: OpenApiResponse(description="Adresse supprimée")},
+        tags=["Carnet d'adresses"],
+    )
+    def delete(self, request, pk):
+        adresse = self.get_object(pk, request.user)
+        etait_default = adresse.is_default
+        with transaction.atomic():
+            adresse.delete()
+            # Si on a supprimé l'adresse par défaut, promouvoir la suivante (la plus récente).
+            if etait_default:
+                suivante = request.user.adresses.first()
+                if suivante:
+                    suivante.is_default = True
+                    suivante.save(update_fields=['is_default'])
+        return success_response(message="Adresse supprimée.")
+
+
+class AdresseClientSetDefaultView(APIView):
+    """Définit une adresse comme adresse de livraison par défaut."""
+    permission_classes = [IsAuthenticated, IsClient]
+
+    @extend_schema(
+        summary="Définir une adresse par défaut",
+        responses={200: AdresseClientSerializer, 404: OpenApiResponse(description="Adresse introuvable")},
+        tags=["Carnet d'adresses"],
+    )
+    def post(self, request, pk):
+        adresse = get_object_or_404(AdresseClient, pk=pk, user=request.user)
+        with transaction.atomic():
+            request.user.adresses.exclude(pk=adresse.pk).update(is_default=False)
+            if not adresse.is_default:
+                adresse.is_default = True
+                adresse.save(update_fields=['is_default'])
+        return success_response(
+            data=AdresseClientSerializer(adresse).data,
+            message="Adresse par défaut mise à jour.",
+        )
