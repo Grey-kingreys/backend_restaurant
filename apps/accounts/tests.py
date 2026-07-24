@@ -259,3 +259,67 @@ class TestUserCreateSerializer:
         assert user.has_usable_password() is True
         assert user.check_password("MotDePasse1")
         assert user.must_change_password is True
+
+
+@pytest.mark.django_db
+class TestRoleConfigSecurity:
+    """Sécurité de l'endpoint /api/accounts/roles/<pk>/.
+
+    Régression : la garde `if not role.is_system and role.restaurant != ...`
+    court-circuitait pour les rôles système (is_system=True, restaurant=None,
+    partagés par TOUS les tenants). Un Radmin avec `manage_roles` pouvait donc
+    PATCH/DELETE un rôle système et impacter tous les restaurants du SaaS.
+    Les rôles système doivent renvoyer 403 ; le custom d'un autre tenant, 404.
+    """
+
+    def _admin(self, restaurant_factory):
+        from apps.accounts.models import RoleConfig
+        admin = User.objects.create_user(
+            login="radmin", email="ra@test.com", password="pass",
+            role="Radmin", restaurant=restaurant_factory(),
+        )
+        # role_config = rôle système Radmin (porte la permission manage_roles)
+        admin.role_config = RoleConfig.objects.get(slug="Radmin", is_system=True)
+        admin.save(update_fields=["role_config"])
+        assert admin.has_permission("manage_roles")
+        return admin
+
+    def _client(self, user):
+        refresh = RefreshToken.for_user(user)
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
+        return client
+
+    def test_patch_role_systeme_interdit(self, restaurant_factory):
+        from apps.accounts.models import RoleConfig
+        admin = self._admin(restaurant_factory)
+        sys_role = RoleConfig.objects.get(slug="Rserveur", is_system=True)
+        res = self._client(admin).patch(
+            f"/api/accounts/roles/{sys_role.id}/", {"nom": "PWNED"}, format="json"
+        )
+        assert res.status_code == 403
+        sys_role.refresh_from_db()
+        assert sys_role.nom != "PWNED"
+
+    def test_delete_role_systeme_interdit(self, restaurant_factory):
+        from apps.accounts.models import RoleConfig
+        admin = self._admin(restaurant_factory)
+        sys_role = RoleConfig.objects.get(slug="Rcomptable", is_system=True)
+        res = self._client(admin).delete(f"/api/accounts/roles/{sys_role.id}/")
+        assert res.status_code == 403
+        assert RoleConfig.objects.filter(id=sys_role.id).exists()
+
+    def test_patch_role_custom_autre_tenant_404(self, restaurant_factory):
+        from apps.accounts.models import RoleConfig
+        admin = self._admin(restaurant_factory)
+        autre = restaurant_factory(nom="Autre resto")
+        role_autre = RoleConfig.objects.create(
+            restaurant=autre, nom="Custom", slug="custom_autre",
+            is_system=False, dashboard_type="serveur",
+        )
+        res = self._client(admin).patch(
+            f"/api/accounts/roles/{role_autre.id}/", {"nom": "PWNED"}, format="json"
+        )
+        assert res.status_code == 404
+        role_autre.refresh_from_db()
+        assert role_autre.nom == "Custom"
