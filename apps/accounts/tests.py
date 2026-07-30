@@ -4,8 +4,20 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+from apps.accounts.serializers import get_role_config_for_role
 
 User = get_user_model()
+
+
+def _attach_role_config(user):
+    """Assigne le RoleConfig système du rôle (comme en prod via l'API/seed).
+
+    create_user() ne le fait pas ; sans role_config, has_permission() renvoie
+    toujours False et les vues gatées par permission renvoient 403. Nécessaire
+    pour tester les vraies règles métier (et non le seul refus de permission).
+    """
+    user.role_config = get_role_config_for_role(user.role)
+    user.save(update_fields=["role_config"])
 
 @pytest.mark.django_db
 class TestUserModel:
@@ -84,7 +96,9 @@ class TestAuthAPI:
             "password": "wrongpass"
         }, format="json")
 
-        assert res.status_code == 401
+        # Le LoginView valide les identifiants via un serializer → 400 (contrat
+        # OpenAPI documenté « 400 : Identifiants invalides »), pas 401.
+        assert res.status_code == 400
         assert res.data["success"] is False
 
     def test_get_me(self, restaurant_factory):
@@ -155,6 +169,7 @@ class TestImpersonationAPI:
             login="admin", email="admin@test.com", password="pass",
             role="Radmin", restaurant=r
         )
+        _attach_role_config(admin)
         serveur = User.objects.create_user(
             login="serveur", email="serveur@test.com", password="pass",
             role="Rserveur", restaurant=r
@@ -176,6 +191,7 @@ class TestImpersonationAPI:
             login="admin1", email="admin1@test.com", password="pass",
             role="Radmin", restaurant=r
         )
+        _attach_role_config(admin1)
         admin2 = User.objects.create_user(
             login="admin2", email="admin2@test.com", password="pass",
             role="Radmin", restaurant=r
@@ -186,7 +202,9 @@ class TestImpersonationAPI:
         client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
         res = client.post(f"/api/accounts/auth/users/{admin2.id}/impersonate/", format="json")
 
-        assert res.status_code == 403
+        # admin1 A la permission d'impersonation : c'est bien la règle métier
+        # (cible = Admin) qui doit bloquer → 400, pas un refus de permission.
+        assert res.status_code == 400
 
     def test_cannot_impersonate_different_restaurant(self, restaurant_factory):
         """Admin ne peut simuler que dans son restaurant"""
@@ -197,6 +215,7 @@ class TestImpersonationAPI:
             login="admin1", email="a1@test.com", password="pass",
             role="Radmin", restaurant=r1
         )
+        _attach_role_config(admin1)
         user2 = User.objects.create_user(
             login="user2", email="u2@test.com", password="pass",
             role="Rserveur", restaurant=r2
@@ -207,7 +226,9 @@ class TestImpersonationAPI:
         client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
         res = client.post(f"/api/accounts/auth/users/{user2.id}/impersonate/", format="json")
 
-        assert res.status_code == 403
+        # admin1 A la permission : la cible d'un AUTRE restaurant est simplement
+        # introuvable dans son périmètre (get_object_or_404) → 404.
+        assert res.status_code == 404
 
 
 @pytest.mark.django_db

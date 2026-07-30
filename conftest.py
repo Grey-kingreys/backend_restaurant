@@ -1,5 +1,12 @@
 """Root conftest.py — pytest fixtures for Django + DRF"""
 import os
+
+# Force les settings de test AVANT que pytest-django ne configure Django.
+# L'image Docker fixe DJANGO_SETTINGS_MODULE=backend.settings (Dockerfile), ce qui
+# écrasait le settings de pytest.ini. On le rétablit ici, tôt dans le démarrage de
+# pytest, pour garantir MD5 hasher / Celery eager / logs silencieux en test.
+os.environ["DJANGO_SETTINGS_MODULE"] = "backend.test_settings"
+
 import django
 from django.conf import settings
 import pytest
@@ -7,14 +14,13 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
-@pytest.fixture(scope="session")
-def django_db_setup():
-    """Override default test database settings"""
-    settings.DATABASES["default"] = {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": ":memory:",
-        "ATOMIC_REQUESTS": False,
-    }
+# NOTE : pas d'override de `django_db_setup`. On laisse pytest-django créer une
+# vraie base de test isolée (`test_backend_db`) sur PostgreSQL via setup_databases()
+# — migrations fraîches, chaque test en transaction annulée. L'ancien hack qui
+# forçait sqlite `:memory:` était racé (ne s'appliquait que si la connexion Postgres
+# n'était pas déjà ouverte) et faisait tourner les tests sur la base seedée `backend_db`.
+# PostgreSQL est requis de toute façon : `select_for_update()` / `F()` des tests de
+# soldes de caisse ne sont significatifs que sur le même moteur qu'en prod.
 
 @pytest.fixture
 def restaurant_factory(db):

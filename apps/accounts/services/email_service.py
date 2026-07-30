@@ -36,6 +36,11 @@ def send_password_reset_email(user, reset_token) -> bool:
         footer_line=f"resfly — {user.restaurant.nom if user.restaurant else 'Plateforme'}",
     )
 
+    if not settings.RESEND_KEY:
+        # Pas de clé configurée (dev sans email, tests) → no-op silencieux.
+        logger.info("[PasswordReset] RESEND_KEY absent — email non envoyé (no-op).")
+        return False
+
     try:
         resend.api_key = settings.RESEND_KEY
         resend.Emails.send({

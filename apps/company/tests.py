@@ -97,7 +97,8 @@ class TestRestaurantAPI:
 
         payload = {
             "nom": "Nouveau Restaurant",
-            "email_admin": "admin@new.com"
+            "email_admin": "admin@new.com",
+            "telephone": "+224620000000",
         }
         res = client.post("/api/company/restaurants/", payload, format="json")
 
