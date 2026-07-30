@@ -5,6 +5,8 @@ from django.conf import settings
 from django.utils import timezone
 from decimal import Decimal
 
+from .exceptions import ErreurMetier
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CAISSE GENERALE
@@ -479,13 +481,13 @@ class DemandeApprovisionnement(models.Model):
     def approuver(self, validee_par):
         """Valide la demande : l'argent bouge ENFIN (coffre → caisse comptable)."""
         if self.statut != 'en_attente':
-            raise ValueError("Cette demande a deja ete traitee.")
+            raise ErreurMetier("Cette demande a deja ete traitee.")
         caisse = self.caisse_comptable
         if caisse.is_closed:
-            raise ValueError("La caisse comptable est fermee.")
+            raise ErreurMetier("La caisse comptable est fermee.")
         caisse_generale = self.restaurant.caisse_generale
         if not caisse_generale.peut_debiter(self.montant):
-            raise ValueError(
+            raise ErreurMetier(
                 f"Solde insuffisant dans la Caisse Generale : {caisse_generale.solde:.0f} GNF disponibles."
             )
         caisse_generale.debiter(self.montant)
@@ -506,7 +508,7 @@ class DemandeApprovisionnement(models.Model):
     def refuser(self, validee_par, motif_refus):
         """Refuse la demande : aucun mouvement d'argent."""
         if self.statut != 'en_attente':
-            raise ValueError("Cette demande a deja ete traitee.")
+            raise ErreurMetier("Cette demande a deja ete traitee.")
         self.statut = 'refusee'
         self.validee_par = validee_par
         self.motif_refus = motif_refus
