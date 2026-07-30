@@ -3,6 +3,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
 from django.db import transaction
@@ -57,6 +58,8 @@ def error_response(errors=None, message="", status_code=status.HTTP_400_BAD_REQU
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
 
     @extend_schema(
         summary="Connexion",
@@ -463,6 +466,8 @@ class ImpersonateView(APIView):
 
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'password_reset'
 
     @extend_schema(
         summary="Demander une réinitialisation de mot de passe",

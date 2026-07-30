@@ -169,9 +169,14 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'EXCEPTION_HANDLER': 'apps.accounts.exceptions.custom_exception_handler',
     # Throttling ciblé (scoped) — activé seulement sur les vues qui le déclarent.
+    # Anonyme → clé par IP. Protège les endpoints sensibles du brute-force sans
+    # imposer de limite globale au reste de l'API (flux commande QR notamment).
     'DEFAULT_THROTTLE_RATES': {
         'contact': '5/hour',
         'recu_sms': '5/hour',
+        'login': '10/minute',            # anti brute-force login (staff + tables)
+        'password_reset': '5/hour',      # anti email-bombing / énumération
+        'livraison_public': '30/minute', # anti brute-force du token de livraison
     },
 }
 
