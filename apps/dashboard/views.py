@@ -594,7 +594,7 @@ def _fmt_commande(c):
     try:
         label = f"Table {c.table.table_restaurant.numero_table}"
     except Exception:
-        label = c.table.login
+        label = c.table.login if c.table_id else (c.client_nom or c.get_type_commande_display())
     return {
         'id': c.id,
         'table': label,

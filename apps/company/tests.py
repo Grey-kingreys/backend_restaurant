@@ -280,8 +280,9 @@ class TestMonRestaurantAPI:
         r.refresh_from_db()
         assert r.nom == "Apres"
 
-    def test_mon_restaurant_refuse_sans_permission(self, restaurant_factory):
-        """Un rôle sans manage_restaurant (serveur) reçoit 403."""
+    def test_mon_restaurant_lecture_staff_ecriture_protegee(self, restaurant_factory):
+        """La lecture est ouverte à tout le staff (prise de commande : frais/flags
+        livraison), l'écriture reste réservée à manage_restaurant → 403."""
         r = restaurant_factory()
         serveur = _attach_role_config(User.objects.create_user(
             login="serveur", email="s@test.com", password="pass",
@@ -292,7 +293,10 @@ class TestMonRestaurantAPI:
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
 
-        assert client.get("/api/company/mon-restaurant/").status_code == 403
+        res = client.get("/api/company/mon-restaurant/")
+        assert res.status_code == 200
+        assert "frais_livraison" in res.data["data"]
+
         assert client.patch(
             "/api/company/mon-restaurant/", {"nom": "X"}, format="json"
         ).status_code == 403

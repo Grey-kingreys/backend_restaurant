@@ -273,13 +273,16 @@ class MonRestaurantView(APIView):
 
     @extend_schema(
         summary="Mon restaurant — informations",
-        description="Retourne les informations du restaurant de l'Admin connecté.",
-        responses={200: RestaurantSerializer, 403: OpenApiResponse(description="Admin uniquement")},
+        description="Retourne les informations du restaurant du membre du staff connecté. "
+                    "Lecture ouverte à tout le staff (la prise de commande a besoin des "
+                    "réglages livraison/emporter et des frais) ; modification via PATCH "
+                    "réservée à manage_restaurant.",
+        responses={200: RestaurantSerializer, 404: OpenApiResponse(description="Aucun restaurant associé")},
         tags=["Restaurants"],
     )
     def get(self, request):
-        if not request.user.has_permission('manage_restaurant'):
-            return error_response(message="Permission requise.", status_code=status.HTTP_403_FORBIDDEN)
+        if request.user.restaurant is None:
+            return error_response(message="Aucun restaurant associé.", status_code=status.HTTP_404_NOT_FOUND)
         serializer = RestaurantSerializer(request.user.restaurant, context={'request': request})
         return success_response(data=serializer.data)
 

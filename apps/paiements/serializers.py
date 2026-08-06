@@ -463,7 +463,8 @@ class PaiementSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_commande_table_login(self, obj):
-        return obj.commande.table.login
+        c = obj.commande
+        return c.table.login if c.table_id else (c.client_nom or c.get_type_commande_display())
 
     def get_montant_formate(self, obj):
         return f"{obj.montant:,.0f} GNF".replace(',', ' ')
