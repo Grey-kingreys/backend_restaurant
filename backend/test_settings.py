@@ -14,6 +14,14 @@ PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.MD5PasswordHasher',
 ]
 
+# Aucun email réel en test : clé Resend vidée → les services email no-op
+# (garde-fou `if not settings.RESEND_KEY` dans les deux email_service).
+RESEND_KEY = ''
+
+# Idem SMS : aucun envoi Nimba réel en test.
+NIMBA_SMS_SID = ''
+NIMBA_SMS_TOKEN = ''
+
 # Désactiver Celery — exécuter les tâches immédiatement
 CELERY_ALWAYS_EAGER = True
 CELERY_EAGER_PROPAGATES_EXCEPTIONS = True

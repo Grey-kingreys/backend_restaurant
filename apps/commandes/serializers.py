@@ -1,4 +1,6 @@
 # apps/commandes/serializers.py
+import secrets
+
 from rest_framework import serializers
 from django.db import transaction
 from .models import Commande, CommandeItem, PanierItem
@@ -85,7 +87,7 @@ class CommandeItemSerializer(serializers.ModelSerializer):
 class CommandeListSerializer(serializers.ModelSerializer):
     """Lecture allégée — pour les listes (toutes les vues)."""
     statut_display = serializers.CharField(source='get_statut_display', read_only=True)
-    table_login    = serializers.CharField(source='table.login', read_only=True)
+    table_login    = serializers.CharField(source='table.login', read_only=True, default=None)
     type_commande_display = serializers.CharField(source='get_type_commande_display', read_only=True)
     client_display = serializers.SerializerMethodField()
     nb_items       = serializers.SerializerMethodField()
@@ -123,7 +125,7 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
     """Lecture complète — pour le détail (toutes les vues)."""
     items                   = CommandeItemSerializer(many=True, read_only=True)
     statut_display          = serializers.CharField(source='get_statut_display', read_only=True)
-    table_login             = serializers.CharField(source='table.login', read_only=True)
+    table_login             = serializers.CharField(source='table.login', read_only=True, default=None)
     type_commande_display   = serializers.CharField(source='get_type_commande_display', read_only=True)
     mode_paiement_display   = serializers.CharField(source='get_mode_paiement_display', read_only=True)
     client_display          = serializers.SerializerMethodField()
@@ -248,11 +250,28 @@ class CommandeValiderSerializer(serializers.Serializer):
 
 class CommandeServeurCreateSerializer(serializers.Serializer):
     """
-    Un serveur (ou admin/manager) saisit une commande SUR PLACE pour une table.
+    Un serveur (ou admin/manager) saisit une commande. Trois types :
+      - sur_table : rattachée à une table (table_id requis) ;
+      - livraison : client de passage — téléphone + adresse texte requis
+        (pas de compte, pas de géolocalisation) ;
+      - emporter  : retrait au comptoir — nom/téléphone optionnels.
     Les items sont fournis en ligne (pas de panier). Résultat : une commande
-    EN_ATTENTE de type 'sur_table', comme si la table l'avait passée elle-même.
+    EN_ATTENTE, identique à celle qu'aurait passée le client lui-même.
     """
-    table_id = serializers.IntegerField()
+    type_commande = serializers.ChoiceField(
+        choices=['sur_table', 'livraison', 'emporter'], default='sur_table',
+    )
+    table_id = serializers.IntegerField(required=False, allow_null=True)
+    client_nom = serializers.CharField(
+        required=False, allow_blank=True, max_length=150,
+    )
+    client_telephone = serializers.CharField(
+        required=False, allow_blank=True, max_length=20,
+    )
+    client_adresse_livraison = serializers.CharField(
+        required=False, allow_blank=True,
+        help_text="Adresse en texte libre (pas de coordonnées GPS).",
+    )
     items = serializers.ListField(
         child=serializers.DictField(), allow_empty=False,
         help_text="Liste de {plat_id, quantite}."
@@ -261,6 +280,8 @@ class CommandeServeurCreateSerializer(serializers.Serializer):
     def validate_table_id(self, value):
         # `table_id` = id du TableRestaurant (ce que liste le front) ; on résout
         # vers son compte Rtable (Commande.table pointe vers le User).
+        if value is None:
+            return value
         from apps.restaurant.models import TableRestaurant
         request = self.context['request']
         try:
@@ -273,6 +294,28 @@ class CommandeServeurCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError("Cette table n'a pas de compte associé.")
         self._table = tr.utilisateur
         return value
+
+    def validate(self, attrs):
+        type_cmd = attrs.get('type_commande') or 'sur_table'
+        if type_cmd == 'sur_table':
+            if attrs.get('table_id') is None:
+                raise serializers.ValidationError(
+                    {'table_id': "Sélectionnez une table pour une commande sur place."}
+                )
+        else:
+            # Livraison / emporter : la commande n'est liée à aucune table.
+            attrs['table_id'] = None
+            self._table = None
+        if type_cmd == 'livraison':
+            if not (attrs.get('client_telephone') or '').strip():
+                raise serializers.ValidationError(
+                    {'client_telephone': "Le téléphone du destinataire est obligatoire pour une livraison."}
+                )
+            if not (attrs.get('client_adresse_livraison') or '').strip():
+                raise serializers.ValidationError(
+                    {'client_adresse_livraison': "L'adresse de livraison est obligatoire."}
+                )
+        return attrs
 
     def validate_items(self, value):
         request = self.context['request']
@@ -305,21 +348,36 @@ class CommandeServeurCreateSerializer(serializers.Serializer):
     @transaction.atomic
     def create(self):
         request = self.context['request']
-        table = self._table
+        restaurant = request.user.restaurant
+        type_cmd = self.validated_data.get('type_commande') or 'sur_table'
+        table = getattr(self, '_table', None)
         items = self._parsed_items
+        est_hors_table = type_cmd in ('livraison', 'emporter')
 
         montant_total = sum(plat.prix_unitaire * qte for plat, qte in items)
+        # Comme au checkout client : les frais de livraison du restaurant s'ajoutent
+        if type_cmd == 'livraison' and restaurant.frais_livraison:
+            montant_total += restaurant.frais_livraison
 
         # Rattache la session QR active de la table si elle existe (sinon None)
-        session = TableSession.objects.filter(table=table, est_active=True).first()
+        session = None
+        if table is not None:
+            session = TableSession.objects.filter(table=table, est_active=True).first()
+
+        nettoie = lambda champ: (self.validated_data.get(champ) or '').strip() or None
 
         commande = Commande.objects.create(
-            restaurant=request.user.restaurant,
+            restaurant=restaurant,
             table=table,
             session=session,
-            type_commande='sur_table',
+            type_commande=type_cmd,
+            client_nom=nettoie('client_nom') if est_hors_table else None,
+            client_telephone=nettoie('client_telephone') if est_hors_table else None,
+            client_adresse_livraison=nettoie('client_adresse_livraison') if type_cmd == 'livraison' else None,
             montant_total=montant_total,
             statut='en_attente',
+            # Clé de suivi public (lien/QR reçu), comme une commande en ligne
+            cle_suivi=secrets.token_hex(16) if est_hors_table else None,
         )
         CommandeItem.objects.bulk_create([
             CommandeItem(
@@ -339,7 +397,7 @@ class CommandeCuisinierSerializer(serializers.ModelSerializer):
     """Vue cuisine : commandes en_attente avec items nécessitant cuisine."""
     items          = CommandeItemSerializer(many=True, read_only=True)
     items_cuisine  = serializers.SerializerMethodField()
-    table_login    = serializers.CharField(source='table.login', read_only=True)
+    table_login    = serializers.CharField(source='table.login', read_only=True, default=None)
     table_numero   = serializers.SerializerMethodField()
     type_commande_display = serializers.CharField(source='get_type_commande_display', read_only=True)
     client_display = serializers.SerializerMethodField()

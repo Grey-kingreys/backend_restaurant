@@ -9,6 +9,8 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
+from .exceptions import ErreurMetier
+
 from .models import (
     CaisseGenerale, CaisseGlobale, CaisseComptable,
     RemiseServeur, Paiement, Depense, DemandeApprovisionnement,
@@ -607,8 +609,10 @@ class DemandeApprovisionnementApprouverView(APIView):
         )
         try:
             demande.approuver(validee_par=request.user)
-        except ValueError as e:
+        except ErreurMetier as e:
             return err(message=str(e))
+        except ValueError:
+            return err(message="Approvisionnement impossible.")
         return ok(
             data=DemandeApprovisionnementSerializer(demande).data,
             message=f"Approvisionnement de {demande.montant:,.0f} GNF approuve et transfere.".replace(',', ' '),
@@ -638,8 +642,10 @@ class DemandeApprovisionnementRefuserView(APIView):
             return err(errors=s.errors, message="Motif de refus requis (min 3 caracteres).")
         try:
             demande.refuser(validee_par=request.user, motif_refus=s.validated_data['motif_refus'])
-        except ValueError as e:
+        except ErreurMetier as e:
             return err(message=str(e))
+        except ValueError:
+            return err(message="Refus impossible.")
         return ok(
             data=DemandeApprovisionnementSerializer(demande).data,
             message="Demande d'approvisionnement refusee.",

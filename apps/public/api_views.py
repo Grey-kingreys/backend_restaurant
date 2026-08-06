@@ -884,6 +884,8 @@ class LivraisonPubliqueView(APIView):
     Accès : Public (token).
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'livraison_public'
 
     @extend_schema(summary="Livraison externe — détail", tags=["Public - Livraison"])
     def get(self, request, token):
@@ -902,6 +904,8 @@ class LivraisonPubliqueActionView(APIView):
     Accès : Public (token).
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'livraison_public'
 
     @extend_schema(summary="Livraison externe — action", tags=["Public - Livraison"])
     def post(self, request, token):

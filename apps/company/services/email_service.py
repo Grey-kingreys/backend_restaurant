@@ -21,6 +21,11 @@ def _send(to: str, subject: str, html_body: str, reply_to: str | None = None) ->
     Retourne True si succes, False si echec (sans lever d'exception).
     `reply_to` (optionnel) : adresse à laquelle les réponses seront adressées.
     """
+    if not settings.RESEND_KEY:
+        # Pas de clé configurée (dev sans email, tests) → no-op sans appel réseau.
+        logger.info(f"[Email] RESEND_KEY absent — email a {to} non envoye (no-op).")
+        return False
+
     payload = {
         "from": settings.RESEND_FROM_EMAIL,
         "to": [to],

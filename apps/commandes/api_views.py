@@ -18,6 +18,7 @@ from apps.accounts.perm_codes import (
     PERM_VIEW_LIVRAISONS, PERM_MANAGE_LIVRAISONS, PERM_MANAGE_LIVRAISON_LINKS,
 )
 from apps.accounts.permissions import IsRestaurantActive
+from apps.company.services.sms_service import send_recu_sms
 from .models import Commande, PanierItem, LivraisonToken
 from .serializers import (
     PanierItemSerializer,
@@ -207,9 +208,12 @@ class CommandeServeurCreerView(APIView):
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
     @extend_schema(
-        summary="Créer une commande pour une table (prise de commande serveur)",
-        description="Un serveur (ou admin/manager) saisit une commande SUR PLACE pour une table. "
-                    "Corps : { table_id, items: [{plat_id, quantite}] }. "
+        summary="Créer une commande (prise de commande staff)",
+        description="Un serveur (ou admin/manager) saisit une commande. "
+                    "Corps : { type_commande: sur_table|livraison|emporter, table_id (si sur_table), "
+                    "client_nom?, client_telephone (requis si livraison), "
+                    "client_adresse_livraison (texte libre, requis si livraison), "
+                    "items: [{plat_id, quantite}] }. "
                     "Accès : permission manage_commandes.",
         request=CommandeServeurCreateSerializer,
         responses={
@@ -228,9 +232,21 @@ class CommandeServeurCreerView(APIView):
         s = CommandeServeurCreateSerializer(data=request.data, context={'request': request})
         if s.is_valid():
             commande = s.create()
+
+            # Lien de suivi par SMS pour le client (best-effort, no-op sans clé Nimba)
+            if commande.cle_suivi and commande.client_telephone:
+                try:
+                    send_recu_sms(commande)
+                except Exception:
+                    logger.exception("Échec envoi SMS reçu pour la commande #%s", commande.id)
+
+            if commande.table_id:
+                qui = commande.table.login
+            else:
+                qui = commande.client_nom or commande.get_type_commande_display().lower()
             return ok(
                 data=CommandeDetailSerializer(commande, context={'request': request}).data,
-                message=f"Commande #{commande.id} créée pour {commande.table.login}.",
+                message=f"Commande #{commande.id} créée pour {qui}.",
                 code=status.HTTP_201_CREATED,
             )
         return err(errors=s.errors, message="Validation échouée.")

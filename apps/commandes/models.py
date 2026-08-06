@@ -105,11 +105,14 @@ class Commande(models.Model):
         verbose_name="Type de commande"
     )
 
+    # Nullable : une commande livraison/emporter saisie par le staff pour un client
+    # de passage n'a pas de compte associé — le client vit dans client_nom/telephone.
     table = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='commandes',
         limit_choices_to={'role__in': ['Rtable', 'Rclient']},
+        null=True, blank=True,
         verbose_name="Table / Client"
     )
 
@@ -227,9 +230,10 @@ class Commande(models.Model):
         ]
 
     def __str__(self):
+        qui = self.table.login if self.table_id else (self.client_nom or self.get_type_commande_display())
         return (
             f"Commande #{self.id} — "
-            f"{self.table.login} — "
+            f"{qui} — "
             f"{self.get_statut_display()}"
         )
 
