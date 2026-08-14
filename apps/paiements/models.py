@@ -57,6 +57,18 @@ class CaisseGenerale(models.Model):
     def __str__(self):
         return f"Caisse Generale — {self.restaurant.nom} — {self.solde} GNF"
 
+    @classmethod
+    def pour_restaurant(cls, restaurant):
+        """Retourne le coffre du restaurant — le cree a 0 GNF s'il n'existe pas.
+
+        Tout restaurant possede un coffre : seul son solde initial est saisi par
+        l'Admin via `/caisse-generale/init/`. Les restaurants crees par
+        l'onboarding n'en avaient aucun, et chaque transfert (approvisionnement,
+        fermeture de caisse) levait `RelatedObjectDoesNotExist` -> HTTP 500.
+        """
+        caisse, _ = cls.objects.get_or_create(restaurant=restaurant)
+        return caisse
+
     def crediter(self, montant):
         """Ajoute un montant au solde — increment atomique via F() (anti-race)."""
         montant = Decimal(str(montant))
@@ -196,7 +208,7 @@ class CaisseGlobale(models.Model):
         self.save()
 
         # Transfert vers la Caisse Generale
-        caisse_generale = self.restaurant.caisse_generale
+        caisse_generale = CaisseGenerale.pour_restaurant(self.restaurant)
         caisse_generale.crediter(self.solde)
 
         return self
@@ -333,7 +345,7 @@ class CaisseComptable(models.Model):
         self.save()
 
         # Transfert du cash reellement compte vers la Caisse Generale
-        caisse_generale = self.restaurant.caisse_generale
+        caisse_generale = CaisseGenerale.pour_restaurant(self.restaurant)
         if montant_physique > 0:
             caisse_generale.crediter(montant_physique)
             MouvementCaisse.objects.create(
@@ -485,7 +497,12 @@ class DemandeApprovisionnement(models.Model):
         caisse = self.caisse_comptable
         if caisse.is_closed:
             raise ErreurMetier("La caisse comptable est fermee.")
-        caisse_generale = self.restaurant.caisse_generale
+        caisse_generale = CaisseGenerale.pour_restaurant(self.restaurant)
+        if caisse_generale.solde <= 0:
+            raise ErreurMetier(
+                "La Caisse Generale est vide (0 GNF) : un Admin doit d'abord "
+                "l'initialiser ou la crediter avant de valider un approvisionnement."
+            )
         if not caisse_generale.peut_debiter(self.montant):
             raise ErreurMetier(
                 f"Solde insuffisant dans la Caisse Generale : {caisse_generale.solde:.0f} GNF disponibles."

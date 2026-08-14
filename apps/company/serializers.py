@@ -111,10 +111,16 @@ class RestaurantCreateSerializer(serializers.ModelSerializer):
         admin_user.is_active = False
         admin_user.save(update_fields=['is_active'])
 
-        # 4. Generer le token d'onboarding
+        # 4. Creer le coffre (Caisse Generale) a 0 GNF
+        # L'Admin saisira le solde initial via /caisse-generale/init/. Sans ce
+        # coffre, tout transfert d'argent (appro, fermeture de caisse) echouait.
+        from apps.paiements.models import CaisseGenerale
+        CaisseGenerale.pour_restaurant(restaurant)
+
+        # 5. Generer le token d'onboarding
         onboarding_token = OnboardingToken.creer_pour(admin_user)
 
-        # 5. Envoyer l'email de bienvenue
+        # 6. Envoyer l'email de bienvenue
         email_ok = send_welcome_email(admin_user, restaurant, onboarding_token)
         if not email_ok:
             # On ne bloque pas la creation — on logue juste l'echec
