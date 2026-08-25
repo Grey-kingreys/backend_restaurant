@@ -614,13 +614,22 @@ class CheckPositionView(APIView):
             pass
 
         # 2. Vérifier les commandes actives
-        has_active_orders = Commande.objects.filter(
-            user=request.user,
+        # Les commandes d'une table sont rattachées par `table`, pas par `user` :
+        # `filter(user=...)` levait FieldError → 500 à chaque appel dès qu'une
+        # session QR était active (la vérification GPS ne fonctionnait donc jamais).
+        # On se limite aux commandes de la session courante : sinon une commande
+        # d'une session précédente ferait croire que la table est encore occupée.
+        commandes_session = Commande.objects.filter(
+            table=request.user,
+            restaurant=request.user.restaurant,
+            session=session,
+        )
+        has_active_orders = commandes_session.filter(
             statut__in=['en_attente', 'prete', 'servie']
         ).exists()
 
         # Détecter si toutes les commandes sont payées (et qu'il y en a eu)
-        had_orders = Commande.objects.filter(user=request.user).exists()
+        had_orders = commandes_session.exists()
         all_paid = had_orders and not has_active_orders
 
         if all_paid and not session.date_paiement:
