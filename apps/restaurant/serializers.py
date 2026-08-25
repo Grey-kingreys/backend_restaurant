@@ -9,6 +9,8 @@ Architecture SaaS v2 :
 - TableSession   : session de connexion (isolation commandes)
 - User Rtable    : compte table, isolé par restaurant FK
 """
+import re
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
@@ -27,6 +29,7 @@ class TableRestaurantListSerializer(serializers.ModelSerializer):
     Inclut le login du User Rtable associé et le statut courant.
     """
     utilisateur_login    = serializers.CharField(source='utilisateur.login', read_only=True)
+    utilisateur_nom      = serializers.CharField(source='utilisateur.nom_complet', read_only=True)
     utilisateur_actif    = serializers.BooleanField(source='utilisateur.actif', read_only=True)
     statut_courant       = serializers.SerializerMethodField()
     a_qr_code            = serializers.SerializerMethodField()
@@ -36,7 +39,7 @@ class TableRestaurantListSerializer(serializers.ModelSerializer):
         model  = TableRestaurant
         fields = [
             'id', 'numero_table', 'nombre_places',
-            'utilisateur', 'utilisateur_login', 'utilisateur_actif',
+            'utilisateur', 'utilisateur_login', 'utilisateur_nom', 'utilisateur_actif',
             'statut_courant', 'a_qr_code', 'nb_commandes_actives',
             'date_creation', 'date_modification',
         ]
@@ -75,6 +78,7 @@ class TableRestaurantListSerializer(serializers.ModelSerializer):
 class TableRestaurantDetailSerializer(serializers.ModelSerializer):
     """Lecture complète — détail d'une table avec statistiques."""
     utilisateur_login = serializers.CharField(source='utilisateur.login', read_only=True)
+    utilisateur_nom   = serializers.CharField(source='utilisateur.nom_complet', read_only=True)
     utilisateur_actif = serializers.BooleanField(source='utilisateur.actif', read_only=True)
     statut_courant    = serializers.SerializerMethodField()
     a_qr_code         = serializers.SerializerMethodField()
@@ -86,7 +90,7 @@ class TableRestaurantDetailSerializer(serializers.ModelSerializer):
         model  = TableRestaurant
         fields = [
             'id', 'numero_table', 'nombre_places',
-            'utilisateur', 'utilisateur_login', 'utilisateur_actif',
+            'utilisateur', 'utilisateur_login', 'utilisateur_nom', 'utilisateur_actif',
             'statut_courant', 'a_qr_code',
             'commandes_actives', 'session_active', 'stats',
             'date_creation', 'date_modification',
@@ -169,12 +173,47 @@ class TableRestaurantCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_login(self, value):
-        v = value.strip().lower()
-        if not v:
+        """
+        Le login saisi par l'admin n'a besoin d'être unique QUE dans son restaurant :
+        deux restaurants peuvent tous les deux avoir une table « table_01 ».
+
+        L'unicité globale exigée par `USERNAME_FIELD` est obtenue en préfixant
+        automatiquement le login par le slug du restaurant — même convention que
+        les comptes staff (`lebaobab_serveur_1`). Le préfixe n'est ajouté qu'une
+        fois : un admin qui saisit déjà « lebaobab_table_01 » n'obtient pas
+        « lebaobab_lebaobab_table_01 ».
+        """
+        restaurant = self.context['request'].user.restaurant
+        if restaurant is None:
+            raise serializers.ValidationError(
+                "Votre compte n'est rattaché à aucun restaurant : impossible de créer une table."
+            )
+
+        # Normalisation : minuscules, espaces → « _ », caractères exotiques retirés,
+        # puis nettoyage des « _ » redondants ou en bordure (« table-01 ! » → « table01 »).
+        saisi = re.sub(r'[^a-z0-9_]', '', value.strip().lower().replace(' ', '_'))
+        saisi = re.sub(r'_+', '_', saisi).strip('_')
+        if not saisi:
             raise serializers.ValidationError("Le login ne peut pas être vide.")
-        if User.objects.filter(login=v).exists():
-            raise serializers.ValidationError(f"Le login « {v} » est déjà utilisé.")
-        return v
+
+        slug = restaurant.get_slug()
+        prefixe = f"{slug}_"
+        complet = saisi if saisi.startswith(prefixe) else f"{prefixe}{saisi}"
+
+        max_len = User._meta.get_field('login').max_length
+        if len(complet) > max_len:
+            raise serializers.ValidationError(
+                f"Login trop long : « {saisi} » ne doit pas dépasser "
+                f"{max_len - len(prefixe)} caractères (le préfixe « {prefixe} » "
+                "du restaurant est ajouté automatiquement)."
+            )
+
+        if User.objects.filter(login=complet).exists():
+            raise serializers.ValidationError(
+                f"Le login « {saisi} » est déjà utilisé dans ce restaurant. "
+                "Choisissez-en un autre (un autre restaurant peut, lui, l'utiliser)."
+            )
+        return complet
 
     def validate_numero_table(self, value):
         request  = self.context['request']
@@ -245,8 +284,11 @@ class TableRestaurantUpdateSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         nom_complet = validated_data.pop('nom_complet', None)
-        if nom_complet and nom_complet.strip():
-            instance.utilisateur.nom_complet = nom_complet.strip()
+        if nom_complet is not None:
+            # Champ vidé volontairement → on retombe sur le libellé par défaut
+            # « Table <numéro> », jamais sur une chaîne vide.
+            numero = validated_data.get('numero_table', instance.numero_table)
+            instance.utilisateur.nom_complet = nom_complet.strip() or f"Table {numero}"
             instance.utilisateur.save(update_fields=['nom_complet'])
         return super().update(instance, validated_data)
 
