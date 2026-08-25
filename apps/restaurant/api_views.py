@@ -1,6 +1,6 @@
 # apps/restaurant/api_views.py
 """
-Phase 6 — Tables · QR Code · Sessions · Dashboard Serveur
+Phase 6 - Tables · QR Code · Sessions · Dashboard Serveur
 
 Endpoints :
   GET/POST  /api/restaurant/tables/                    Admin/Serveur
@@ -59,13 +59,13 @@ def err(errors=None, message="", code=status.HTTP_400_BAD_REQUEST):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TABLES — CRUD (Admin) / Lecture (Serveur)
+# TABLES - CRUD (Admin) / Lecture (Serveur)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TableListView(APIView):
     """
-    GET  /api/restaurant/tables/  — Liste des tables du restaurant
-    POST /api/restaurant/tables/  — Créer une table (Admin uniquement)
+    GET  /api/restaurant/tables/  - Liste des tables du restaurant
+    POST /api/restaurant/tables/  - Créer une table (Admin uniquement)
 
     CDC §5.6 Admin : CRUD tables physiques + génération QR Codes
     CDC §5.2 Serveur : tableau de bord tables en temps réel
@@ -163,10 +163,10 @@ class TableListView(APIView):
 
 class TableDetailView(APIView):
     """
-    GET    /api/restaurant/tables/<id>/  — Détail d'une table
-    PUT    /api/restaurant/tables/<id>/  — Modifier une table (Admin)
-    PATCH  /api/restaurant/tables/<id>/  — Modifier partiellement (Admin)
-    DELETE /api/restaurant/tables/<id>/  — Supprimer une table (Admin)
+    GET    /api/restaurant/tables/<id>/  - Détail d'une table
+    PUT    /api/restaurant/tables/<id>/  - Modifier une table (Admin)
+    PATCH  /api/restaurant/tables/<id>/  - Modifier partiellement (Admin)
+    DELETE /api/restaurant/tables/<id>/  - Supprimer une table (Admin)
     """
     permission_classes = [IsAuthenticated]
 
@@ -309,7 +309,7 @@ class QRCodeInfoView(APIView):
                 message="Aucun QR Code généré pour cette table."
             )
 
-        # Rend l'image QR depuis le token existant — sans créer de nouveau token.
+        # Rend l'image QR depuis le token existant - sans créer de nouveau token.
         qr_url = token_obj.get_qr_url(request)
         qr = qrcode.QRCode(
             version=1,
@@ -400,7 +400,7 @@ class QRCodeGenererView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CONNEXION VIA QR CODE — Public
+# CONNEXION VIA QR CODE - Public
 # ─────────────────────────────────────────────────────────────────────────────
 
 class QRLoginView(APIView):
@@ -442,7 +442,7 @@ class QRLoginView(APIView):
 
         if not token_obj.est_valide():
             return err(
-                message="Ce QR Code n'est plus valide — mot de passe modifié. Contactez l'administrateur.",
+                message="Ce QR Code n'est plus valide - mot de passe modifié. Contactez l'administrateur.",
                 code=status.HTTP_400_BAD_REQUEST
             )
 
@@ -482,7 +482,7 @@ class QRLoginView(APIView):
         expires_at = timezone.now() + timedelta(minutes=duree)
 
         # ouvrir_pour désactive les autres sessions actives de la table
-        # (une seule session active à la fois) — évite l'empilement d'anciens scans.
+        # (une seule session active à la fois) - évite l'empilement d'anciens scans.
         session = TableSession.ouvrir_pour(
             table,
             django_session_key=str(uuid.uuid4()),
@@ -540,7 +540,7 @@ class TableSessionListView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CHECK POSITION — Vérification périodique GPS pour les tables
+# CHECK POSITION - Vérification périodique GPS pour les tables
 # ─────────────────────────────────────────────────────────────────────────────
 
 class CheckPositionView(APIView):
@@ -610,7 +610,7 @@ class CheckPositionView(APIView):
             except (TypeError, ValueError):
                 pass
         elif lat is None or lng is None:
-            # GPS indisponible — on tolère (ne pas incrémenter)
+            # GPS indisponible - on tolère (ne pas incrémenter)
             pass
 
         # 2. Vérifier les commandes actives
@@ -675,7 +675,7 @@ class CheckDistanceView(APIView):
     POST /api/restaurant/tables/check-distance/
 
     Vérification de DISTANCE GPS pour une table connectée en login+password
-    (sans session QR). Applique UNIQUEMENT la restriction de distance — pas
+    (sans session QR). Applique UNIQUEMENT la restriction de distance - pas
     d'expiration de session ni de déconnexion post-paiement (spécifiques au QR).
 
     Retourne { in_range: bool, distance?, message? }.
@@ -713,7 +713,7 @@ class CheckDistanceView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DASHBOARD SERVEUR — Commandes actives par table
+# DASHBOARD SERVEUR - Commandes actives par table
 # CDC §5.2 Serveur : tableau de bord des tables en temps réel
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -728,7 +728,7 @@ class ServeurDashboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        summary="Dashboard Serveur — état des tables en temps réel",
+        summary="Dashboard Serveur - état des tables en temps réel",
         description=(
             "Retourne l'état de toutes les tables du restaurant :\n"
             "- Statut : libre / en_attente / prete / servie\n"
@@ -801,7 +801,7 @@ class ServeurDashboardView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# COMMANDES SERVEUR — SERVIE & PAYÉE
+# COMMANDES SERVEUR - SERVIE & PAYÉE
 # Ces endpoints dupliquent ceux de apps/commandes/api_views.py
 # mais sont accessibles sous /api/restaurant/ pour la cohérence
 # du dashboard serveur.
@@ -810,9 +810,9 @@ class ServeurDashboardView(APIView):
 class ServeurCommandeServieView(APIView):
     """
     POST /api/restaurant/commandes/<id>/servie/
-    Alias serveur — marque une commande comme SERVIE.
+    Alias serveur - marque une commande comme SERVIE.
 
-    CDC §7.1 étape 4 — Serveur sert les plats.
+    CDC §7.1 étape 4 - Serveur sert les plats.
     Accès : Serveur uniquement
     """
     permission_classes = [IsAuthenticated]
@@ -855,9 +855,9 @@ class ServeurCommandeServieView(APIView):
 class ServeurCommandePayeeView(APIView):
     """
     POST /api/restaurant/commandes/<id>/payee/
-    Alias serveur — marque une commande comme PAYÉE.
+    Alias serveur - marque une commande comme PAYÉE.
 
-    CDC §7.1 étape 5 — Serveur valide le paiement.
+    CDC §7.1 étape 5 - Serveur valide le paiement.
     Lance le countdown d'expiration de la session QR (1 min).
     Accès : Serveur uniquement
     """
@@ -901,7 +901,7 @@ class ServeurCommandePayeeView(APIView):
         return err(errors=s.errors, message="Action impossible.")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# RÉSERVATIONS — Gestion staff (Admin / Manager / Serveur)
+# RÉSERVATIONS - Gestion staff (Admin / Manager / Serveur)
 # ─────────────────────────────────────────────────────────────────────────────
 
 from .models import Reservation as _Reservation
@@ -952,7 +952,7 @@ def _serialize_resa_staff(r, bloques_ids=None):
 
 
 class ReservationListView(APIView):
-    """GET /api/restaurant/reservations/?statut= — réservations du restaurant (staff)."""
+    """GET /api/restaurant/reservations/?statut= - réservations du restaurant (staff)."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1025,7 +1025,7 @@ def _get_resa_staff(user, pk):
 
 
 class ReservationReaffecterView(APIView):
-    """POST /api/restaurant/reservations/<pk>/reaffecter/ — body: table_id. Change la table attribuée."""
+    """POST /api/restaurant/reservations/<pk>/reaffecter/ - body: table_id. Change la table attribuée."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -1053,7 +1053,7 @@ class ReservationReaffecterView(APIView):
 
 
 class ReservationTerminerView(APIView):
-    """POST /api/restaurant/reservations/<pk>/terminer/ — le client est venu, service terminé."""
+    """POST /api/restaurant/reservations/<pk>/terminer/ - le client est venu, service terminé."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -1070,7 +1070,7 @@ class ReservationTerminerView(APIView):
 
 
 class ReservationNoShowView(APIView):
-    """POST /api/restaurant/reservations/<pk>/no-show/ — le client n'est pas venu."""
+    """POST /api/restaurant/reservations/<pk>/no-show/ - le client n'est pas venu."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -1087,7 +1087,7 @@ class ReservationNoShowView(APIView):
 
 
 class ReservationBloquerClientView(APIView):
-    """POST /api/restaurant/reservations/<pk>/bloquer-client/ — bloque le client du resto."""
+    """POST /api/restaurant/reservations/<pk>/bloquer-client/ - bloque le client du resto."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -1104,7 +1104,7 @@ class ReservationBloquerClientView(APIView):
 
 
 class ReservationDebloquerClientView(APIView):
-    """POST /api/restaurant/reservations/<pk>/debloquer-client/ — lève le blocage du client."""
+    """POST /api/restaurant/reservations/<pk>/debloquer-client/ - lève le blocage du client."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):

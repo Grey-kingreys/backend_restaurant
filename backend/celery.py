@@ -27,14 +27,14 @@ app.autodiscover_tasks()
 app.conf.beat_schedule = {
 
     # Ouverture automatique de la Caisse Globale a 5h00
-    # (heure Africa/Conakry — TIME_ZONE dans settings.py)
+    # (heure Africa/Conakry - TIME_ZONE dans settings.py)
     'ouvrir-caisse-globale-5h00': {
         'task': 'apps.paiements.tasks.ouvrir_caisse_globale_quotidienne',
         'schedule': crontab(hour=5, minute=0),
         'options': {'expires': 3600},  # expire si non execute en 1h
     },
 
-    # Phase 8 — rapport quotidien a 18h00
+    # Phase 8 - rapport quotidien a 18h00
     # 'rapport-quotidien-18h00': {
     #     'task': 'apps.dashboard.tasks.envoyer_rapport_quotidien',
     #     'schedule': crontab(hour=18, minute=0),

@@ -1,5 +1,5 @@
 # apps/restaurant/admin.py
-# Phase 6 — mis à jour pour la structure SaaS v2
+# Phase 6 - mis à jour pour la structure SaaS v2
 from django.contrib import admin
 from .models import TableRestaurant, TableToken, TableSession
 
@@ -16,7 +16,7 @@ class TableRestaurantAdmin(admin.ModelAdmin):
     utilisateur_login.short_description = "Compte Table"
 
     def restaurant(self, obj):
-        return obj.utilisateur.restaurant.nom if obj.utilisateur.restaurant else '—'
+        return obj.utilisateur.restaurant.nom if obj.utilisateur.restaurant else '-'
     restaurant.short_description = "Restaurant"
 
     fieldsets = (
@@ -47,7 +47,7 @@ class TableSessionAdmin(admin.ModelAdmin):
 
     def temps_restant(self, obj):
         if not obj.date_paiement or not obj.est_active:
-            return "—"
+            return "-"
         from django.utils import timezone
         elapsed  = timezone.now() - obj.date_paiement
         restant  = 60 - int(elapsed.total_seconds())

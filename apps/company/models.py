@@ -8,7 +8,7 @@ import uuid
 
 class Restaurant(models.Model):
     """
-    Modele representant un tenant SaaS — un restaurant client.
+    Modele representant un tenant SaaS - un restaurant client.
     Cree par le Super Admin uniquement.
     Si is_active=False → tous les acces du restaurant sont bloques.
     """
@@ -77,14 +77,14 @@ class Restaurant(models.Model):
         help_text="Active la commande en ligne avec retrait sur place"
     )
 
-    # OBSOLETE — conserve pour ne pas perdre les montants deja saisis.
+    # OBSOLETE - conserve pour ne pas perdre les montants deja saisis.
     # Les frais de livraison varient avec la distance : ils ne sont plus factures
     # dans la commande et se conviennent directement avec le livreur. Ce champ
     # n'est plus lu par l'application ni modifiable depuis l'interface.
     frais_livraison = models.DecimalField(
         max_digits=10, decimal_places=0,
         null=True, blank=True,
-        verbose_name="Frais de livraison (GNF) — obsolete",
+        verbose_name="Frais de livraison (GNF) - obsolete",
         help_text="Obsolete : les frais sont convenus avec le livreur selon la distance."
     )
 
@@ -159,7 +159,7 @@ class Restaurant(models.Model):
 class OnboardingToken(models.Model):
     """
     Token de premier connexion pour l'Admin cree par le Super Admin.
-    Valable 48h — usage unique.
+    Valable 48h - usage unique.
     Apres utilisation : is_used=True, le token ne peut plus servir.
     Le frontend redirige vers /auth/first-login?token=<uuid>
     """

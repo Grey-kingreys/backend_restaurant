@@ -10,7 +10,7 @@ Variables d'environnement requises pour S3 :
     AWS_SECRET_ACCESS_KEY=...
     AWS_STORAGE_BUCKET_NAME=...
     AWS_S3_REGION_NAME=eu-west-1   (optionnel, défaut us-east-1)
-    AWS_S3_CUSTOM_DOMAIN=...       (optionnel — CDN / CloudFront)
+    AWS_S3_CUSTOM_DOMAIN=...       (optionnel - CDN / CloudFront)
 
 Usage dans settings.py :
     from apps.menu.storage import get_image_storage
@@ -45,7 +45,7 @@ def get_s3_settings():
         'AWS_SECRET_ACCESS_KEY': os.getenv('AWS_SECRET_ACCESS_KEY', ''),
         'AWS_STORAGE_BUCKET_NAME': bucket,
         'AWS_S3_REGION_NAME': region,
-        # Pas de query string auth — URLs publiques pour les images
+        # Pas de query string auth - URLs publiques pour les images
         'AWS_QUERYSTRING_AUTH': False,
         # Cache-Control pour les images (1 an)
         'AWS_S3_OBJECT_PARAMETERS': {

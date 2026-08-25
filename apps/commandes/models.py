@@ -46,7 +46,7 @@ class PanierItem(models.Model):
         unique_together = ['table', 'plat']
 
     def __str__(self):
-        return f"Panier {self.table.login} — {self.plat.nom} x{self.quantite}"
+        return f"Panier {self.table.login} - {self.plat.nom} x{self.quantite}"
 
     @property
     def sous_total(self):
@@ -106,7 +106,7 @@ class Commande(models.Model):
     )
 
     # Nullable : une commande livraison/emporter saisie par le staff pour un client
-    # de passage n'a pas de compte associé — le client vit dans client_nom/telephone.
+    # de passage n'a pas de compte associé - le client vit dans client_nom/telephone.
     table = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -232,8 +232,8 @@ class Commande(models.Model):
     def __str__(self):
         qui = self.table.login if self.table_id else (self.client_nom or self.get_type_commande_display())
         return (
-            f"Commande #{self.id} — "
-            f"{qui} — "
+            f"Commande #{self.id} - "
+            f"{qui} - "
             f"{self.get_statut_display()}"
         )
 
@@ -264,7 +264,7 @@ class Commande(models.Model):
 
     def peut_etre_servie(self):
         # Une livraison ne peut être marquée "Livrée" qu'après être partie en course
-        # (statut 'en_livraison') — on ne saute jamais l'étape de livraison.
+        # (statut 'en_livraison') - on ne saute jamais l'étape de livraison.
         if self.type_commande == 'livraison':
             return self.statut == 'en_livraison'
         # Sur place / à emporter : servie depuis 'prete', ou directement depuis

@@ -233,7 +233,7 @@ class TestImpersonationAPI:
 
 @pytest.mark.django_db
 class TestUserCreateSerializer:
-    """Le mot de passe initial est obligatoire — pas d'auto-génération.
+    """Le mot de passe initial est obligatoire - pas d'auto-génération.
 
     Régression : password était `required=False`, donc un mot de passe vide
     produisait un compte à mot de passe inutilisable (connexion impossible).

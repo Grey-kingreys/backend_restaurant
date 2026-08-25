@@ -16,24 +16,24 @@ urlpatterns = [
     # ── Prise de commande par le serveur (pour une table) ─────────────────
     path('creer/',              api_views.CommandeServeurCreerView.as_view(), name='serveur-creer'),
 
-    # ── Mes commandes — Table (session QR courante) ───────────────────────
+    # ── Mes commandes - Table (session QR courante) ───────────────────────
     path('mes-commandes/',      api_views.MesCommandesView.as_view(),  name='mes-commandes'),
 
-    # ── Livraisons à traiter — Livreur, Serveur, Admin, Manager ───────────
+    # ── Livraisons à traiter - Livreur, Serveur, Admin, Manager ───────────
     path('livraisons/',         api_views.LivraisonsView.as_view(),    name='livraisons'),
     path('<int:pk>/livraison-lien/', api_views.LivraisonLienView.as_view(), name='livraison-lien'),
 
-    # ── Toutes les commandes — Serveur, Chef, Admin, Manager ──────────────
+    # ── Toutes les commandes - Serveur, Chef, Admin, Manager ──────────────
     path('',                    api_views.AllCommandesView.as_view(),  name='all-commandes'),
 
     # ── Détail d'une commande (tous les rôles autorisés) ──────────────────
     path('<int:pk>/',           api_views.CommandeDetailView.as_view(), name='commande-detail'),
 
-    # ── Vue Cuisine — Cuisinier / Chef Cuisinier ──────────────────────────
+    # ── Vue Cuisine - Cuisinier / Chef Cuisinier ──────────────────────────
     path('cuisine/',            api_views.CuisinierCommandesView.as_view(), name='cuisine'),
     path('<int:pk>/prete/',     api_views.CommandePreteView.as_view(),      name='prete'),
 
-    # ── Vue Serveur — transitions SERVIE, EN_LIVRAISON et PAYÉE ─────────────
+    # ── Vue Serveur - transitions SERVIE, EN_LIVRAISON et PAYÉE ─────────────
     path('<int:pk>/servie/',         api_views.CommandeServieView.as_view(),      name='servie'),
     path('<int:pk>/en-livraison/',   api_views.CommandeEnLivraisonView.as_view(), name='en-livraison'),
     path('<int:pk>/payee/',          api_views.CommandePayeeView.as_view(),        name='payee'),

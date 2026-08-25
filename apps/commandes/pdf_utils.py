@@ -112,13 +112,13 @@ def _client_display(commande):
         u = commande.table
         if u.nom_complet and not u.is_table():
             return u.nom_complet
-        # Rtable — get table number via related_name 'table_restaurant'
+        # Rtable - get table number via related_name 'table_restaurant'
         try:
             return f"Table {u.table_restaurant.numero_table}"
         except Exception:
             return u.login
     except Exception:
-        return "—"
+        return "-"
 
 
 def _type_label(commande):
@@ -138,7 +138,7 @@ def _paiement_label(commande):
         'carte':        'Carte bancaire',
         'paydunya':     'PayDunya',
     }
-    return labels.get(commande.mode_paiement, commande.mode_paiement or '—')
+    return labels.get(commande.mode_paiement, commande.mode_paiement or '-')
 
 
 # ── Générateur principal ──────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ def generer_recu_pdf(commande):
     resto_nom = resto.nom if resto else "Restaurant"
 
     # ── En-tête : nom restaurant (gauche) + numéro reçu (droite) ─────────────
-    # On utilise des Paragraphs avec <br/> — pas de listes dans les cellules.
+    # On utilise des Paragraphs avec <br/> - pas de listes dans les cellules.
     sub_lines = []
     if resto and resto.adresse:
         sub_lines.append(resto.adresse)

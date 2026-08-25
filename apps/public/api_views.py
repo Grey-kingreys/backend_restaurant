@@ -50,7 +50,7 @@ def get_restaurant_by_slug(slug):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AUTH CLIENT — Inscription Rclient
+# AUTH CLIENT - Inscription Rclient
 # ─────────────────────────────────────────────────────────────────────────────
 
 class ClientRegisterView(APIView):
@@ -260,7 +260,7 @@ def _serialize_restaurant(r):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# COMMANDER — Rclient authentifié
+# COMMANDER - Rclient authentifié
 # ─────────────────────────────────────────────────────────────────────────────
 
 MODES_PAIEMENT_DISPONIBLES = {'livraison'}  # seul mode actif pour l'instant
@@ -298,7 +298,7 @@ class CommanderView(APIView):
         adresse      = (data.get('adresse_livraison') or '').strip()
         telephone    = (data.get('telephone') or user.telephone or '').strip()
         items        = data.get('items') or []
-        # Position choisie sur la carte (optionnelle) — livraison uniquement
+        # Position choisie sur la carte (optionnelle) - livraison uniquement
         try:
             client_lat = float(data['latitude']) if data.get('latitude') not in (None, '') else None
             client_lng = float(data['longitude']) if data.get('longitude') not in (None, '') else None
@@ -366,7 +366,7 @@ class CommanderView(APIView):
                 prix_unitaire=plat.prix_unitaire,
             )
 
-        # Envoi automatique du lien de suivi / reçu par SMS (best-effort — n'échoue
+        # Envoi automatique du lien de suivi / reçu par SMS (best-effort - n'échoue
         # jamais la commande ; no-op si Nimba non configuré).
         try:
             send_recu_sms(commande)
@@ -389,7 +389,7 @@ class CommanderView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MES COMMANDES — Rclient authentifié (historique personnel)
+# MES COMMANDES - Rclient authentifié (historique personnel)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class MesCommandesClientView(APIView):
@@ -454,7 +454,7 @@ class RecuPdfPublicView(APIView):
     """
     GET /api/public/commandes/<cle_suivi>/recu/
     Reçu PDF téléchargeable depuis la page de suivi publique. La clé de suivi
-    (urlsafe, non devinable) sert de secret — pas d'authentification requise.
+    (urlsafe, non devinable) sert de secret - pas d'authentification requise.
     """
     permission_classes = [AllowAny]
 
@@ -545,7 +545,7 @@ class AnnulerCommandeClientView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# RÉSERVATION DE TABLE — Client (Rclient)
+# RÉSERVATION DE TABLE - Client (Rclient)
 # ─────────────────────────────────────────────────────────────────────────────
 
 from datetime import datetime, date as _date, timedelta
@@ -574,7 +574,7 @@ def _annulation_possible(r):
 
 
 def _serialize_reservation(r):
-    """Vue CLIENT — sans numéro de table (révélé à l'arrivée)."""
+    """Vue CLIENT - sans numéro de table (révélé à l'arrivée)."""
     return {
         'id': r.id,
         'restaurant': r.restaurant.nom,
@@ -729,7 +729,7 @@ class ReserverView(APIView):
 
 
 class MesReservationsView(APIView):
-    """GET /api/public/mes-reservations/ — réservations du client connecté."""
+    """GET /api/public/mes-reservations/ - réservations du client connecté."""
     permission_classes = [IsAuthenticated]
 
     @extend_schema(summary="Mes réservations (client)", tags=["Public - Réservations"])
@@ -745,7 +745,7 @@ class MesReservationsView(APIView):
 
 
 class AnnulerReservationView(APIView):
-    """POST /api/public/reservations/<pk>/annuler/ — le client annule sa réservation."""
+    """POST /api/public/reservations/<pk>/annuler/ - le client annule sa réservation."""
     permission_classes = [IsAuthenticated]
 
     @extend_schema(summary="Annuler une réservation", tags=["Public - Réservations"])
@@ -769,7 +769,7 @@ class AnnulerReservationView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SUIVI COMMANDE — Public (clé de suivi)
+# SUIVI COMMANDE - Public (clé de suivi)
 # ─────────────────────────────────────────────────────────────────────────────
 
 STATUT_LABELS = {
@@ -838,7 +838,7 @@ class SuiviCommandeView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LIVRAISON EXTERNE — Public (token de livraison)
+# LIVRAISON EXTERNE - Public (token de livraison)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _serialize_livraison_publique(cmd):
@@ -885,7 +885,7 @@ class LivraisonPubliqueView(APIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'livraison_public'
 
-    @extend_schema(summary="Livraison externe — détail", tags=["Public - Livraison"])
+    @extend_schema(summary="Livraison externe - détail", tags=["Public - Livraison"])
     def get(self, request, token):
         try:
             lt = LivraisonToken.objects.select_related('commande', 'commande__restaurant').get(token=token)
@@ -905,7 +905,7 @@ class LivraisonPubliqueActionView(APIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'livraison_public'
 
-    @extend_schema(summary="Livraison externe — action", tags=["Public - Livraison"])
+    @extend_schema(summary="Livraison externe - action", tags=["Public - Livraison"])
     def post(self, request, token):
         try:
             lt = LivraisonToken.objects.select_related('commande', 'commande__restaurant', 'cree_par').get(token=token)
@@ -949,7 +949,7 @@ class LivraisonPubliqueActionView(APIView):
 # ── Contact (formulaire vitrine) ─────────────────────────────────────────────
 
 class ContactView(APIView):
-    """Formulaire de contact public — envoie un email à l'équipe via Resend."""
+    """Formulaire de contact public - envoie un email à l'équipe via Resend."""
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'contact'

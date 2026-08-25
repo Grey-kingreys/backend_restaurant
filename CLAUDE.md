@@ -1,4 +1,4 @@
-# Backend — RestoPro
+# Backend - RestoPro
 
 API Django REST Framework multi-tenant SaaS pour la gestion de restaurants.
 
@@ -24,7 +24,7 @@ Le seed s'exécute **automatiquement** à chaque démarrage du conteneur via `do
 Ce qu'il crée (dates relatives à `today`) :
 
 - 2 restaurants (Le Baobab, Chez Mariama)
-- 13 utilisateurs — tous les rôles pour Le Baobab + admin/comptable pour Chez Mariama + 1 superadmin global
+- 13 utilisateurs - tous les rôles pour Le Baobab + admin/comptable pour Chez Mariama + 1 superadmin global
 - 12 plats (10 pour Le Baobab, 2 pour Chez Mariama)
 - 4 tables pour Le Baobab
 - Caisses générales, 6 caisses globales fermées (J-6 → J-1) + 1 ouverte aujourd'hui, 1 caisse comptable
@@ -35,7 +35,7 @@ Ce qu'il crée (dates relatives à `today`) :
 
 | Login | Rôle | Restaurant |
 | --- | --- | --- |
-| `superadmin` | Rsuper_admin | — |
+| `superadmin` | Rsuper_admin | - |
 | `lebaobab_admin` | Radmin | Le Baobab |
 | `lebaobab_manager` | Rmanager | Le Baobab |
 | `lebaobab_serveur` | Rserveur | Le Baobab |
@@ -48,7 +48,7 @@ Ce qu'il crée (dates relatives à `today`) :
 
 > **Important** : `Commande.date_commande` est `auto_now_add=True`. Le seed utilise
 > `Commande.objects.filter(pk=...).update(date_commande=...)` pour injecter des dates
-> historiques après création — c'est la seule façon de contourner `auto_now_add`.
+> historiques après création - c'est la seule façon de contourner `auto_now_add`.
 
 ## Architecture
 
@@ -74,7 +74,7 @@ Ce qu'il crée (dates relatives à `today`) :
 | `apps.menu` | `Plat` avec catégories et flag validation cuisine |
 | `apps.commandes` | `PanierItem`, `Commande` (workflow), `CommandeItem` |
 | `apps.paiements` | Flux de caisse complet (5 modèles) |
-| `apps.dashboard` | Agrégats pour le tableau de bord — endpoint unique `/api/dashboard/stats/` |
+| `apps.dashboard` | Agrégats pour le tableau de bord - endpoint unique `/api/dashboard/stats/` |
 
 ### Isolation SaaS
 
@@ -90,7 +90,7 @@ Chaque queryset filtre sur `restaurant=request.user.restaurant`. La permission `
 
 ### `accounts.User`
 
-- `USERNAME_FIELD = 'login'` — champ d'identification par défaut
+- `USERNAME_FIELD = 'login'` - champ d'identification par défaut
 - `login` généré automatiquement : `{slug}_{role}_{n}`
 - `email` unique et nullable (null pour `Rtable`)
 - `must_change_password` : force le changement au premier login
@@ -101,7 +101,7 @@ Chaque queryset filtre sur `restaurant=request.user.restaurant`. La permission `
 
 - `OneToOne` avec un `User` de rôle `Rtable`
 - `get_statut_actuel()` : dérive le statut de la table depuis les commandes actives
-- `TableToken` : token URL-safe 64 chars encodé dans le QR Code — invalide si le mdp change
+- `TableToken` : token URL-safe 64 chars encodé dans le QR Code - invalide si le mdp change
 - `TableSession` : créée à chaque scan QR, expire 1 min après le paiement
 
 ### `menu.Plat`
@@ -114,19 +114,19 @@ Chaque queryset filtre sur `restaurant=request.user.restaurant`. La permission `
 
 Workflow d'état : `EN_ATTENTE → PRETE → SERVIE → PAYEE`
 
-- `date_commande` : `auto_now_add=True` — contourner avec `.update()` pour les seeds/tests
+- `date_commande` : `auto_now_add=True` - contourner avec `.update()` pour les seeds/tests
 - `PanierItem` : panier DB, unique par `(table, plat)`
 - `CommandeItem` : snapshot du prix au moment de la commande
 - FK directe `restaurant` pour filtrage sans JOIN
 
-### `paiements` — Flux de caisse
+### `paiements` - Flux de caisse
 
 | Modèle | Rôle |
 | --- | --- |
 | `CaisseGenerale` | 1:1 Restaurant, permanente, jamais clôturée |
 | `CaisseGlobale` | Journalière, ouvre à 5h via Celery Beat, `fermer()` irréversible → transfère vers CaisseGenerale |
 | `CaisseComptable` | Session par comptable (`opened_at` : auto_now_add) |
-| `RemiseServeur` | Remise physique du serveur au comptable — lié via `paiement__commande__restaurant` |
+| `RemiseServeur` | Remise physique du serveur au comptable - lié via `paiement__commande__restaurant` |
 | `Paiement` | 1:1 avec Commande (`date_paiement` : auto_now_add) |
 | `Depense` | Dépenses saisies par le comptable (`date_depense` : DateField settable) |
 
@@ -134,7 +134,7 @@ Workflow d'état : `EN_ATTENTE → PRETE → SERVIE → PAYEE`
 
 **Endpoint** : `GET /api/dashboard/stats/`
 
-**Vue** : `apps/dashboard/views.py` — `DashboardView`
+**Vue** : `apps/dashboard/views.py` - `DashboardView`
 
 Retourne des données différentes selon `request.user.role` :
 
@@ -153,23 +153,23 @@ Retourne des données différentes selon `request.user.role` :
 
 | Route | Vue | Accès |
 | --- | --- | --- |
-| `POST /login/` | `LoginView` | Public — email+mdp (staff) ou login+mdp (table) |
-| `POST /logout/` | `LogoutView` | Authentifié — blackliste le refresh token |
-| `GET /me/` | `MeView` | Authentifié — profil complet |
-| `POST /change-password/` | `ChangePasswordView` | Authentifié — aussi utilisé au first-login |
-| `POST /password-reset/` | `PasswordResetRequestView` | Public — envoie email via Resend |
-| `POST /password-reset/confirm/` | `PasswordResetConfirmView` | Public — UUID token 1h |
-| `POST /token/refresh/` | SimpleJWT | Public — rotation avec blacklist |
+| `POST /login/` | `LoginView` | Public - email+mdp (staff) ou login+mdp (table) |
+| `POST /logout/` | `LogoutView` | Authentifié - blackliste le refresh token |
+| `GET /me/` | `MeView` | Authentifié - profil complet |
+| `POST /change-password/` | `ChangePasswordView` | Authentifié - aussi utilisé au first-login |
+| `POST /password-reset/` | `PasswordResetRequestView` | Public - envoie email via Resend |
+| `POST /password-reset/confirm/` | `PasswordResetConfirmView` | Public - UUID token 1h |
+| `POST /token/refresh/` | SimpleJWT | Public - rotation avec blacklist |
 
 ### Impersonation
 
-**Fichier** : `apps/accounts/api_views.py` — `ImpersonateView`
+**Fichier** : `apps/accounts/api_views.py` - `ImpersonateView`
 
 **Route** : `POST /api/accounts/auth/users/<pk>/impersonate/`
 
 **Permission** : `IsAuthenticated + IsAdmin + IsRestaurantActive`
 
-**Réponse** : `{ success: true, data: { access, refresh, user } }` — vrais tokens JWT pour la cible.
+**Réponse** : `{ success: true, data: { access, refresh, user } }` - vrais tokens JWT pour la cible.
 
 Règles de sécurité :
 
@@ -182,10 +182,10 @@ Rôles simulables : `Rmanager`, `Rserveur`, `Rchef_cuisinier`, `Rcuisinier`, `Rc
 
 ### Permissions personnalisées (`apps/accounts/permissions.py`)
 
-- `IsAdmin` — rôle `Radmin`
-- `IsAdminOrManager` — rôle `Radmin` ou `Rmanager`
-- `IsRestaurantActive` — vérifie `restaurant.is_active`
-- `IsSameRestaurant` — vérifie que la ressource cible appartient au même restaurant
+- `IsAdmin` - rôle `Radmin`
+- `IsAdminOrManager` - rôle `Radmin` ou `Rmanager`
+- `IsRestaurantActive` - vérifie `restaurant.is_active`
+- `IsSameRestaurant` - vérifie que la ressource cible appartient au même restaurant
 
 ## Celery
 
@@ -195,9 +195,9 @@ Rôles simulables : `Rmanager`, `Rserveur`, `Rchef_cuisinier`, `Rcuisinier`, `Rc
 - Task time limit : 5 min (soft 4 min)
 - Beat scheduler : `DatabaseScheduler` (table en BDD)
 
-**Tâche active** : `ouvrir_caisse_globale_quotidienne` — tous les jours à 05:00
+**Tâche active** : `ouvrir_caisse_globale_quotidienne` - tous les jours à 05:00
 
-**Tâche paiement** : `creer_remise_pour_paiement` — se déclenche quand une commande passe en statut `PAYÉE`. Si aucune `CaisseGlobale` n'est ouverte à ce moment, la remise **n'est pas créée** (warning log silencieux).
+**Tâche paiement** : `creer_remise_pour_paiement` - se déclenche quand une commande passe en statut `PAYÉE`. Si aucune `CaisseGlobale` n'est ouverte à ce moment, la remise **n'est pas créée** (warning log silencieux).
 
 > En développement sans Celery actif, la CaisseGlobale doit être ouverte manuellement :
 > `POST /api/paiements/caisse-globale/ouvrir/` (Admin uniquement)
@@ -246,7 +246,7 @@ OTEL_SERVICE_NAME                  (stack obs seulement)
 GRAFANA_USER / GRAFANA_PASSWORD    (stack obs seulement)
 ```
 
-## API — structure des réponses
+## API - structure des réponses
 
 Toutes les réponses suivent la même enveloppe :
 

@@ -43,8 +43,8 @@ def _get_base_queryset(request):
 
 class PlatListCreateView(APIView):
     """
-    GET  /api/plats/  — Liste des plats
-    POST /api/plats/  — Créer un plat (Chef / Admin / Manager)
+    GET  /api/plats/  - Liste des plats
+    POST /api/plats/  - Créer un plat (Chef / Admin / Manager)
 
     GET :
     - Rtable → uniquement les plats disponibles=True
@@ -106,7 +106,7 @@ class PlatListCreateView(APIView):
         description=(
             "Crée un nouveau plat dans le restaurant du créateur.\n\n"
             "- Accepte `multipart/form-data` pour l'upload d'image.\n"
-            "- Le champ `restaurant` est injecté automatiquement — **ne pas l'envoyer**.\n"
+            "- Le champ `restaurant` est injecté automatiquement - **ne pas l'envoyer**.\n"
             "- **Accès** : Chef Cuisinier, Admin, Manager."
         ),
         request=PlatCreateUpdateSerializer,
@@ -139,10 +139,10 @@ class PlatListCreateView(APIView):
 
 class PlatDetailView(APIView):
     """
-    GET   /api/plats/<id>/  — Détail d'un plat
-    PUT   /api/plats/<id>/  — Modifier un plat (Chef / Admin / Manager)
-    PATCH /api/plats/<id>/  — Modification partielle
-    (pas de DELETE — toggle uniquement)
+    GET   /api/plats/<id>/  - Détail d'un plat
+    PUT   /api/plats/<id>/  - Modifier un plat (Chef / Admin / Manager)
+    PATCH /api/plats/<id>/  - Modification partielle
+    (pas de DELETE - toggle uniquement)
     """
     permission_classes = [IsAuthenticated, IsRestaurantActive]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
@@ -227,7 +227,7 @@ class PlatToggleView(APIView):
     """
     POST /api/plats/<id>/toggle/
     Active ou désactive un plat (inverse son état `disponible`).
-    Un plat ne peut JAMAIS être supprimé — seulement désactivé.
+    Un plat ne peut JAMAIS être supprimé - seulement désactivé.
     Accès : Chef Cuisinier, Admin, Manager.
     """
     permission_classes = [IsAuthenticated, IsRestaurantActive]

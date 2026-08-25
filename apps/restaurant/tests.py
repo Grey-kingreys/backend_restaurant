@@ -85,7 +85,7 @@ class TestCheckPosition:
     ):
         """
         Une commande payee lors d'une session anterieure ne doit pas faire croire
-        que la nouvelle session est terminee — sinon la table serait deconnectee
+        que la nouvelle session est terminee - sinon la table serait deconnectee
         des sa connexion.
         """
         compte, ancienne = _table_avec_session(user_factory, restaurant_factory)

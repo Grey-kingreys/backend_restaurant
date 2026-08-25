@@ -1,5 +1,5 @@
 # apps/accounts/perm_codes.py
-# Codes de permissions centralisés — source de vérité unique.
+# Codes de permissions centralisés - source de vérité unique.
 # Importez ces constantes partout où vous avez besoin de vérifier une permission.
 
 # ── Équipe ────────────────────────────────────────────────────────────────────

@@ -98,7 +98,7 @@ urlpatterns = [
         name='recu-sms'
     ),
 
-    # ── Livraison externe (token) — livreur sans compte ───────────────────
+    # ── Livraison externe (token) - livreur sans compte ───────────────────
     path(
         'livraison/<str:token>/',
         api_views.LivraisonPubliqueView.as_view(),

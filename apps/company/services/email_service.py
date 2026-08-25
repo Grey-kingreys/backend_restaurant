@@ -17,13 +17,13 @@ RESEND_API_URL = "https://api.resend.com/emails"
 
 def _send(to: str, subject: str, html_body: str, reply_to: str | None = None) -> bool:
     """
-    Fonction interne — envoie un email via l'API Resend.
+    Fonction interne - envoie un email via l'API Resend.
     Retourne True si succes, False si echec (sans lever d'exception).
     `reply_to` (optionnel) : adresse à laquelle les réponses seront adressées.
     """
     if not settings.RESEND_KEY:
         # Pas de clé configurée (dev sans email, tests) → no-op sans appel réseau.
-        logger.info(f"[Email] RESEND_KEY absent — email a {to} non envoye (no-op).")
+        logger.info(f"[Email] RESEND_KEY absent - email a {to} non envoye (no-op).")
         return False
 
     payload = {
@@ -46,7 +46,7 @@ def _send(to: str, subject: str, html_body: str, reply_to: str | None = None) ->
             timeout=10
         )
         response.raise_for_status()
-        logger.info(f"[Email] Envoye a {to} — sujet: {subject}")
+        logger.info(f"[Email] Envoye a {to} - sujet: {subject}")
         return True
     except Exception as exc:
         logger.error(f"[Email] Echec envoi a {to}: {exc}")
@@ -56,7 +56,7 @@ def _send(to: str, subject: str, html_body: str, reply_to: str | None = None) ->
 # ── Gabarit d'email brandé resfly ────────────────────────────────────────────
 # Un seul habillage (logo + couleurs) réutilisé par tous les emails transactionnels.
 
-def render_email(title: str, body_html: str, footer_line: str = "resfly — Conakry, Guinée") -> str:
+def render_email(title: str, body_html: str, footer_line: str = "resfly - Conakry, Guinée") -> str:
     """Enveloppe HTML brandée resfly. `body_html` = contenu déjà en HTML.
 
     Le logo est rendu en TEXTE (wordmark « resfly ») et non en image : une image
@@ -147,12 +147,12 @@ def send_welcome_email(admin_user, restaurant, onboarding_token) -> bool:
     html_body = render_email(
         "Bienvenue sur resfly",
         body,
-        footer_line=f"resfly — Conakry, Guinée · © {restaurant.created_at.year}",
+        footer_line=f"resfly - Conakry, Guinée · © {restaurant.created_at.year}",
     )
 
     return _send(
         to=admin_user.email,
-        subject=f"Bienvenue sur resfly — {restaurant.nom}",
+        subject=f"Bienvenue sur resfly - {restaurant.nom}",
         html_body=html_body,
     )
 
@@ -181,7 +181,7 @@ def send_contact_message(nom: str, email: str, message: str) -> bool:
         </div>
         <hr style="border:none; border-top:1px solid #e2e8f0; margin:28px 0;">
         <p style="color:#a0aec0; font-size:12px; text-align:center;">
-            Envoyé depuis le formulaire de contact — resfly
+            Envoyé depuis le formulaire de contact - resfly
         </p>
     </body>
     </html>
@@ -189,7 +189,7 @@ def send_contact_message(nom: str, email: str, message: str) -> bool:
 
     return _send(
         to=settings.CONTACT_EMAIL,
-        subject=f"Contact resfly — {nom_s}",
+        subject=f"Contact resfly - {nom_s}",
         html_body=html_body,
         reply_to=email if email else None,
     )

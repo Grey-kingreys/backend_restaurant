@@ -61,7 +61,7 @@ class PanierItemCreateSerializer(serializers.Serializer):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# COMMANDE — Lecture
+# COMMANDE - Lecture
 # ─────────────────────────────────────────────────────────────────────────────
 
 class CommandeItemSerializer(serializers.ModelSerializer):
@@ -85,7 +85,7 @@ class CommandeItemSerializer(serializers.ModelSerializer):
 
 
 class CommandeListSerializer(serializers.ModelSerializer):
-    """Lecture allégée — pour les listes (toutes les vues)."""
+    """Lecture allégée - pour les listes (toutes les vues)."""
     statut_display = serializers.CharField(source='get_statut_display', read_only=True)
     table_login    = serializers.CharField(source='table.login', read_only=True, default=None)
     type_commande_display = serializers.CharField(source='get_type_commande_display', read_only=True)
@@ -110,7 +110,7 @@ class CommandeListSerializer(serializers.ModelSerializer):
             return obj.client_nom
         if obj.table:
             return obj.table.nom_complet or obj.table.login
-        return obj.client_nom or "—"
+        return obj.client_nom or "-"
 
     def get_nb_items(self, obj):
         # items préfetchés (items__plat) → pas de requête supplémentaire
@@ -122,7 +122,7 @@ class CommandeListSerializer(serializers.ModelSerializer):
 
 
 class CommandeDetailSerializer(serializers.ModelSerializer):
-    """Lecture complète — pour le détail (toutes les vues)."""
+    """Lecture complète - pour le détail (toutes les vues)."""
     items                   = CommandeItemSerializer(many=True, read_only=True)
     statut_display          = serializers.CharField(source='get_statut_display', read_only=True)
     table_login             = serializers.CharField(source='table.login', read_only=True, default=None)
@@ -167,7 +167,7 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
             return obj.client_nom
         if obj.table:
             return obj.table.nom_complet or obj.table.login
-        return obj.client_nom or "—"
+        return obj.client_nom or "-"
 
     def get_serveur_login(self, obj):
         return obj.serveur_ayant_servi.login if obj.serveur_ayant_servi else None
@@ -215,7 +215,7 @@ class CommandeValiderSerializer(serializers.Serializer):
 
         montant_total = sum(i.plat.prix_unitaire * i.quantite for i in items)
 
-        # Récupérer la session QR active — obligatoire selon CDC §8.3 / §10.3
+        # Récupérer la session QR active - obligatoire selon CDC §8.3 / §10.3
         session = None
         try:
             session = TableSession.objects.get(table=table, est_active=True)
@@ -252,9 +252,9 @@ class CommandeServeurCreateSerializer(serializers.Serializer):
     """
     Un serveur (ou admin/manager) saisit une commande. Trois types :
       - sur_table : rattachée à une table (table_id requis) ;
-      - livraison : client de passage — téléphone + adresse texte requis
+      - livraison : client de passage - téléphone + adresse texte requis
         (pas de compte, pas de géolocalisation) ;
-      - emporter  : retrait au comptoir — nom/téléphone optionnels.
+      - emporter  : retrait au comptoir - nom/téléphone optionnels.
     Les items sont fournis en ligne (pas de panier). Résultat : une commande
     EN_ATTENTE, identique à celle qu'aurait passée le client lui-même.
     """
@@ -356,7 +356,7 @@ class CommandeServeurCreateSerializer(serializers.Serializer):
 
         # Le montant de la commande ne couvre QUE les plats. Les frais de livraison
         # dependent de la distance et se conviennent directement avec le livreur
-        # au moment de la livraison — ils n'entrent donc pas dans le total.
+        # au moment de la livraison - ils n'entrent donc pas dans le total.
         montant_total = sum(plat.prix_unitaire * qte for plat, qte in items)
 
         # Rattache la session QR active de la table si elle existe (sinon None)
@@ -437,7 +437,7 @@ class CommandePreteSerializer(serializers.Serializer):
         commande = self.context['commande']
         if not commande.peut_etre_marquee_prete():
             raise serializers.ValidationError(
-                f"Impossible — statut actuel : {commande.get_statut_display()}."
+                f"Impossible - statut actuel : {commande.get_statut_display()}."
             )
         return data
 
@@ -467,7 +467,7 @@ class CommandeServieSerializer(serializers.Serializer):
         commande = self.context['commande']
         if not commande.peut_etre_servie():
             raise serializers.ValidationError(
-                f"Impossible de marquer comme SERVIE — statut actuel : "
+                f"Impossible de marquer comme SERVIE - statut actuel : "
                 f"{commande.get_statut_display()}. "
                 "La commande doit être PRÊTE ou ne nécessiter aucune validation cuisine."
             )
@@ -484,7 +484,7 @@ class CommandeServieSerializer(serializers.Serializer):
 class CommandePayeeSerializer(serializers.Serializer):
     """
     Marquer une commande comme PAYÉE (Serveur).
-    CDC §7.1 étape 5 — crée une transaction en attente de remise au comptable.
+    CDC §7.1 étape 5 - crée une transaction en attente de remise au comptable.
     La commande doit être en statut 'servie'.
     """
 
@@ -492,7 +492,7 @@ class CommandePayeeSerializer(serializers.Serializer):
         commande = self.context['commande']
         if not commande.peut_etre_payee():
             raise serializers.ValidationError(
-                f"Impossible de marquer comme PAYÉE — statut actuel : "
+                f"Impossible de marquer comme PAYÉE - statut actuel : "
                 f"{commande.get_statut_display()}. "
                 "La commande doit d'abord être SERVIE."
             )

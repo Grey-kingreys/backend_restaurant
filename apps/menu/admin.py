@@ -49,7 +49,7 @@ class PlatAdmin(admin.ModelAdmin):
                 'border-radius:6px;object-fit:cover;" />',
                 obj.image.url
             )
-        return "—"
+        return "-"
     image_preview.short_description = "Aperçu"
 
     def activer_plats(self, request, queryset):

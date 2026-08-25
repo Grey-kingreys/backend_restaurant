@@ -283,7 +283,7 @@ class DashboardView(APIView):
         def fmt(c):
             return {
                 'id': c.id,
-                'client': c.client_nom or '—',
+                'client': c.client_nom or '-',
                 'adresse': c.client_adresse_livraison or '',
                 'montant': str(c.montant_total),
                 'statut': c.statut,
@@ -442,13 +442,13 @@ class DashboardView(APIView):
             try:
                 table_label = f"Table {r.paiement.commande.table.table_restaurant.numero_table}"
             except Exception:
-                table_label = "—"
+                table_label = "-"
             remises_data.append({
                 'id': r.id,
                 'montant': str(r.montant_virtuel),
                 'valide': r.valide,
                 'table': table_label,
-                'serveur': r.serveur.nom_complet or r.serveur.login if r.serveur else "—",
+                'serveur': r.serveur.nom_complet or r.serveur.login if r.serveur else "-",
                 'date': r.created_at.strftime('%d/%m %H:%M'),
             })
 

@@ -18,7 +18,7 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 # le client est en HTTPS : on fait confiance à l'en-tête X-Forwarded-Proto.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# Origines de confiance pour le CSRF (admin Django, sessions) — schéma https:// obligatoire.
+# Origines de confiance pour le CSRF (admin Django, sessions) - schéma https:// obligatoire.
 # Ex : CSRF_TRUSTED_ORIGINS=https://api.mondomaine.com,https://mondomaine.com
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
@@ -47,11 +47,11 @@ INSTALLED_APPS = [
     'corsheaders',
     'drf_spectacular',
 
-    # Celery Beat — planificateur de tâches périodiques stocké en base (DatabaseScheduler).
+    # Celery Beat - planificateur de tâches périodiques stocké en base (DatabaseScheduler).
     # Requis par CELERY_BEAT_SCHEDULER ; fournit les tables schedule migrées par le web.
     'django_celery_beat',
 
-    # Storage S3 — chargé uniquement si USE_S3=True
+    # Storage S3 - chargé uniquement si USE_S3=True
     *(['storages'] if USE_S3 else []),
  
     'apps.company',
@@ -68,7 +68,7 @@ AUTH_USER_MODEL = 'accounts.User'
 
 
 # ------------------------------------------
-# SWAGGER / OpenAPI — drf-spectacular
+# SWAGGER / OpenAPI - drf-spectacular
 # ------------------------------------------
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Restaurant Manager API',
@@ -168,7 +168,7 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'EXCEPTION_HANDLER': 'apps.accounts.exceptions.custom_exception_handler',
-    # Throttling ciblé (scoped) — activé seulement sur les vues qui le déclarent.
+    # Throttling ciblé (scoped) - activé seulement sur les vues qui le déclarent.
     # Anonyme → clé par IP. Protège les endpoints sensibles du brute-force sans
     # imposer de limite globale au reste de l'API (flux commande QR notamment).
     'DEFAULT_THROTTLE_RATES': {
@@ -281,7 +281,7 @@ if USE_S3:
     # Backend de stockage par défaut (S3) défini via STORAGES['default'] plus haut.
 
 else:
-    # Dev / volume local — stockage fichier (défini via STORAGES['default'])
+    # Dev / volume local - stockage fichier (défini via STORAGES['default'])
     MEDIA_URL  = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
  
@@ -317,7 +317,7 @@ RESEND_FROM_EMAIL = os.getenv('RESEND_FROM_EMAIL', 'noreply@kingreys.fr')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
 # ------------------------------------------
-# Nimba SMS (opérateur guinéen) — envoi de SMS transactionnels
+# Nimba SMS (opérateur guinéen) - envoi de SMS transactionnels
 # Laisser SID/TOKEN vides désactive proprement l'envoi (no-op loggé en dev).
 # Le sender_name doit être validé au préalable sur le dashboard Nimba (24-48h).
 # ------------------------------------------

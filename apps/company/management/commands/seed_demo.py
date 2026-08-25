@@ -1,6 +1,6 @@
 # apps/company/management/commands/seed_demo.py
 """
-Seed de démonstration — idempotent.
+Seed de démonstration - idempotent.
 Insère restaurants, utilisateurs, plats, tables, caisses et 7 jours de
 commandes fictives avec des dates relatives à aujourd'hui.
 Si les données sont déjà présentes, la commande s'arrête sans erreur.
@@ -21,7 +21,7 @@ class Command(BaseCommand):
 
         if Restaurant.objects.filter(nom="Le Baobab").exists():
             self.stdout.write(self.style.WARNING(
-                "✓ Seed déjà présent — aucune modification."
+                "✓ Seed déjà présent - aucune modification."
             ))
             return
 
@@ -170,7 +170,7 @@ class Command(BaseCommand):
         p4  = plat(r1, "Jus de Bissap",       "Jus d'hibiscus frais sucré",            8000, "BOISSON")
         p5  = plat(r1, "Beignets de banane",  "Beignets maison, banane plantain",     15000, "DESSERT")
         p6  = plat(r1, "Riz blanc",           "Riz vapeur nature",                     5000, "ACCOMPAGNEMENT")
-        _   = plat(r1, "Soupe de Légumes",    "Soupe du marché — indisponible",       18000, "ENTREE",         dispo=False)
+        _   = plat(r1, "Soupe de Légumes",    "Soupe du marché - indisponible",       18000, "ENTREE",         dispo=False)
         p8  = plat(r1, "Eau minérale",        "50 cl",                                 5000, "BOISSON")
         p9  = plat(r1, "Thiébou Djeun Blanc", "Riz au poisson blanc",                 42000, "PLAT",           cuisine=True)
         p10 = plat(r1, "Jus Gingembre",       "Jus de gingembre maison",               7000, "BOISSON")
@@ -189,7 +189,7 @@ class Command(BaseCommand):
         CaisseGenerale.objects.create(restaurant=r1, solde=Decimal("1800000"), solde_initial=Decimal("500000"))
         CaisseGenerale.objects.create(restaurant=r2, solde=Decimal("800000"),  solde_initial=Decimal("300000"))
 
-        # ── CaisseGlobale — 6 jours fermés + aujourd'hui ouverte ─────────────
+        # ── CaisseGlobale - 6 jours fermés + aujourd'hui ouverte ─────────────
         past_caisses = {}   # day_offset -> CaisseGlobale
         for i in range(6, 0, -1):
             day = today - timedelta(days=i)
@@ -212,7 +212,7 @@ class Command(BaseCommand):
         )
         past_caisses[0] = cg_today
 
-        # ── CaisseComptable — ouverte aujourd'hui ─────────────────────────────
+        # ── CaisseComptable - ouverte aujourd'hui ─────────────────────────────
         cc = CaisseComptable.objects.create(
             restaurant=r1,
             comptable=u_cpt,
@@ -327,9 +327,9 @@ class Command(BaseCommand):
 
         # ── Dépenses ─────────────────────────────────────────────────────────
         depenses = [
-            (-2, "Achat légumes frais — marché Madina",   Decimal("45000")),
+            (-2, "Achat légumes frais - marché Madina",   Decimal("45000")),
             (-1, "Achat produits d'entretien",             Decimal("25000")),
-            (-1, "Eau en bouteille — 12 packs",            Decimal("30000")),
+            (-1, "Eau en bouteille - 12 packs",            Decimal("30000")),
             (0,  "Emballages et sachets kraft",            Decimal("20000")),
         ]
         for day_off, motif, montant in depenses:

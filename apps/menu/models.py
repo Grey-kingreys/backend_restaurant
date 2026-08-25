@@ -9,7 +9,7 @@ class Plat(models.Model):
     Modele representant un plat du menu.
 
     Isolation SaaS : chaque plat appartient a un restaurant.
-    Un plat ne peut jamais etre supprime — toggle disponible uniquement.
+    Un plat ne peut jamais etre supprime - toggle disponible uniquement.
     necessite_validation_cuisine : si True, la commande passe par
     l'etape PRETE (cuisinier valide) avant d'etre SERVIE.
     """
@@ -65,7 +65,7 @@ class Plat(models.Model):
         blank=True,
         null=True,
         verbose_name="URL d'image externe",
-        help_text="URL d'image externe (prioritaire sur le fichier uploade) — utile pour les demos"
+        help_text="URL d'image externe (prioritaire sur le fichier uploade) - utile pour les demos"
     )
 
     disponible = models.BooleanField(
@@ -112,7 +112,7 @@ class Plat(models.Model):
 
     def __str__(self):
         statut = "OK" if self.disponible else "XX"
-        return f"[{statut}] {self.nom} — {self.prix_unitaire} GNF ({self.restaurant.nom})"
+        return f"[{statut}] {self.nom} - {self.prix_unitaire} GNF ({self.restaurant.nom})"
 
     @property
     def prix_formate(self):
