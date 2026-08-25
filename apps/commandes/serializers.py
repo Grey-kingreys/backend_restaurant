@@ -354,10 +354,10 @@ class CommandeServeurCreateSerializer(serializers.Serializer):
         items = self._parsed_items
         est_hors_table = type_cmd in ('livraison', 'emporter')
 
+        # Le montant de la commande ne couvre QUE les plats. Les frais de livraison
+        # dependent de la distance et se conviennent directement avec le livreur
+        # au moment de la livraison — ils n'entrent donc pas dans le total.
         montant_total = sum(plat.prix_unitaire * qte for plat, qte in items)
-        # Comme au checkout client : les frais de livraison du restaurant s'ajoutent
-        if type_cmd == 'livraison' and restaurant.frais_livraison:
-            montant_total += restaurant.frais_livraison
 
         # Rattache la session QR active de la table si elle existe (sinon None)
         session = None

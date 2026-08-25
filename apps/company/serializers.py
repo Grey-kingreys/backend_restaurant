@@ -25,7 +25,7 @@ class RestaurantSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'nom', 'email_admin', 'telephone', 'adresse',
             'latitude', 'longitude', 'rayon_connexion', 'duree_session_table',
-            'accept_livraison', 'accept_emporter', 'frais_livraison',
+            'accept_livraison', 'accept_emporter',
             'livraison_lien_autorise_paiement',
             'reservation_validation_auto', 'reservation_delai_annulation_heures',
             'has_geo', 'is_active', 'statut', 'nombre_utilisateurs',
@@ -236,7 +236,7 @@ class MonRestaurantUpdateSerializer(serializers.ModelSerializer):
         fields = [
             'nom', 'telephone', 'adresse',
             'latitude', 'longitude', 'rayon_connexion', 'duree_session_table',
-            'accept_livraison', 'accept_emporter', 'frais_livraison',
+            'accept_livraison', 'accept_emporter',
             'livraison_lien_autorise_paiement',
             'reservation_validation_auto', 'reservation_delai_annulation_heures',
         ]
@@ -272,11 +272,6 @@ class MonRestaurantUpdateSerializer(serializers.ModelSerializer):
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
             raise serializers.ValidationError("Un restaurant avec ce nom existe déjà.")
-        return value
-
-    def validate_frais_livraison(self, value):
-        if value is not None and value < 0:
-            raise serializers.ValidationError("Les frais de livraison ne peuvent pas être négatifs.")
         return value
 
 

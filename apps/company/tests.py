@@ -295,7 +295,7 @@ class TestMonRestaurantAPI:
 
         res = client.get("/api/company/mon-restaurant/")
         assert res.status_code == 200
-        assert "frais_livraison" in res.data["data"]
+        assert "accept_livraison" in res.data["data"]
 
         assert client.patch(
             "/api/company/mon-restaurant/", {"nom": "X"}, format="json"

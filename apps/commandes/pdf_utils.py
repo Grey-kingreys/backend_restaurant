@@ -290,9 +290,8 @@ def generer_recu_pdf(commande):
     elements.append(Spacer(1, 10))
 
     # ── Totaux ────────────────────────────────────────────────────────────────
-    frais = 0.0
-    if is_livraison and resto and resto.frais_livraison:
-        frais = float(resto.frais_livraison)
+    # Les frais de livraison ne sont pas facturés ici : ils varient avec la
+    # distance et se règlent directement avec le livreur.
 
     # Colonnes : [espace vide | libellé | montant]
     COL_EMPTY = W * 0.35
@@ -309,9 +308,9 @@ def generer_recu_pdf(commande):
     ))
 
     total_rows = []
-    if frais > 0:
+    if is_livraison:
         total_rows.append(["", _st("Sous-total articles"), _sv(_fmt_amount(sous_total))])
-        total_rows.append(["", _st("Frais de livraison"),  _sv(_fmt_amount(frais))])
+        total_rows.append(["", _st("Frais de livraison"),  _sv("À convenir")])
 
     # Ligne TOTAL (fond ambre, texte blanc)
     total_rows.append([
@@ -348,7 +347,8 @@ def generer_recu_pdf(commande):
     if is_emporter:
         note = "Votre commande est prête à être récupérée au comptoir."
     elif is_livraison:
-        note = "Merci pour votre commande. Nous espérons vous livrer rapidement !"
+        note = ("Merci pour votre commande. Les frais de livraison sont à régler "
+                "directement avec le livreur, selon la distance.")
     else:
         note = "Merci de votre visite. À très bientôt !"
 
