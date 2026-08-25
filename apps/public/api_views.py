@@ -256,7 +256,6 @@ def _serialize_restaurant(r):
         'longitude': str(r.longitude) if r.longitude else None,
         'accept_livraison': r.accept_livraison,
         'accept_emporter': r.accept_emporter,
-        'frais_livraison': str(r.frais_livraison) if r.frais_livraison else None,
     }
 
 
@@ -340,8 +339,8 @@ class CommanderView(APIView):
             montant += plat.prix_unitaire * qte
             items_valides.append((plat, qte))
 
-        if type_cmd == 'livraison' and resto.frais_livraison:
-            montant += resto.frais_livraison
+        # Pas de frais de livraison dans le total : ils varient avec la distance
+        # et se reglent directement avec le livreur (cf. Restaurant.frais_livraison).
 
         # Créer la commande
         cle = secrets.token_hex(16)
@@ -832,7 +831,6 @@ class SuiviCommandeView(APIView):
             'type_commande': cmd.type_commande,
             'mode_paiement': cmd.mode_paiement,
             'montant_total': str(cmd.montant_total),
-            'frais_livraison': str(cmd.restaurant.frais_livraison) if cmd.restaurant.frais_livraison else None,
             'adresse_livraison': cmd.client_adresse_livraison,
             'date_commande': cmd.date_commande.isoformat(),
             'items': items,

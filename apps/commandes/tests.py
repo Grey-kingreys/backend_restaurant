@@ -155,8 +155,9 @@ class TestCommandeServeurCreer:
         # Pas de géolocalisation : adresse en texte libre uniquement
         assert data["client_latitude"] is None
         assert data["client_longitude"] is None
-        # Frais de livraison du restaurant inclus (50 000 + 15 000)
-        assert Decimal(data["montant_total"]) == Decimal("65000")
+        # Le total ne couvre QUE les plats : les frais de livraison varient avec
+        # la distance et se conviennent directement avec le livreur.
+        assert Decimal(data["montant_total"]) == Decimal("50000")
 
         # Clé de suivi générée → lien/QR reçu possible, comme une commande en ligne
         from .models import Commande

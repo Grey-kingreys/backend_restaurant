@@ -77,11 +77,15 @@ class Restaurant(models.Model):
         help_text="Active la commande en ligne avec retrait sur place"
     )
 
+    # OBSOLETE — conserve pour ne pas perdre les montants deja saisis.
+    # Les frais de livraison varient avec la distance : ils ne sont plus factures
+    # dans la commande et se conviennent directement avec le livreur. Ce champ
+    # n'est plus lu par l'application ni modifiable depuis l'interface.
     frais_livraison = models.DecimalField(
         max_digits=10, decimal_places=0,
         null=True, blank=True,
-        verbose_name="Frais de livraison (GNF)",
-        help_text="Laisser vide pour gratuit"
+        verbose_name="Frais de livraison (GNF) — obsolete",
+        help_text="Obsolete : les frais sont convenus avec le livreur selon la distance."
     )
 
     livraison_lien_autorise_paiement = models.BooleanField(
