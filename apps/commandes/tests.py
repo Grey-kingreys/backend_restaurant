@@ -1,4 +1,4 @@
-"""Tests app commandes — sessions de table, mes-commandes & prise de commande staff."""
+"""Tests app commandes - sessions de table, mes-commandes & prise de commande staff."""
 from decimal import Decimal
 
 import pytest
@@ -86,7 +86,7 @@ class TestTableSessionUnicite:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PRISE DE COMMANDE STAFF — /api/commandes/creer/ (sur_table / livraison / emporter)
+# PRISE DE COMMANDE STAFF - /api/commandes/creer/ (sur_table / livraison / emporter)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _staff_setup(user_factory, restaurant_factory, frais_livraison=None):

@@ -14,7 +14,7 @@ from .exceptions import ErreurMetier
 
 class CaisseGenerale(models.Model):
     """
-    Caisse permanente du restaurant — OneToOne avec Restaurant.
+    Caisse permanente du restaurant - OneToOne avec Restaurant.
     Ne se ferme JAMAIS.
     Creee automatiquement lors de la configuration du restaurant.
     Visible uniquement par Admin et Manager.
@@ -55,11 +55,11 @@ class CaisseGenerale(models.Model):
         verbose_name_plural = "Caisses Generales"
 
     def __str__(self):
-        return f"Caisse Generale — {self.restaurant.nom} — {self.solde} GNF"
+        return f"Caisse Generale - {self.restaurant.nom} - {self.solde} GNF"
 
     @classmethod
     def pour_restaurant(cls, restaurant):
-        """Retourne le coffre du restaurant — le cree a 0 GNF s'il n'existe pas.
+        """Retourne le coffre du restaurant - le cree a 0 GNF s'il n'existe pas.
 
         Tout restaurant possede un coffre : seul son solde initial est saisi par
         l'Admin via `/caisse-generale/init/`. Les restaurants crees par
@@ -70,7 +70,7 @@ class CaisseGenerale(models.Model):
         return caisse
 
     def crediter(self, montant):
-        """Ajoute un montant au solde — increment atomique via F() (anti-race)."""
+        """Ajoute un montant au solde - increment atomique via F() (anti-race)."""
         montant = Decimal(str(montant))
         type(self).objects.filter(pk=self.pk).update(
             solde=models.F('solde') + montant, updated_at=timezone.now()
@@ -78,7 +78,7 @@ class CaisseGenerale(models.Model):
         self.refresh_from_db(fields=['solde', 'updated_at'])
 
     def debiter(self, montant):
-        """Retire un montant — decrement conditionnel atomique (anti-race)."""
+        """Retire un montant - decrement conditionnel atomique (anti-race)."""
         montant = Decimal(str(montant))
         updated = type(self).objects.filter(pk=self.pk, solde__gte=montant).update(
             solde=models.F('solde') - montant, updated_at=timezone.now()
@@ -98,13 +98,13 @@ class CaisseGenerale(models.Model):
 
 class CaisseGlobale(models.Model):
     """
-    Caisse journaliere du restaurant — centralise les paiements des tables.
+    Caisse journaliere du restaurant - centralise les paiements des tables.
     Ouverte automatiquement chaque jour a 05h00 par Celery Beat.
     Fermee manuellement par le comptable designe (ou tout autre en son absence).
     Une seule active a la fois par restaurant.
 
     A la fermeture : solde transfete dans la Caisse Generale.
-    Une fois fermee : IMMUABLE — lecture seule.
+    Une fois fermee : IMMUABLE - lecture seule.
     """
 
     restaurant = models.ForeignKey(
@@ -172,10 +172,10 @@ class CaisseGlobale(models.Model):
 
     def __str__(self):
         statut = "FERMEE" if self.is_closed else "OUVERTE"
-        return f"Caisse Globale {self.date_ouverture} — {self.restaurant.nom} [{statut}]"
+        return f"Caisse Globale {self.date_ouverture} - {self.restaurant.nom} [{statut}]"
 
     def crediter(self, montant):
-        """Credite la caisse (increment atomique) — refuse si fermee."""
+        """Credite la caisse (increment atomique) - refuse si fermee."""
         montant = Decimal(str(montant))
         updated = type(self).objects.filter(pk=self.pk, is_closed=False).update(
             solde=models.F('solde') + montant, updated_at=timezone.now()
@@ -187,7 +187,7 @@ class CaisseGlobale(models.Model):
     @transaction.atomic
     def fermer(self, fermee_par, montant_physique, motif_ecart=None):
         """
-        Ferme la caisse — IRREVERSIBLE.
+        Ferme la caisse - IRREVERSIBLE.
         Transfete le solde dans la Caisse Generale.
         Verrou pessimiste : empeche double fermeture / credit concurrent.
         """
@@ -220,7 +220,7 @@ class CaisseGlobale(models.Model):
 
 class CaisseComptable(models.Model):
     """
-    Caisse personnelle d'un comptable — session de travail.
+    Caisse personnelle d'un comptable - session de travail.
     Un comptable ne peut avoir qu'une seule caisse ouverte a la fois.
     Ouverte manuellement par le comptable en debut de journee.
 
@@ -289,14 +289,14 @@ class CaisseComptable(models.Model):
 
     def __str__(self):
         statut = "FERMEE" if self.is_closed else "OUVERTE"
-        return f"Caisse {self.comptable.nom_complet} — {self.opened_at.date()} [{statut}]"
+        return f"Caisse {self.comptable.nom_complet} - {self.opened_at.date()} [{statut}]"
 
     def peut_effectuer_depense(self, montant):
         """Verifie si le solde est suffisant pour une depense"""
         return self.solde >= Decimal(str(montant))
 
     def debiter(self, montant):
-        """Debite pour une depense — decrement conditionnel atomique (anti-race)."""
+        """Debite pour une depense - decrement conditionnel atomique (anti-race)."""
         montant = Decimal(str(montant))
         updated = type(self).objects.filter(
             pk=self.pk, is_closed=False, solde__gte=montant
@@ -321,7 +321,7 @@ class CaisseComptable(models.Model):
     @transaction.atomic
     def fermer(self, montant_physique, motif_ecart=None, fermee_par=None):
         """
-        Ferme la caisse — IRREVERSIBLE.
+        Ferme la caisse - IRREVERSIBLE.
         Transfere le MONTANT PHYSIQUE reellement compte dans la Caisse Generale
         (le coffre reflete le cash reel) et trace l'ecart eventuel
         (physique - virtuel) comme perte/gain.
@@ -377,7 +377,7 @@ class CaisseComptable(models.Model):
 class MouvementCaisse(models.Model):
     """
     Trace chaque mouvement de la Caisse Comptable.
-    Non modifiable apres creation — audit trail complet.
+    Non modifiable apres creation - audit trail complet.
     """
 
     TYPE_CHOICES = [
@@ -432,7 +432,7 @@ class MouvementCaisse(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.get_type_mouvement_display()} — {self.montant} GNF — {self.created_at.date()}"
+        return f"{self.get_type_mouvement_display()} - {self.montant} GNF - {self.created_at.date()}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -487,7 +487,7 @@ class DemandeApprovisionnement(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"Demande appro {self.montant} GNF — {self.get_statut_display()}"
+        return f"Demande appro {self.montant} GNF - {self.get_statut_display()}"
 
     @transaction.atomic
     def approuver(self, validee_par):
@@ -629,7 +629,7 @@ class RemiseServeur(models.Model):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PAIEMENT (inchange — OneToOne avec Commande)
+# PAIEMENT (inchange - OneToOne avec Commande)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class Paiement(models.Model):
@@ -664,11 +664,11 @@ class Paiement(models.Model):
         ordering = ['-date_paiement']
 
     def __str__(self):
-        return f"Paiement #{self.pk} — {self.montant} GNF"
+        return f"Paiement #{self.pk} - {self.montant} GNF"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DEPENSE (attachee a la Caisse Comptable — plus a la Caisse singleton)
+# DEPENSE (attachee a la Caisse Comptable - plus a la Caisse singleton)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class Depense(models.Model):

@@ -34,5 +34,5 @@ class OnboardingTokenAdmin(admin.ModelAdmin):
     get_restaurant.short_description = "Restaurant"
 
     def has_change_permission(self, request, obj=None):
-        # Les tokens sont immuables — lecture seule dans l'admin
+        # Les tokens sont immuables - lecture seule dans l'admin
         return False

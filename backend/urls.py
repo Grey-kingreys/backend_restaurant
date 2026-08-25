@@ -18,7 +18,7 @@ urlpatterns = [
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 
-    # ── API — URLs inchangées (Phase 1→3) ─────────────────────────────────
+    # ── API - URLs inchangées (Phase 1→3) ─────────────────────────────────
     # IMPORTANT : ces préfixes ne changent pas pour ne pas casser l'existant.
     # La migration vers /api/ se fera en une seule fois quand le frontend
     # sera prêt à suivre.

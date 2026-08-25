@@ -1,6 +1,6 @@
 # apps/restaurant/api_urls.py
 """
-URLs DRF pour l'app restaurant — Phase 6.
+URLs DRF pour l'app restaurant - Phase 6.
 
 Préfixe : /api/v1/restaurant/
 

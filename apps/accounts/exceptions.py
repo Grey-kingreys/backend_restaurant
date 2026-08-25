@@ -6,7 +6,7 @@ from rest_framework import status
 
 def custom_exception_handler(exc, context):
     """
-    Handler global — uniformise toutes les erreurs DRF au format :
+    Handler global - uniformise toutes les erreurs DRF au format :
     { "success": false, "errors": {...}, "message": "..." }
     """
     response = exception_handler(exc, context)

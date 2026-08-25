@@ -34,13 +34,13 @@ def error_response(errors=None, message="", status_code=status.HTTP_400_BAD_REQU
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CRUD RESTAURANTS — Super Admin
+# CRUD RESTAURANTS - Super Admin
 # ─────────────────────────────────────────────────────────────────────────────
 
 class RestaurantListCreateView(APIView):
     """
-    GET  /api/company/restaurants/  — Liste tous les restaurants
-    POST /api/company/restaurants/  — Creer un restaurant + Admin + email
+    GET  /api/company/restaurants/  - Liste tous les restaurants
+    POST /api/company/restaurants/  - Creer un restaurant + Admin + email
     Acces : Super Admin uniquement
     """
     permission_classes = [IsAuthenticated, IsSuperAdmin]
@@ -50,7 +50,7 @@ class RestaurantListCreateView(APIView):
         description="Retourne la liste complète de tous les restaurants de la plateforme. Accès Super Admin uniquement.",
         responses={
             200: RestaurantSerializer(many=True),
-            403: OpenApiResponse(description="Accès refusé — Super Admin requis"),
+            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
         },
         tags=["Restaurants"],
     )
@@ -80,7 +80,7 @@ class RestaurantListCreateView(APIView):
         responses={
             201: RestaurantSerializer,
             400: OpenApiResponse(description="Données invalides (nom déjà pris, email déjà utilisé, etc.)"),
-            403: OpenApiResponse(description="Accès refusé — Super Admin requis"),
+            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
         },
         tags=["Restaurants"],
     )
@@ -103,8 +103,8 @@ class RestaurantListCreateView(APIView):
 
 class RestaurantDetailView(APIView):
     """
-    GET    /api/company/restaurants/<id>/  — Detail d'un restaurant
-    PATCH  /api/company/restaurants/<id>/  — Modifier les infos
+    GET    /api/company/restaurants/<id>/  - Detail d'un restaurant
+    PATCH  /api/company/restaurants/<id>/  - Modifier les infos
     Acces : Super Admin uniquement
     """
     permission_classes = [IsAuthenticated, IsSuperAdmin]
@@ -117,7 +117,7 @@ class RestaurantDetailView(APIView):
         description="Retourne les informations complètes d'un restaurant par son ID.",
         responses={
             200: RestaurantSerializer,
-            403: OpenApiResponse(description="Accès refusé — Super Admin requis"),
+            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
             404: OpenApiResponse(description="Restaurant introuvable"),
         },
         tags=["Restaurants"],
@@ -134,7 +134,7 @@ class RestaurantDetailView(APIView):
         responses={
             200: RestaurantSerializer,
             400: OpenApiResponse(description="Données invalides"),
-            403: OpenApiResponse(description="Accès refusé — Super Admin requis"),
+            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
             404: OpenApiResponse(description="Restaurant introuvable"),
         },
         tags=["Restaurants"],
@@ -165,7 +165,7 @@ class RestaurantDetailView(APIView):
         responses={
             200: OpenApiResponse(description="Restaurant supprimé avec succès"),
             400: OpenApiResponse(description="Confirmation invalide ou mot de passe incorrect"),
-            403: OpenApiResponse(description="Accès refusé — Super Admin requis"),
+            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
             404: OpenApiResponse(description="Restaurant introuvable"),
         },
         tags=["Restaurants"],
@@ -193,7 +193,7 @@ class RestaurantDetailView(APIView):
 class RestaurantSuspendView(APIView):
     """
     POST /api/company/restaurants/<id>/suspend/
-    Suspend le restaurant — bloque tous les acces.
+    Suspend le restaurant - bloque tous les acces.
     Acces : Super Admin uniquement
     """
     permission_classes = [IsAuthenticated, IsSuperAdmin]
@@ -201,14 +201,14 @@ class RestaurantSuspendView(APIView):
     @extend_schema(
         summary="Suspendre un restaurant",
         description=(
-            "Suspend le restaurant — tous les accès des utilisateurs de ce restaurant "
+            "Suspend le restaurant - tous les accès des utilisateurs de ce restaurant "
             "seront bloqués immédiatement. L'opération est réversible via `/activate/`."
         ),
         request=None,
         responses={
             200: RestaurantSerializer,
             400: OpenApiResponse(description="Restaurant déjà suspendu"),
-            403: OpenApiResponse(description="Accès refusé — Super Admin requis"),
+            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
             404: OpenApiResponse(description="Restaurant introuvable"),
         },
         tags=["Restaurants"],
@@ -241,7 +241,7 @@ class RestaurantActivateView(APIView):
         responses={
             200: RestaurantSerializer,
             400: OpenApiResponse(description="Restaurant déjà actif"),
-            403: OpenApiResponse(description="Accès refusé — Super Admin requis"),
+            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
             404: OpenApiResponse(description="Restaurant introuvable"),
         },
         tags=["Restaurants"],
@@ -260,19 +260,19 @@ class RestaurantActivateView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MON RESTAURANT — Admin peut voir/modifier son propre restaurant
+# MON RESTAURANT - Admin peut voir/modifier son propre restaurant
 # ─────────────────────────────────────────────────────────────────────────────
 
 class MonRestaurantView(APIView):
     """
-    GET   /api/company/mon-restaurant/  — Voir son restaurant (Admin)
-    PATCH /api/company/mon-restaurant/  — Modifier les infos, la géolocalisation,
+    GET   /api/company/mon-restaurant/  - Voir son restaurant (Admin)
+    PATCH /api/company/mon-restaurant/  - Modifier les infos, la géolocalisation,
           la commande en ligne et les réservations (Admin)
     """
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        summary="Mon restaurant — informations",
+        summary="Mon restaurant - informations",
         description="Retourne les informations du restaurant du membre du staff connecté. "
                     "Lecture ouverte à tout le staff (la prise de commande a besoin des "
                     "réglages livraison/emporter et des frais) ; modification via PATCH "
@@ -287,7 +287,7 @@ class MonRestaurantView(APIView):
         return success_response(data=serializer.data)
 
     @extend_schema(
-        summary="Mon restaurant — mise à jour",
+        summary="Mon restaurant - mise à jour",
         description=(
             "Met à jour les informations du restaurant : nom, téléphone, adresse, "
             "géolocalisation QR (latitude, longitude, rayon, durée de session), "
@@ -313,15 +313,15 @@ class MonRestaurantView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ONBOARDING — Validation du token de premiere connexion
+# ONBOARDING - Validation du token de premiere connexion
 # ─────────────────────────────────────────────────────────────────────────────
 
 class OnboardingValidateView(APIView):
     """
-    GET  /api/company/onboarding/<token>/  — Verifier si le token est valide
-    POST /api/company/onboarding/<token>/  — Definir le mot de passe + activer le compte
+    GET  /api/company/onboarding/<token>/  - Verifier si le token est valide
+    POST /api/company/onboarding/<token>/  - Definir le mot de passe + activer le compte
 
-    Acces : Public (pas de JWT requis — c'est la premiere connexion)
+    Acces : Public (pas de JWT requis - c'est la premiere connexion)
     """
     permission_classes = []  # Public
 
@@ -333,7 +333,7 @@ class OnboardingValidateView(APIView):
             "pour afficher le formulaire ou un message d'erreur. Accès public."
         ),
         responses={
-            200: OpenApiResponse(description="Token valide — retourne login et nom du restaurant"),
+            200: OpenApiResponse(description="Token valide - retourne login et nom du restaurant"),
             404: OpenApiResponse(description="Token inexistant"),
             410: OpenApiResponse(description="Token expiré ou déjà utilisé"),
         },
@@ -375,7 +375,7 @@ class OnboardingValidateView(APIView):
         ),
         request=OnboardingTokenValidateSerializer,
         responses={
-            200: OpenApiResponse(description="Compte activé — l'Admin peut maintenant se connecter"),
+            200: OpenApiResponse(description="Compte activé - l'Admin peut maintenant se connecter"),
             400: OpenApiResponse(description="Token invalide, expiré ou mots de passe non concordants"),
         },
         tags=["Onboarding"],
@@ -407,13 +407,13 @@ class OnboardingValidateView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# STATS GLOBALES — Super Admin
+# STATS GLOBALES - Super Admin
 # ─────────────────────────────────────────────────────────────────────────────
 
 class PlatformStatsView(APIView):
     """
     GET /api/company/stats/
-    Stats globales de la plateforme — Super Admin uniquement.
+    Stats globales de la plateforme - Super Admin uniquement.
     Implementation complete en Phase 8 (dashboard/tasks.py).
     """
     permission_classes = [IsAuthenticated, IsSuperAdmin]
@@ -428,7 +428,7 @@ class PlatformStatsView(APIView):
         ),
         responses={
             200: PlatformStatsSerializer,
-            403: OpenApiResponse(description="Accès refusé — Super Admin requis"),
+            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
         },
         tags=["Stats"],
     )

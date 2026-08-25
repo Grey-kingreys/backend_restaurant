@@ -37,7 +37,7 @@ class RestaurantSerializer(serializers.ModelSerializer):
         return obj.latitude is not None and obj.longitude is not None
 
     def get_nombre_utilisateurs(self, obj):
-        # Exclut les Rtable du compte — ce sont des comptes systeme
+        # Exclut les Rtable du compte - ce sont des comptes systeme
         return obj.users.filter(is_active=True).exclude(role='Rtable').count()
 
     def get_statut(self, obj):
@@ -61,7 +61,7 @@ class RestaurantCreateSerializer(serializers.ModelSerializer):
         fields = ['nom', 'email_admin', 'telephone', 'adresse']
 
     def validate_email_admin(self, value):
-        """L'email doit etre unique — servira de login Admin."""
+        """L'email doit etre unique - servira de login Admin."""
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError(
                 "Un utilisateur avec cet email existe deja."
@@ -97,7 +97,7 @@ class RestaurantCreateSerializer(serializers.ModelSerializer):
 
         admin_user = User.objects.create_user(
             login=login,
-            password=None,  # Pas de mot de passe — l'Admin le definit via le token
+            password=None,  # Pas de mot de passe - l'Admin le definit via le token
             role='Radmin',
             restaurant=restaurant,
             email=restaurant.email_admin,
@@ -123,7 +123,7 @@ class RestaurantCreateSerializer(serializers.ModelSerializer):
         # 6. Envoyer l'email de bienvenue
         email_ok = send_welcome_email(admin_user, restaurant, onboarding_token)
         if not email_ok:
-            # On ne bloque pas la creation — on logue juste l'echec
+            # On ne bloque pas la creation - on logue juste l'echec
             import logging
             logging.getLogger(__name__).warning(
                 f"[Onboarding] Email non envoye pour {admin_user.email}"
@@ -315,7 +315,7 @@ class RestaurantDeleteSerializer(serializers.Serializer):
 
 class PlatformStatsSerializer(serializers.Serializer):
     """
-    Serializer stats globales plateforme — Super Admin uniquement.
+    Serializer stats globales plateforme - Super Admin uniquement.
     Stub complet implementé en Phase 8 (dashboard/tasks.py + Celery).
     """
     restaurants_total = serializers.IntegerField()

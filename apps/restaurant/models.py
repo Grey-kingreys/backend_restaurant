@@ -64,7 +64,7 @@ class TableRestaurant(models.Model):
         unique_together = ['restaurant', 'numero_table']
 
     def __str__(self):
-        return f"Table {self.numero_table} — {self.restaurant.nom} ({self.nombre_places} places)"
+        return f"Table {self.numero_table} - {self.restaurant.nom} ({self.nombre_places} places)"
 
     def get_statut_actuel(self):
         """Retourne le statut actuel : libre | en_attente | prete | servie"""
@@ -116,7 +116,7 @@ class TableToken(models.Model):
         verbose_name_plural = "Tokens de tables"
 
     def __str__(self):
-        return f"Token — {self.table.login} ({self.table.restaurant.nom})"
+        return f"Token - {self.table.login} ({self.table.restaurant.nom})"
 
     @classmethod
     def generer_token(cls, table):
@@ -147,7 +147,7 @@ class TableToken(models.Model):
 
 class TableSession(models.Model):
     """
-    Session de connexion pour une table — creee a chaque scan de QR Code.
+    Session de connexion pour une table - creee a chaque scan de QR Code.
     Isolation SaaS : heritee via table (User → restaurant).
     Expire 1 minute apres le paiement de toutes les commandes de la session.
     """
@@ -224,7 +224,7 @@ class TableSession(models.Model):
         ordering = ['-date_creation']
 
     def __str__(self):
-        return f"Session {self.table.login} — {self.date_creation}"
+        return f"Session {self.table.login} - {self.date_creation}"
 
     @classmethod
     def ouvrir_pour(cls, table, **kwargs):
@@ -321,7 +321,7 @@ def duree_reservation_minutes(nombre_personnes):
     return 150
 
 
-# Conservé pour rétro-compatibilité (anciens appels) — durée par défaut moyenne.
+# Conservé pour rétro-compatibilité (anciens appels) - durée par défaut moyenne.
 RESERVATION_DUREE = timedelta(minutes=120)
 
 
@@ -387,8 +387,8 @@ class Reservation(models.Model):
         ]
 
     def __str__(self):
-        t = self.table.numero_table if self.table_id else '—'
-        return f"Réservation T{t} — {self.date_reservation} {self.heure} ({self.get_statut_display()})"
+        t = self.table.numero_table if self.table_id else '-'
+        return f"Réservation T{t} - {self.date_reservation} {self.heure} ({self.get_statut_display()})"
 
     def save(self, *args, **kwargs):
         # Fige la durée d'occupation selon la taille du groupe si non définie.
@@ -398,7 +398,7 @@ class Reservation(models.Model):
 
     @staticmethod
     def _plage(heure, duree_minutes):
-        """Renvoie (debut, fin) en datetimes — fin inclut le buffer de nettoyage."""
+        """Renvoie (debut, fin) en datetimes - fin inclut le buffer de nettoyage."""
         from datetime import datetime, date as _date
         debut = datetime.combine(_date.min, heure)
         fin = debut + timedelta(minutes=int(duree_minutes) + RESERVATION_BUFFER_MINUTES)

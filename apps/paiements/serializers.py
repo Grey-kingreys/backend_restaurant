@@ -175,7 +175,7 @@ class CaisseComptableSerializer(serializers.ModelSerializer):
 
 
 class CaisseComptableListSerializer(serializers.ModelSerializer):
-    """Version allégée sans les mouvements — pour les listes."""
+    """Version allégée sans les mouvements - pour les listes."""
     comptable_nom   = serializers.CharField(source='comptable.nom_complet', read_only=True)
     comptable_login = serializers.CharField(source='comptable.login', read_only=True)
     solde_formate   = serializers.SerializerMethodField()

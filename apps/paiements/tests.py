@@ -1,4 +1,4 @@
-"""Tests du flux de caisse — intégrité des soldes.
+"""Tests du flux de caisse - intégrité des soldes.
 
 Régression : les crédits/débits faisaient un read-modify-write sur `self.solde`
 sans verrou (perte de mise à jour possible en concurrence). Ils passent

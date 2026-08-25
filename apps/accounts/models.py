@@ -10,7 +10,7 @@ import uuid
 class Permission(models.Model):
     """
     Permission atomique. Les codes sont définis dans perm_codes.py.
-    Instances créées une fois via data migration — ne pas créer manuellement.
+    Instances créées une fois via data migration - ne pas créer manuellement.
     """
     code      = models.CharField(max_length=50, unique=True, verbose_name="Code")
     label     = models.CharField(max_length=100, verbose_name="Libellé")
@@ -54,7 +54,7 @@ class RoleConfig(models.Model):
     slug           = models.CharField(max_length=30, verbose_name="Slug",
                                       help_text="Identifiant court lisible (ex: Radmin, Rserveur)")
     is_system      = models.BooleanField(default=False, verbose_name="Rôle système",
-                                         help_text="Rôle système — non modifiable par les admins")
+                                         help_text="Rôle système - non modifiable par les admins")
     dashboard_type = models.CharField(max_length=20, choices=DASHBOARD_CHOICES,
                                       default='admin', verbose_name="Type de dashboard")
     permissions    = models.ManyToManyField(
@@ -97,7 +97,7 @@ class UserManager(BaseUserManager):
     def create_superuser(self, login, password=None, **extra_fields):
         """
         Crée un Super Admin Django (Rsuper_admin).
-        Pas de restaurant associé — gère toute la plateforme.
+        Pas de restaurant associé - gère toute la plateforme.
         """
         extra_fields.setdefault('role', 'Rsuper_admin')
         extra_fields.setdefault('is_staff', True)
@@ -167,7 +167,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     must_change_password = models.BooleanField(
         default=False,
         verbose_name="Doit changer le mot de passe",
-        help_text="Forcé à True à la création — reset à False après changement"
+        help_text="Forcé à True à la création - reset à False après changement"
     )
 
     nom_complet = models.CharField(
@@ -177,7 +177,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name="Nom complet"
     )
 
-    # Email unique sur toute la plateforme — utilisé pour la connexion (sauf Rtable)
+    # Email unique sur toute la plateforme - utilisé pour la connexion (sauf Rtable)
     email = models.EmailField(
         max_length=254,
         blank=True,
@@ -185,7 +185,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         unique=True,
         validators=[EmailValidator()],
         verbose_name="Adresse email",
-        help_text="Obligatoire pour tous les rôles sauf Rtable — unique sur toute la plateforme"
+        help_text="Obligatoire pour tous les rôles sauf Rtable - unique sur toute la plateforme"
     )
 
     telephone = models.CharField(
@@ -281,7 +281,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     def has_permission(self, code: str) -> bool:
         """
         Vérifie si l'utilisateur possède une permission donnée via son role_config.
-        Rsuper_admin et Rtable n'ont pas de role_config — retourne False pour eux.
+        Rsuper_admin et Rtable n'ont pas de role_config - retourne False pour eux.
         Utilise le cache de get_permission_codes() pour éviter les requêtes répétées.
         """
         if not self.role_config_id:
@@ -298,7 +298,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 class PasswordResetToken(models.Model):
     """
     Token de réinitialisation de mot de passe demandé par l'utilisateur.
-    Valable 1h — usage unique.
+    Valable 1h - usage unique.
     Le frontend redirige vers /auth/reset-password?token=<uuid>
     """
 
@@ -400,7 +400,7 @@ class AdresseClient(models.Model):
             )
         ],
         verbose_name="Téléphone du lieu",
-        help_text="Optionnel — contact spécifique à ce lieu, sinon celui du compte",
+        help_text="Optionnel - contact spécifique à ce lieu, sinon celui du compte",
     )
 
     is_default = models.BooleanField(
@@ -418,4 +418,4 @@ class AdresseClient(models.Model):
 
     def __str__(self):
         marque = " ★" if self.is_default else ""
-        return f"{self.libelle} — {self.user.login}{marque}"
+        return f"{self.libelle} - {self.user.login}{marque}"

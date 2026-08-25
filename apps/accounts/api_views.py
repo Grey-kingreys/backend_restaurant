@@ -392,7 +392,7 @@ class AdminPasswordResetView(APIView):
         summary="Réinitialiser le mot de passe d'un utilisateur (Admin)",
         description=(
             "L'Admin ou Manager définit un nouveau mot de passe pour un utilisateur.\n"
-            "`must_change_password` est automatiquement remis à `True` — "
+            "`must_change_password` est automatiquement remis à `True` - "
             "l'utilisateur devra changer son mot de passe à sa prochaine connexion."
         ),
         request=AdminPasswordResetSerializer,
@@ -487,7 +487,7 @@ class PasswordResetRequestView(APIView):
         serializer = PasswordResetRequestSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-        # Toujours retourner 200 — anti-énumération
+        # Toujours retourner 200 - anti-énumération
         return success_response(
             message="Si un compte existe avec cet email, un lien de réinitialisation a été envoyé."
         )
@@ -504,7 +504,7 @@ class PasswordResetConfirmView(APIView):
         ),
         request=PasswordResetConfirmSerializer,
         responses={
-            200: OpenApiResponse(description="Mot de passe réinitialisé — l'utilisateur peut se connecter"),
+            200: OpenApiResponse(description="Mot de passe réinitialisé - l'utilisateur peut se connecter"),
             400: OpenApiResponse(description="Token invalide, expiré ou mots de passe non concordants"),
         },
         tags=["Mot de passe"],
@@ -525,7 +525,7 @@ class PasswordResetConfirmView(APIView):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class PermissionListView(APIView):
-    """GET /api/accounts/permissions/ — Liste de toutes les permissions disponibles."""
+    """GET /api/accounts/permissions/ - Liste de toutes les permissions disponibles."""
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
     @extend_schema(
@@ -550,8 +550,8 @@ class PermissionListView(APIView):
 
 class RoleConfigListCreateView(APIView):
     """
-    GET  /api/accounts/roles/ — Rôles système + rôles custom du restaurant
-    POST /api/accounts/roles/ — Créer un rôle custom
+    GET  /api/accounts/roles/ - Rôles système + rôles custom du restaurant
+    POST /api/accounts/roles/ - Créer un rôle custom
     """
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
@@ -610,9 +610,9 @@ class RoleConfigListCreateView(APIView):
 
 class RoleConfigDetailView(APIView):
     """
-    GET    /api/accounts/roles/<pk>/ — Détail d'un rôle
-    PATCH  /api/accounts/roles/<pk>/ — Modifier un rôle custom
-    DELETE /api/accounts/roles/<pk>/ — Supprimer un rôle custom
+    GET    /api/accounts/roles/<pk>/ - Détail d'un rôle
+    PATCH  /api/accounts/roles/<pk>/ - Modifier un rôle custom
+    DELETE /api/accounts/roles/<pk>/ - Supprimer un rôle custom
     """
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 

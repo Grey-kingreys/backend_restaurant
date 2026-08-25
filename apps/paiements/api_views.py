@@ -62,13 +62,13 @@ def err(errors=None, message="", code=status.HTTP_400_BAD_REQUEST):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CAISSE GENERALE — Admin & Manager uniquement
+# CAISSE GENERALE - Admin & Manager uniquement
 # ─────────────────────────────────────────────────────────────────────────────
 
 class CaisseGeneraleView(APIView):
     """
-    GET  /api/paiements/caisse-generale/       — Solde et infos
-    POST /api/paiements/caisse-generale/init/  — Initialiser le solde (Admin)
+    GET  /api/paiements/caisse-generale/       - Solde et infos
+    POST /api/paiements/caisse-generale/init/  - Initialiser le solde (Admin)
     """
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
@@ -102,7 +102,7 @@ class CaisseGeneraleView(APIView):
 
 
 class CaisseGeneraleInitView(APIView):
-    """POST /api/paiements/caisse-generale/init/ — Admin uniquement."""
+    """POST /api/paiements/caisse-generale/init/ - Admin uniquement."""
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
     @extend_schema(
@@ -193,8 +193,8 @@ class CaisseGlobaleListView(APIView):
 
 class CaisseGlobaleActiveView(APIView):
     """
-    GET  /api/paiements/caisse-globale/active/  — Caisse du jour
-    POST /api/paiements/caisse-globale/active/fermer/ — Fermeture
+    GET  /api/paiements/caisse-globale/active/  - Caisse du jour
+    POST /api/paiements/caisse-globale/active/fermer/ - Fermeture
     Acces : permission view_caisse_globale.
     """
     permission_classes = [IsAuthenticated, IsRestaurantActive]
@@ -355,8 +355,8 @@ class CaisseGlobaleOuvrirView(APIView):
 
 class CaisseComptableListView(APIView):
     """
-    GET  /api/paiements/caisse-comptable/        — Mes caisses (comptable) ou toutes (admin/manager)
-    POST /api/paiements/caisse-comptable/ouvrir/ — Ouvrir une caisse (comptable)
+    GET  /api/paiements/caisse-comptable/        - Mes caisses (comptable) ou toutes (admin/manager)
+    POST /api/paiements/caisse-comptable/ouvrir/ - Ouvrir une caisse (comptable)
     """
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
@@ -477,7 +477,7 @@ class CaisseComptableDetailView(APIView):
 
 
 class CaisseComptableActiveView(APIView):
-    """GET /api/paiements/caisse-comptable/active/ — Ma caisse ouverte"""
+    """GET /api/paiements/caisse-comptable/active/ - Ma caisse ouverte"""
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
     @extend_schema(
@@ -512,7 +512,7 @@ class CaisseComptableActiveView(APIView):
 
 
 class CaisseComptableApprovisionnerView(APIView):
-    """POST /api/paiements/caisse-comptable/<pk>/approvisionner/ — cree une DEMANDE."""
+    """POST /api/paiements/caisse-comptable/<pk>/approvisionner/ - cree une DEMANDE."""
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
     @extend_schema(
@@ -554,7 +554,7 @@ class CaisseComptableApprovisionnerView(APIView):
 
 
 class DemandeApprovisionnementListView(APIView):
-    """GET /api/paiements/approvisionnements/ — demandes d'appro."""
+    """GET /api/paiements/approvisionnements/ - demandes d'appro."""
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
     @extend_schema(
@@ -590,7 +590,7 @@ class DemandeApprovisionnementListView(APIView):
 
 
 class DemandeApprovisionnementApprouverView(APIView):
-    """POST /api/paiements/approvisionnements/<pk>/approuver/ — Admin/Manager."""
+    """POST /api/paiements/approvisionnements/<pk>/approuver/ - Admin/Manager."""
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
     @extend_schema(
@@ -620,7 +620,7 @@ class DemandeApprovisionnementApprouverView(APIView):
 
 
 class DemandeApprovisionnementRefuserView(APIView):
-    """POST /api/paiements/approvisionnements/<pk>/refuser/ — Admin/Manager."""
+    """POST /api/paiements/approvisionnements/<pk>/refuser/ - Admin/Manager."""
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
     @extend_schema(
@@ -946,7 +946,7 @@ class RemiseValiderView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PAIEMENTS — Lecture
+# PAIEMENTS - Lecture
 # ─────────────────────────────────────────────────────────────────────────────
 
 class PaiementListView(APIView):

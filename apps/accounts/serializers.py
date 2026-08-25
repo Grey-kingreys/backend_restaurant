@@ -22,7 +22,7 @@ def get_role_config_for_role(role: str) -> RoleConfig | None:
         return RoleConfig.objects.get(slug=role, is_system=True)
     except RoleConfig.DoesNotExist:
         logger.warning(
-            f"RoleConfig système introuvable pour le rôle '{role}' — "
+            f"RoleConfig système introuvable pour le rôle '{role}' - "
             f"l'utilisateur n'aura pas de permissions"
         )
         return None
@@ -58,10 +58,10 @@ class LoginSerializer(serializers.Serializer):
         user = None
 
         if email:
-            # Connexion par email — tous les rôles sauf Rtable
+            # Connexion par email - tous les rôles sauf Rtable
             try:
                 user_obj = User.objects.get(email=email)
-                # Rtable n'a pas d'email — sécurité supplémentaire
+                # Rtable n'a pas d'email - sécurité supplémentaire
                 if user_obj.is_table():
                     raise serializers.ValidationError(
                         "Les comptes table se connectent via login, pas email."
@@ -75,7 +75,7 @@ class LoginSerializer(serializers.Serializer):
                 pass
 
         elif login:
-            # Connexion par login — Rtable uniquement
+            # Connexion par login - Rtable uniquement
             try:
                 user_obj = User.objects.get(login=login)
                 if not user_obj.is_table():
@@ -103,7 +103,7 @@ class LoginSerializer(serializers.Serializer):
                 "Votre compte a été désactivé. Contactez votre administrateur."
             )
 
-        # Vérification restaurant actif (sauf Super Admin et Client — non liés à un restaurant)
+        # Vérification restaurant actif (sauf Super Admin et Client - non liés à un restaurant)
         if not user.is_super_admin() and not user.is_client():
             if not user.restaurant or not user.restaurant.is_active:
                 raise serializers.ValidationError(
@@ -147,7 +147,7 @@ class LogoutSerializer(serializers.Serializer):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class UserMeSerializer(serializers.ModelSerializer):
-    """Profil de l'utilisateur connecté — lecture seule."""
+    """Profil de l'utilisateur connecté - lecture seule."""
     restaurant_nom = serializers.SerializerMethodField()
     statut         = serializers.SerializerMethodField()
     permissions    = serializers.SerializerMethodField()
@@ -217,7 +217,7 @@ class UpdateMeSerializer(serializers.ModelSerializer):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class AdresseClientSerializer(serializers.ModelSerializer):
-    """Adresse de livraison enregistrée par un client — CRUD self-service."""
+    """Adresse de livraison enregistrée par un client - CRUD self-service."""
 
     class Meta:
         model = AdresseClient
@@ -246,7 +246,7 @@ class AdresseClientSerializer(serializers.ModelSerializer):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class UserListSerializer(serializers.ModelSerializer):
-    """Serializer liste — données réduites pour la pagination."""
+    """Serializer liste - données réduites pour la pagination."""
     restaurant_nom = serializers.SerializerMethodField()
 
     class Meta:
@@ -262,7 +262,7 @@ class UserListSerializer(serializers.ModelSerializer):
 
 
 class UserDetailSerializer(serializers.ModelSerializer):
-    """Serializer détail — toutes les infos."""
+    """Serializer détail - toutes les infos."""
     restaurant_nom = serializers.SerializerMethodField()
     role_display = serializers.SerializerMethodField()
 
@@ -397,7 +397,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
-    """Mise à jour partielle — Admin/Manager."""
+    """Mise à jour partielle - Admin/Manager."""
 
     class Meta:
         model = User
@@ -430,14 +430,14 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 class AdminPasswordResetSerializer(serializers.Serializer):
     """
     Reset du mot de passe d'un utilisateur par l'Admin.
-    Force must_change_password=True — sauf pour les tables, dont le mot de passe
+    Force must_change_password=True - sauf pour les tables, dont le mot de passe
     est géré par l'admin (connexion partagée, pas de premier login à changer).
     """
     new_password = serializers.CharField(min_length=8, write_only=True)
 
     def save(self, user):
         user.set_password(self.validated_data['new_password'])
-        # Les tables se connectent avec le mot de passe défini par l'admin —
+        # Les tables se connectent avec le mot de passe défini par l'admin -
         # pas de changement forcé qui les bloquerait sur /auth/change-password.
         user.must_change_password = not user.is_table()
         user.save(update_fields=['password', 'must_change_password'])
@@ -469,7 +469,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         if user:
             token = PasswordResetToken.creer_pour(user)
             send_password_reset_email(user, token)
-        # Retourne toujours True — pas de fuite d'info
+        # Retourne toujours True - pas de fuite d'info
         return True
 
 

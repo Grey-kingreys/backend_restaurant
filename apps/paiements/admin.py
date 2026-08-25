@@ -101,7 +101,7 @@ class RemiseServeurAdmin(admin.ModelAdmin):
 
     def ecart(self, obj):
         e = obj.ecart
-        return f"{e} GNF" if e is not None else "—"
+        return f"{e} GNF" if e is not None else "-"
     ecart.short_description = "Ecart"
 
 

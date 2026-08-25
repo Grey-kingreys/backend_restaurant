@@ -59,7 +59,7 @@ def _session_active(request):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PANIER — Table uniquement
+# PANIER - Table uniquement
 # ─────────────────────────────────────────────────────────────────────────────
 
 class PanierView(APIView):
@@ -170,7 +170,7 @@ class PanierItemView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# VALIDATION COMMANDE — Table uniquement
+# VALIDATION COMMANDE - Table uniquement
 # ─────────────────────────────────────────────────────────────────────────────
 
 class CommandeValiderView(APIView):
@@ -201,7 +201,7 @@ class CommandeValiderView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PRISE DE COMMANDE PAR LE SERVEUR — Serveur / Admin / Manager
+# PRISE DE COMMANDE PAR LE SERVEUR - Serveur / Admin / Manager
 # ─────────────────────────────────────────────────────────────────────────────
 
 class CommandeServeurCreerView(APIView):
@@ -253,7 +253,7 @@ class CommandeServeurCreerView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MES COMMANDES — Table (isolation session QR)
+# MES COMMANDES - Table (isolation session QR)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class MesCommandesView(APIView):
@@ -296,7 +296,7 @@ class MesCommandesView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TOUTES LES COMMANDES — Serveur, Chef Cuisinier, Admin, Manager
+# TOUTES LES COMMANDES - Serveur, Chef Cuisinier, Admin, Manager
 # ─────────────────────────────────────────────────────────────────────────────
 
 class AllCommandesView(APIView):
@@ -473,7 +473,7 @@ class CommandeDetailView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# VUE CUISINE — Cuisinier / Chef Cuisinier
+# VUE CUISINE - Cuisinier / Chef Cuisinier
 # ─────────────────────────────────────────────────────────────────────────────
 
 class CuisinierCommandesView(APIView):
@@ -541,7 +541,7 @@ class CommandePreteView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# VUE SERVEUR — EN LIVRAISON, SERVIE & PAYÉE
+# VUE SERVEUR - EN LIVRAISON, SERVIE & PAYÉE
 # ─────────────────────────────────────────────────────────────────────────────
 
 class CommandeEnLivraisonView(APIView):
@@ -732,7 +732,7 @@ class CommandeRecuView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SUPPRESSION — Admin uniquement
+# SUPPRESSION - Admin uniquement
 # ─────────────────────────────────────────────────────────────────────────────
 
 class CommandeDeleteView(APIView):

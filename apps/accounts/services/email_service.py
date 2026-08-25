@@ -26,19 +26,19 @@ def send_password_reset_email(user, reset_token) -> bool:
           Ce lien est valable <strong>1 heure</strong> et ne peut être utilisé qu'une seule fois.
         </p>
         <p style="color:#78716c; font-size:14px; margin:0;">
-          Si vous n'avez pas fait cette demande, ignorez cet email — votre mot de passe reste inchangé.
+          Si vous n'avez pas fait cette demande, ignorez cet email - votre mot de passe reste inchangé.
         </p>
     """
 
     html_content = render_email(
         "Réinitialisation de votre mot de passe",
         body,
-        footer_line=f"resfly — {user.restaurant.nom if user.restaurant else 'Plateforme'}",
+        footer_line=f"resfly - {user.restaurant.nom if user.restaurant else 'Plateforme'}",
     )
 
     if not settings.RESEND_KEY:
         # Pas de clé configurée (dev sans email, tests) → no-op silencieux.
-        logger.info("[PasswordReset] RESEND_KEY absent — email non envoyé (no-op).")
+        logger.info("[PasswordReset] RESEND_KEY absent - email non envoyé (no-op).")
         return False
 
     try:

@@ -103,7 +103,7 @@ def creer_remise_pour_paiement(self, paiement_id):
     if not caisse_globale:
         logger.warning(
             "[RemiseServeur] Aucune Caisse Globale active pour %s "
-            "— paiement %d sans remise",
+            "- paiement %d sans remise",
             restaurant.nom, paiement_id,
         )
         return
@@ -116,7 +116,7 @@ def creer_remise_pour_paiement(self, paiement_id):
         montant_virtuel=paiement.montant,
     )
     logger.info(
-        "[RemiseServeur] Creee pour paiement %d — serveur %s — montant %s GNF",
+        "[RemiseServeur] Creee pour paiement %d - serveur %s - montant %s GNF",
         paiement_id,
         serveur.login if serveur else "inconnu",
         paiement.montant,

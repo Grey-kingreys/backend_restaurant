@@ -1,6 +1,6 @@
 # apps/restaurant/serializers.py
 """
-Phase 6 — Tables, QR Code, Sessions
+Phase 6 - Tables, QR Code, Sessions
 Sérialiseurs DRF pour la gestion des tables physiques et sessions.
 
 Architecture SaaS v2 :
@@ -25,7 +25,7 @@ User = get_user_model()
 
 class TableRestaurantListSerializer(serializers.ModelSerializer):
     """
-    Lecture allégée — liste des tables.
+    Lecture allégée - liste des tables.
     Inclut le login du User Rtable associé et le statut courant.
     """
     utilisateur_login    = serializers.CharField(source='utilisateur.login', read_only=True)
@@ -76,7 +76,7 @@ class TableRestaurantListSerializer(serializers.ModelSerializer):
 
 
 class TableRestaurantDetailSerializer(serializers.ModelSerializer):
-    """Lecture complète — détail d'une table avec statistiques."""
+    """Lecture complète - détail d'une table avec statistiques."""
     utilisateur_login = serializers.CharField(source='utilisateur.login', read_only=True)
     utilisateur_nom   = serializers.CharField(source='utilisateur.nom_complet', read_only=True)
     utilisateur_actif = serializers.BooleanField(source='utilisateur.actif', read_only=True)
@@ -178,7 +178,7 @@ class TableRestaurantCreateSerializer(serializers.ModelSerializer):
         deux restaurants peuvent tous les deux avoir une table « table_01 ».
 
         L'unicité globale exigée par `USERNAME_FIELD` est obtenue en préfixant
-        automatiquement le login par le slug du restaurant — même convention que
+        automatiquement le login par le slug du restaurant - même convention que
         les comptes staff (`lebaobab_serveur_1`). Le préfixe n'est ajouté qu'une
         fois : un admin qui saisit déjà « lebaobab_table_01 » n'obtient pas
         « lebaobab_lebaobab_table_01 ».

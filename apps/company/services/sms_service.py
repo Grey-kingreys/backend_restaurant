@@ -7,7 +7,7 @@ Variables d'environnement :
 - NIMBA_SMS_SENDER : nom d'expéditeur validé sur Nimba (défaut « RESFLY »)
 
 Comportement dégradé volontaire : si les identifiants sont absents (dev) ou si
-le SDK n'est pas installé, l'envoi devient un no-op loggé — jamais d'exception,
+le SDK n'est pas installé, l'envoi devient un no-op loggé - jamais d'exception,
 pour ne pas casser le parcours de commande.
 """
 
@@ -26,7 +26,7 @@ def _get_client():
     try:
         from nimbasms import Client
     except ImportError:
-        logger.warning("Package 'nimbasms' non installé — SMS désactivé.")
+        logger.warning("Package 'nimbasms' non installé - SMS désactivé.")
         return None
     return Client(sid, token)
 

@@ -1,13 +1,13 @@
 """
 Crée (ou réactive) le super administrateur plateforme à partir de variables
-d'environnement. Idempotent — conçu pour tourner à chaque déploiement.
+d'environnement. Idempotent - conçu pour tourner à chaque déploiement.
 
 Sert à débloquer l'accès en production quand le seed de démo est désactivé
 (RUN_SEED=false) : sans lui, aucun compte Rsuper_admin n'existe et le site est
 inaccessible.
 
 Variables d'environnement :
-  SUPERADMIN_PASSWORD   (obligatoire) — sans elle, la commande ne fait rien
+  SUPERADMIN_PASSWORD   (obligatoire) - sans elle, la commande ne fait rien
   SUPERADMIN_LOGIN      (défaut: "superadmin")
   SUPERADMIN_EMAIL      (optionnel)
   SUPERADMIN_NOM        (défaut: "Administrateur Plateforme")
@@ -38,7 +38,7 @@ class Command(BaseCommand):
         password = _env("SUPERADMIN_PASSWORD")
         if not password:
             self.stdout.write(self.style.WARNING(
-                "SUPERADMIN_PASSWORD non défini — création du super admin ignorée."
+                "SUPERADMIN_PASSWORD non défini - création du super admin ignorée."
             ))
             return
 
@@ -61,7 +61,7 @@ class Command(BaseCommand):
             # se fait par email (pas par login), donc un super admin sans email est inutilisable.
             if created and not email:
                 self.stdout.write(self.style.WARNING(
-                    "SUPERADMIN_EMAIL non défini — création ignorée : un super admin se "
+                    "SUPERADMIN_EMAIL non défini - création ignorée : un super admin se "
                     "connecte par email, un compte sans email serait inutilisable."
                 ))
                 return
@@ -99,9 +99,9 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"Super admin '{login}' créé."))
         elif reset_password:
             self.stdout.write(self.style.SUCCESS(
-                f"Super admin '{login}' déjà présent — réactivé, mot de passe réinitialisé."
+                f"Super admin '{login}' déjà présent - réactivé, mot de passe réinitialisé."
             ))
         else:
             self.stdout.write(self.style.SUCCESS(
-                f"Super admin '{login}' déjà présent — réactivé (mot de passe inchangé)."
+                f"Super admin '{login}' déjà présent - réactivé (mot de passe inchangé)."
             ))

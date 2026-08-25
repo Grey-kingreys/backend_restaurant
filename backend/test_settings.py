@@ -1,5 +1,5 @@
 """
-Test settings — Configuration Django optimisée pour pytest
+Test settings - Configuration Django optimisée pour pytest
 
 Import depuis settings.py et override les valeurs pour les tests.
 """
@@ -22,7 +22,7 @@ RESEND_KEY = ''
 NIMBA_SMS_SID = ''
 NIMBA_SMS_TOKEN = ''
 
-# Désactiver Celery — exécuter les tâches immédiatement
+# Désactiver Celery - exécuter les tâches immédiatement
 CELERY_ALWAYS_EAGER = True
 CELERY_EAGER_PROPAGATES_EXCEPTIONS = True
 

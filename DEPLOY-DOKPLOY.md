@@ -1,4 +1,4 @@
-# Déploiement Dokploy — resfly
+# Déploiement Dokploy - resfly
 
 Topologie cible : **4 services** dans un même projet Dokploy, sur le **réseau interne** du projet.
 `postgres` et `redis` sont des services dédiés Dokploy ; le `backend` est **un seul conteneur
@@ -37,12 +37,12 @@ Point clé de câblage : **les services se joignent par leur nom interne Dokploy
 
 ---
 
-## 2. backend — service web (Application, `backend/Dockerfile`)
+## 2. backend - service web (Application, `backend/Dockerfile`)
 
 - **Build** : Dockerfile, contexte = `backend/`.
 - **Port exposé** : `8000`. Domaine public : `https://api.mondomaine.com`.
 - **Volume persistant** : monter sur `/app/media` (photos des plats). Sans S3, c'est ici
-  que vivent les uploads — un volume est **obligatoire** sinon les images disparaissent à
+  que vivent les uploads - un volume est **obligatoire** sinon les images disparaissent à
   chaque redéploiement.
 
 Variables d'environnement :
@@ -53,7 +53,7 @@ DEBUG=False
 ALLOWED_HOSTS=api.mondomaine.com
 CSRF_TRUSTED_ORIGINS=https://api.mondomaine.com,https://mondomaine.com
 
-# Base — DB_HOST = nom interne du service Postgres Dokploy
+# Base - DB_HOST = nom interne du service Postgres Dokploy
 DB_NAME=resfly
 DB_USER=resfly
 DB_PASSWORD=<mot de passe postgres>
@@ -61,10 +61,10 @@ DB_HOST=resfly-db
 DB_PORT=5432
 DB_SSLMODE=disable        # 'disable' pour un Postgres interne Dokploy ; 'require' si managé/externe (Neon)
 
-# Redis — REDIS_URL = nom interne du service Redis Dokploy
+# Redis - REDIS_URL = nom interne du service Redis Dokploy
 REDIS_URL=redis://resfly-redis:6379/0
 
-# CORS — origine publique du frontend
+# CORS - origine publique du frontend
 CORS_ALLOWED_ORIGINS=https://mondomaine.com
 
 # Emails (Resend)
@@ -77,12 +77,12 @@ RUN_MAKEMIGRATIONS=false
 RUN_SEED=false
 # (RUN_MIGRATIONS et RUN_COLLECTSTATIC restent true → migrate + collectstatic au boot)
 
-# Super admin plateforme — OBLIGATOIRE en prod (le seed de démo est désactivé, donc
+# Super admin plateforme - OBLIGATOIRE en prod (le seed de démo est désactivé, donc
 # aucun compte n'existe sans ça → site inaccessible). Créé/réactivé à chaque boot du web.
 # ⚠️ PASSWORD *et* EMAIL sont requis : la connexion staff se fait par EMAIL (pas le login),
 # donc sans SUPERADMIN_EMAIL le compte n'est pas créé (il serait inutilisable).
 SUPERADMIN_PASSWORD=<mot de passe fort du super admin>   # requis
-SUPERADMIN_EMAIL=admin@mondomaine.com                    # requis — identifiant de connexion
+SUPERADMIN_EMAIL=admin@mondomaine.com                    # requis - identifiant de connexion
 SUPERADMIN_LOGIN=superadmin                              # optionnel (défaut: superadmin)
 # SUPERADMIN_RESET_PASSWORD=true                         # optionnel : force la réinit. du mdp au boot
 ```
@@ -104,14 +104,14 @@ RUN_CELERY=true           # démarre celery worker + beat dans ce conteneur (dé
 
 ---
 
-## 3. Celery — intégré au conteneur backend (aucun service à créer)
+## 3. Celery - intégré au conteneur backend (aucun service à créer)
 
 **Rien à faire de plus** : le worker et le beat démarrent **automatiquement** dans le conteneur
 backend, gérés par `supervisord` (`docker/supervisord.conf`). Démarrage auto + **redémarrage
 auto** si un process crashe, logs redirigés vers la sortie du conteneur (visibles dans Dokploy).
 
-- **celery worker** : `celery -A backend worker` — exécute les tâches (ex. `creer_remise_pour_paiement`).
-- **celery beat** : `celery -A backend beat` (DatabaseScheduler) — déclenche les tâches
+- **celery worker** : `celery -A backend worker` - exécute les tâches (ex. `creer_remise_pour_paiement`).
+- **celery beat** : `celery -A backend beat` (DatabaseScheduler) - déclenche les tâches
   périodiques (ex. ouverture de la Caisse Globale à 05:00, timezone `Africa/Conakry`).
 
 Ils utilisent le même `REDIS_URL` / `DB_*` que gunicorn (même conteneur). Monter le volume
@@ -123,7 +123,7 @@ Ils utilisent le même `REDIS_URL` / `DB_*` que gunicorn (même conteneur). Mont
 
 **Pour désactiver Celery ici** (ex. si tu veux le faire tourner ailleurs) : `RUN_CELERY=false`.
 
-**Option avancée — sortir Celery dans des services dédiés** (pour scaler le web à plusieurs
+**Option avancée - sortir Celery dans des services dédiés** (pour scaler le web à plusieurs
 répliques) : créer 1 ou 2 apps Dokploy supplémentaires sur la **même image**, en surchargeant
 la commande (`celery -A backend worker -l info` / `celery -A backend beat -l info`) et avec
 `RUN_MAKEMIGRATIONS=false RUN_MIGRATIONS=false RUN_COLLECTSTATIC=false RUN_SEED=false`
@@ -131,7 +131,7 @@ la commande (`celery -A backend worker -l info` / `celery -A backend beat -l inf
 
 ---
 
-## 4. frontend — app Next.js (`frontend/Dockerfile`)
+## 4. frontend - app Next.js (`frontend/Dockerfile`)
 
 - **Build** : Dockerfile, contexte = `frontend/`.
 - **Port exposé** : `3000`. Domaine public : `https://mondomaine.com`.
@@ -141,7 +141,7 @@ la commande (`celery -A backend worker -l info` / `celery -A backend beat -l inf
 Les `NEXT_PUBLIC_*` de Next sont normalement figées au build. L'image frontend contourne ça :
 elle compile avec des **sentinelles** qu'un entrypoint remplace au démarrage par les valeurs
 de l'environnement du conteneur. Résultat : tu poses simplement une **variable d'env Dokploy**
-(pas un Build Arg), et un **redémarrage** suffit — pas besoin de rebuild par environnement.
+(pas un Build Arg), et un **redémarrage** suffit - pas besoin de rebuild par environnement.
 
 ```env
 NEXT_PUBLIC_API_URL=https://api.mondomaine.com/api    # variable d'env RUNTIME (pas Build Arg)
@@ -154,7 +154,7 @@ NEXT_PUBLIC_MAPBOX_TOKEN=pk.<token public mapbox>     # runtime aussi
   vers le backend au niveau du proxy Dokploy (une seule origine, CORS inutile).
 
 > Le Build Arg reste possible (`--build-arg NEXT_PUBLIC_API_URL=…`) : la valeur est alors
-> **figée** dans l'image et l'env runtime est ignoré. Préfère l'env runtime — c'est ce qui
+> **figée** dans l'image et l'env runtime est ignoré. Préfère l'env runtime - c'est ce qui
 > évite le piège « build arg non transmis → l'app tape son propre domaine → 404 ».
 
 ---
@@ -182,9 +182,9 @@ NEXT_PUBLIC_MAPBOX_TOKEN=pk.<token public mapbox>     # runtime aussi
 
 - **Médias** : servis par Django (`django.views.static.serve`) depuis le volume `/app/media`.
   Correct pour l'échelle actuelle ; pour un fort trafic, migrer vers S3
-  (`USE_S3=True` — nécessite d'ajouter `django-storages` + `boto3` à `requirements.txt`, non
+  (`USE_S3=True` - nécessite d'ajouter `django-storages` + `boto3` à `requirements.txt`, non
   installés aujourd'hui) ou faire servir `/media/` par le reverse-proxy.
-- ~~`--legacy-peer-deps` au build frontend~~ : réglé — `@testing-library/react` est passé en
+- ~~`--legacy-peer-deps` au build frontend~~ : réglé - `@testing-library/react` est passé en
   v16 (compatible React 19), le Dockerfile utilise `npm ci` sans flag.
 - **Seed de démo** : `RUN_SEED=false` en prod pour ne pas injecter les restaurants de démo.
 
@@ -208,7 +208,7 @@ LEGACY_HOSTS=resfly.kingreys.fr,www.resfly.kingreys.fr
 ```
 
 `next.config.ts` installe alors une redirection **308** (préserve méthode, corps et query)
-qui conserve le chemin. Sans `CANONICAL_HOST`, aucune redirection n'est installée — le dev
+qui conserve le chemin. Sans `CANONICAL_HOST`, aucune redirection n'est installée - le dev
 local n'est pas affecté. Une URL de QR (`/auth/qr/<token>/`) passe par 2 sauts : Next normalise
 d'abord le slash final, puis redirige vers le domaine canonique. C'est imperceptible.
 
@@ -217,9 +217,9 @@ d'abord le slash final, puis redirige vers le domaine canonique. C'est impercept
 1. DNS : `resfly.org` et `api.resfly.org` → même IP serveur.
 2. **Garder l'ancien domaine attaché au service frontend** dans Dokploy, avec son certificat
    TLS valide. Un certificat expiré sur l'ancien domaine bloquerait le navigateur **avant**
-   que la redirection ne s'applique — le QR échouerait malgré tout.
+   que la redirection ne s'applique - le QR échouerait malgré tout.
 3. Ajouter le nouveau domaine au service frontend (port 3000) et `api.resfly.org` au backend
-   (port **8000**, pas 3000 — cf. piège n°1 plus haut).
+   (port **8000**, pas 3000 - cf. piège n°1 plus haut).
 
 ### Côté backend (variables d'environnement)
 

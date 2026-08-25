@@ -5,7 +5,7 @@ from .models import Plat
 
 class PlatListSerializer(serializers.ModelSerializer):
     """
-    Serializer lecture allégé — liste des plats.
+    Serializer lecture allégé - liste des plats.
     - image retournée en URL absolue (build_absolute_uri).
     - prix_formate calculé côté serveur.
     - Pour les Tables : seuls les plats disponibles sont retournés (filtré en vue).
@@ -44,7 +44,7 @@ class PlatListSerializer(serializers.ModelSerializer):
 
 class PlatDetailSerializer(PlatListSerializer):
     """
-    Serializer lecture détaillé — infos restaurant incluses.
+    Serializer lecture détaillé - infos restaurant incluses.
     Même chose que PlatListSerializer avec le nom du restaurant.
     """
     restaurant_nom = serializers.SerializerMethodField()
@@ -60,10 +60,10 @@ class PlatCreateUpdateSerializer(serializers.ModelSerializer):
     """
     Serializer création / modification d'un plat.
     - Le champ `restaurant` est injecté depuis request.user.restaurant (ne jamais
-      laisser le client le choisir — isolation SaaS).
+      laisser le client le choisir - isolation SaaS).
     - L'image est optionnelle.
     - Validation : nom unique PAR restaurant (pas globalement).
-    - Un plat ne peut JAMAIS être supprimé — toggle uniquement.
+    - Un plat ne peut JAMAIS être supprimé - toggle uniquement.
     """
     image = serializers.ImageField(required=False, allow_null=True)
 
@@ -123,7 +123,7 @@ class PlatCreateUpdateSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        """Restaurant injecté depuis le contexte — jamais depuis le payload."""
+        """Restaurant injecté depuis le contexte - jamais depuis le payload."""
         request = self.context['request']
         validated_data['restaurant'] = request.user.restaurant
         return super().create(validated_data)
@@ -136,6 +136,6 @@ class PlatCreateUpdateSerializer(serializers.ModelSerializer):
 class PlatToggleSerializer(serializers.Serializer):
     """
     Serializer pour l'endpoint toggle disponibilité.
-    Pas de champ en entrée — action idempotente basée sur l'état courant.
+    Pas de champ en entrée - action idempotente basée sur l'état courant.
     """
     pass

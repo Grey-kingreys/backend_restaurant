@@ -14,7 +14,7 @@ from .perm_codes import (
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Permissions structurelles (rôles hardcodés — ne migrent pas vers RoleConfig)
+# Permissions structurelles (rôles hardcodés - ne migrent pas vers RoleConfig)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class IsSuperAdmin(BasePermission):
@@ -128,7 +128,7 @@ HasManageRestaurant      = make_permission(PERM_MANAGE_RESTAURANT,      "Vous n'
 # ─────────────────────────────────────────────────────────────────────────────
 
 class IsAdmin(BasePermission):
-    """Alias rétrocompat — préférer HasManageEquipe selon le contexte."""
+    """Alias rétrocompat - préférer HasManageEquipe selon le contexte."""
     message = "Accès réservé à l'Administrateur."
 
     def has_permission(self, request, view):
