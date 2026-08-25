@@ -200,17 +200,28 @@ contenus dans les SMS de reçu. **L'ancien domaine ne doit donc jamais être dé
 
 ### Côté frontend (déjà en place dans le code)
 
-Deux variables sur le service frontend, lues au démarrage du serveur Next :
+Deux variables d'environnement classiques sur le service frontend, **sans rebuild** :
 
 ```text
 CANONICAL_HOST=resfly.org
-LEGACY_HOSTS=resfly.kingreys.fr,www.resfly.kingreys.fr
+LEGACY_HOSTS=resfly.kingreys.fr,www.resfly.kingreys.fr    # 3 anciens domaines maximum
 ```
 
-`next.config.ts` installe alors une redirection **308** (préserve méthode, corps et query)
-qui conserve le chemin. Sans `CANONICAL_HOST`, aucune redirection n'est installée - le dev
-local n'est pas affecté. Une URL de QR (`/auth/qr/<token>/`) passe par 2 sauts : Next normalise
-d'abord le slash final, puis redirige vers le domaine canonique. C'est imperceptible.
+La redirection est un **308** (préserve méthode, corps et query) qui conserve le chemin.
+
+⚠️ **Pourquoi ce n'est pas une simple variable d'env** : Next fige `redirects()` au BUILD, dans
+`.next/routes-manifest.json`. Une variable posée au seul démarrage du conteneur n'aurait
+**aucun effet** - la redirection ne se produirait jamais, silencieusement, et tous les QR codes
+déjà imprimés cesseraient de fonctionner. Le build compile donc des **sentinelles**
+(`RUNTIME_LEGACY_HOST_1_PLACEHOLDER`...) que `docker/entrypoint.sh` remplace au démarrage,
+exactement comme pour les `NEXT_PUBLIC_*`. Un emplacement non utilisé reste inerte : aucun
+en-tête `Host` réel ne peut valoir une sentinelle.
+
+Rien n'est substitué si `CANONICAL_HOST` est absent : sans ce garde-fou, les visiteurs de
+l'ancien domaine seraient envoyés vers un hôte bidon. Le dev local n'est pas affecté.
+
+Une URL de QR (`/auth/qr/<token>/`) passe par 2 sauts : Next normalise d'abord le slash final,
+puis redirige vers le domaine canonique. C'est imperceptible.
 
 ### Côté Dokploy / DNS
 
