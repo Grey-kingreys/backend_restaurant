@@ -184,6 +184,69 @@ NEXT_PUBLIC_MAPBOX_TOKEN=pk.<token public mapbox>     # runtime aussi
   Correct pour l'échelle actuelle ; pour un fort trafic, migrer vers S3
   (`USE_S3=True` — nécessite d'ajouter `django-storages` + `boto3` à `requirements.txt`, non
   installés aujourd'hui) ou faire servir `/media/` par le reverse-proxy.
-- **`--legacy-peer-deps`** au build frontend : dû à `@testing-library/react@14` (peer React 18)
-  face à React 19. À retirer une fois testing-library passé en v16+.
+- ~~`--legacy-peer-deps` au build frontend~~ : réglé — `@testing-library/react` est passé en
+  v16 (compatible React 19), le Dockerfile utilise `npm ci` sans flag.
 - **Seed de démo** : `RUN_SEED=false` en prod pour ne pas injecter les restaurants de démo.
+
+---
+
+## 8. Changer de nom de domaine
+
+Le point critique : **les QR codes collés sur les tables encodent le domaine** au moment de leur
+impression (`TableToken.get_qr_url()` → `FRONTEND_URL/auth/qr/<token>/`). Un QR imprimé sous
+l'ancien domaine doit continuer à fonctionner, sinon il faut réimprimer tous les QR de tous les
+restaurants. Idem pour les liens de livraison déjà envoyés aux livreurs et les liens de suivi
+contenus dans les SMS de reçu. **L'ancien domaine ne doit donc jamais être débranché.**
+
+### Côté frontend (déjà en place dans le code)
+
+Deux variables sur le service frontend, lues au démarrage du serveur Next :
+
+```text
+CANONICAL_HOST=resfly.org
+LEGACY_HOSTS=resfly.kingreys.fr,www.resfly.kingreys.fr
+```
+
+`next.config.ts` installe alors une redirection **308** (préserve méthode, corps et query)
+qui conserve le chemin. Sans `CANONICAL_HOST`, aucune redirection n'est installée — le dev
+local n'est pas affecté. Une URL de QR (`/auth/qr/<token>/`) passe par 2 sauts : Next normalise
+d'abord le slash final, puis redirige vers le domaine canonique. C'est imperceptible.
+
+### Côté Dokploy / DNS
+
+1. DNS : `resfly.org` et `api.resfly.org` → même IP serveur.
+2. **Garder l'ancien domaine attaché au service frontend** dans Dokploy, avec son certificat
+   TLS valide. Un certificat expiré sur l'ancien domaine bloquerait le navigateur **avant**
+   que la redirection ne s'applique — le QR échouerait malgré tout.
+3. Ajouter le nouveau domaine au service frontend (port 3000) et `api.resfly.org` au backend
+   (port **8000**, pas 3000 — cf. piège n°1 plus haut).
+
+### Côté backend (variables d'environnement)
+
+```text
+ALLOWED_HOSTS=api.resfly.org,api.resfly.kingreys.fr    # garder les deux
+CORS_ALLOWED_ORIGINS=https://resfly.org                 # le nouveau suffit
+CSRF_TRUSTED_ORIGINS=https://resfly.org
+FRONTEND_URL=https://resfly.org                         # nouveaux QR et liens d'emails
+```
+
+`FRONTEND_URL` ne change que les liens **générés à partir de maintenant** ; les anciens QR
+restent couverts par la redirection.
+
+### ⚠️ Ne PAS rediriger le domaine de l'API
+
+`api.resfly.kingreys.fr` doit continuer à **servir l'API directement**, sans redirection.
+Une redirection inter-origine sur un appel authentifié fait tomber l'en-tête `Authorization`
+et casse le préflight CORS. Il suffit de garder l'ancien hôte dans `ALLOWED_HOSTS` : une fois
+`NEXT_PUBLIC_API_URL` basculé, plus rien ne l'appellera, à part d'éventuels onglets encore
+ouverts avec l'ancien bundle.
+
+### Vérification après bascule
+
+```bash
+curl -sI https://resfly.kingreys.fr/menu | grep -i '^location'   # → https://resfly.org/menu
+curl -sI https://resfly.org/menu | head -1                        # → 200, pas de redirection
+```
+
+Et surtout : **scanner un QR déjà imprimé** avec un vrai téléphone.
+
