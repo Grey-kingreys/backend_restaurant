@@ -20,6 +20,7 @@ class RestaurantSerializer(serializers.ModelSerializer):
     statut = serializers.SerializerMethodField()
 
     has_geo = serializers.SerializerMethodField()
+    configuration = serializers.SerializerMethodField()
 
     class Meta:
         model = Restaurant
@@ -30,9 +31,42 @@ class RestaurantSerializer(serializers.ModelSerializer):
             'livraison_lien_autorise_paiement',
             'reservation_validation_auto', 'reservation_delai_annulation_heures',
             'has_geo', 'is_active', 'statut', 'nombre_utilisateurs',
+            'configuration',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_configuration(self, obj):
+        """
+        Etat de la configuration initiale du restaurant, pour l'assistant
+        affiche a l'Admin tant qu'il reste une etape a faire.
+
+        Trois etapes, dans l'ordre ou elles conditionnent l'exploitation :
+        le coffre (sans lui aucun transfert d'argent n'est possible), la
+        position GPS (sans elle la restriction de connexion par QR ne
+        s'applique pas) et la caisse du jour (sans elle les paiements des
+        tables ne sont rattaches a rien).
+        """
+        from datetime import date
+        from apps.paiements.models import CaisseGenerale, CaisseGlobale
+
+        coffre = CaisseGenerale.objects.filter(restaurant=obj).first()
+        coffre_ok = bool(coffre and coffre.date_initialisation)
+        position_ok = obj.latitude is not None and obj.longitude is not None
+        # Existence, et non « ouverte » : une caisse fermee en fin de journee a
+        # bien rempli son role, et la fermeture est irreversible. Exiger qu'elle
+        # soit ouverte ferait reclamer a l'assistant une etape devenue impossible
+        # jusqu'au lendemain - l'API refuse une seconde caisse le meme jour.
+        caisse_jour_ok = CaisseGlobale.objects.filter(
+            restaurant=obj, date_ouverture=date.today(),
+        ).exists()
+
+        return {
+            'coffre_initialise': coffre_ok,
+            'position_definie': position_ok,
+            'caisse_du_jour_creee': caisse_jour_ok,
+            'terminee': coffre_ok and position_ok and caisse_jour_ok,
+        }
 
     def get_has_geo(self, obj):
         return obj.latitude is not None and obj.longitude is not None

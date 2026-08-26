@@ -42,10 +42,15 @@ class CaisseGeneraleInitSerializer(SerializerStrict):
 
     @transaction.atomic
     def save(self, caisse):
+        from django.utils import timezone
         solde = self.validated_data['solde_initial']
         caisse.solde_initial = solde
         caisse.solde = solde
-        caisse.save(update_fields=['solde_initial', 'solde', 'updated_at'])
+        # Marque le coffre comme configure, meme si le solde saisi vaut 0.
+        caisse.date_initialisation = timezone.now()
+        caisse.save(update_fields=[
+            'solde_initial', 'solde', 'date_initialisation', 'updated_at',
+        ])
         return caisse
 
 

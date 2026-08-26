@@ -47,6 +47,14 @@ class CaisseGenerale(models.Model):
         verbose_name="Solde initial"
     )
 
+    # Renseignee au premier appel de /caisse-generale/init/. Permet de distinguer
+    # « coffre jamais configure » de « configure volontairement a 0 GNF » - un
+    # solde_initial a 0 ne suffit pas, c'est aussi la valeur par defaut.
+    date_initialisation = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name="Date d'initialisation du solde",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
