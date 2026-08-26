@@ -284,6 +284,47 @@ class UserDetailSerializer(serializers.ModelSerializer):
         return obj.get_role_display()
 
 
+
+def _erreur_email_deja_pris(value, demandeur_restaurant_id=None):
+    """
+    Message d'unicite d'email, utile a l'admin qui le lit.
+
+    `User.email` est unique sur TOUTE la plateforme, alors que la page Equipe
+    ne montre que les membres actifs du restaurant courant. Le compte fautif
+    est donc souvent invisible pour l'admin : compte client cree depuis la
+    vitrine, membre desactive, ou membre d'un autre restaurant. Dire « existe
+    deja » sans dire ou envoie chercher dans une liste ou il n'est pas.
+
+    On ne nomme la personne que si elle appartient au restaurant du demandeur :
+    reveler l'identite du titulaire d'un compte tiers serait une fuite.
+    """
+    autre = User.objects.filter(email=value).first()
+    if autre is None:
+        return "Cet email est deja utilise."
+
+    if demandeur_restaurant_id and autre.restaurant_id == demandeur_restaurant_id:
+        qui = autre.nom_complet or autre.login
+        if not autre.actif:
+            return (
+                f"Cet email est deja celui de « {qui} », un membre desactive de "
+                "votre equipe. Reactivez ce compte plutot que d'en creer un autre "
+                "(filtre « Inactifs » sur la page Equipe)."
+            )
+        return f"Cet email est deja celui de « {qui} » dans votre equipe."
+
+    if autre.role == 'Rclient':
+        return (
+            "Cet email est deja utilise par un compte client de la plateforme - "
+            "probablement cree depuis le site de commande en ligne. Un meme email "
+            "ne peut pas servir a deux comptes : utilisez-en un autre."
+        )
+
+    return (
+        "Cet email est deja utilise ailleurs sur la plateforme. Il n'apparait pas "
+        "dans votre equipe, mais un meme email ne peut servir qu'a un seul compte."
+    )
+
+
 class UserCreateSerializer(ModelSerializerStrict):
     """
     Création d'un utilisateur par l'Admin ou le Manager.
@@ -295,6 +336,11 @@ class UserCreateSerializer(ModelSerializerStrict):
     - must_change_password = True par défaut
     - Email requis pour tous sauf Rtable
     """
+    # `validators=[]` retire le UniqueValidator ajoute automatiquement par DRF
+    # pour un champ `unique=True` : il s'executait avant `validate_email` et
+    # imposait son message technique (« Un objet Utilisateur avec ce champ
+    # Adresse email existe deja. »).
+    email = serializers.EmailField(required=False, allow_null=True, validators=[])
     password = serializers.CharField(
         write_only=True, min_length=8, required=True, allow_blank=False,
         error_messages={
@@ -337,9 +383,8 @@ class UserCreateSerializer(ModelSerializerStrict):
 
     def validate_email(self, value):
         if value and User.objects.filter(email=value).exists():
-            raise serializers.ValidationError(
-                "Un utilisateur avec cet email existe déjà."
-            )
+            restaurant = getattr(self.context['request'].user, 'restaurant_id', None)
+            raise serializers.ValidationError(_erreur_email_deja_pris(value, restaurant))
         return value
 
     def validate(self, data):
@@ -400,6 +445,9 @@ class UserCreateSerializer(ModelSerializerStrict):
 class UserUpdateSerializer(ModelSerializerStrict):
     """Mise à jour partielle - Admin/Manager."""
 
+    # Voir UserCreateSerializer : on neutralise le UniqueValidator auto de DRF.
+    email = serializers.EmailField(required=False, allow_null=True, validators=[])
+
     class Meta:
         model = User
         fields = ['nom_complet', 'email', 'telephone', 'role']
@@ -408,9 +456,8 @@ class UserUpdateSerializer(ModelSerializerStrict):
         if value:
             qs = User.objects.filter(email=value).exclude(pk=self.instance.pk)
             if qs.exists():
-                raise serializers.ValidationError(
-                    "Un utilisateur avec cet email existe déjà."
-                )
+                restaurant = getattr(self.context['request'].user, 'restaurant_id', None)
+                raise serializers.ValidationError(_erreur_email_deja_pris(value, restaurant))
         return value
 
     def validate_role(self, value):

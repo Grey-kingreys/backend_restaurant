@@ -344,3 +344,89 @@ class TestRoleConfigSecurity:
         assert res.status_code == 404
         role_autre.refresh_from_db()
         assert role_autre.nom == "Custom"
+
+
+@pytest.mark.django_db
+class TestMessageEmailDejaPris:
+    """
+    Message d'unicite d'email a la creation d'un membre.
+
+    `User.email` est unique sur toute la plateforme, alors que la page Equipe
+    ne liste que les membres ACTIFS du restaurant courant. Le compte fautif est
+    donc souvent invisible pour l'admin, qui lisait « Un objet Utilisateur avec
+    ce champ Adresse email existe deja. » sans pouvoir le trouver nulle part.
+    """
+
+    URL = "/api/accounts/auth/users/"
+
+    def _admin(self, restaurant_factory, user_factory):
+        from apps.accounts.serializers import get_role_config_for_role
+        resto = restaurant_factory(nom="Resto Email")
+        admin = user_factory(login="adm_mail", email="adm_mail@t.gn",
+                             role="Radmin", restaurant=resto)
+        admin.role_config = get_role_config_for_role("Radmin")
+        admin.save(update_fields=["role_config"])
+        return resto, admin
+
+    def _creer(self, api_client, email):
+        return api_client.post(self.URL, {
+            "role": "Rserveur", "nom_complet": "Nouveau", "email": email,
+            "telephone": "+224620000222", "password": "Users@2026",
+        }, format="json")
+
+    def test_email_dun_compte_client_designe_le_compte_client(
+        self, api_client, user_factory, restaurant_factory
+    ):
+        resto, admin = self._admin(restaurant_factory, user_factory)
+        User.objects.create_user(login="cli_x", email="client@x.gn",
+                                 role="Rclient", restaurant=None, password="x")
+        api_client._authenticate(admin)
+
+        res = self._creer(api_client, "client@x.gn")
+
+        assert res.status_code == 400
+        assert "compte client" in res.data["errors"]["email"][0]
+
+    def test_email_dun_membre_desactive_invite_a_le_reactiver(
+        self, api_client, user_factory, restaurant_factory
+    ):
+        resto, admin = self._admin(restaurant_factory, user_factory)
+        m = user_factory(login="off_x", email="off@x.gn", role="Rserveur",
+                         restaurant=resto, nom_complet="Fatou Camara")
+        m.actif = False
+        m.save(update_fields=["actif"])
+        api_client._authenticate(admin)
+
+        res = self._creer(api_client, "off@x.gn")
+
+        assert res.status_code == 400
+        msg = res.data["errors"]["email"][0]
+        assert "Fatou Camara" in msg and "desactive" in msg
+
+    def test_email_dun_autre_restaurant_ne_nomme_personne(
+        self, api_client, user_factory, restaurant_factory
+    ):
+        resto, admin = self._admin(restaurant_factory, user_factory)
+        voisin = restaurant_factory(nom="Resto Voisin Email")
+        user_factory(login="voisin_x", email="voisin@x.gn", role="Rserveur",
+                     restaurant=voisin, nom_complet="Secret Personne")
+        api_client._authenticate(admin)
+
+        res = self._creer(api_client, "voisin@x.gn")
+
+        assert res.status_code == 400
+        msg = res.data["errors"]["email"][0]
+        # Pas de fuite d'identite d'un compte tiers.
+        assert "Secret Personne" not in msg
+        assert "ailleurs sur la plateforme" in msg
+
+    def test_message_technique_de_drf_ne_remonte_plus(
+        self, api_client, user_factory, restaurant_factory
+    ):
+        resto, admin = self._admin(restaurant_factory, user_factory)
+        api_client._authenticate(admin)
+
+        res = self._creer(api_client, admin.email)
+
+        assert res.status_code == 400
+        assert "objet Utilisateur" not in res.data["errors"]["email"][0]
