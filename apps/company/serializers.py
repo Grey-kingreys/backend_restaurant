@@ -1,5 +1,6 @@
 # apps/company/serializers.py
 from rest_framework import serializers
+from apps.serializers_stricts import ModelSerializerStrict, SerializerStrict
 from django.db import transaction
 from django.contrib.auth import get_user_model
 
@@ -44,7 +45,7 @@ class RestaurantSerializer(serializers.ModelSerializer):
         return "actif" if obj.is_active else "suspendu"
 
 
-class RestaurantCreateSerializer(serializers.ModelSerializer):
+class RestaurantCreateSerializer(ModelSerializerStrict):
     """
     Serializer creation d'un restaurant par le Super Admin.
 
@@ -152,7 +153,7 @@ class RestaurantCreateSerializer(serializers.ModelSerializer):
         return data
 
 
-class RestaurantUpdateSerializer(serializers.ModelSerializer):
+class RestaurantUpdateSerializer(ModelSerializerStrict):
     """
     Serializer mise a jour partielle d'un restaurant.
     Le Super Admin et l'Admin du restaurant peuvent modifier les infos.
@@ -178,7 +179,7 @@ class RestaurantUpdateSerializer(serializers.ModelSerializer):
         return value
 
 
-class OnboardingTokenValidateSerializer(serializers.Serializer):
+class OnboardingTokenValidateSerializer(SerializerStrict):
     """
     Serializer validation du token de premiere connexion.
     Le frontend envoie le token + le nouveau mot de passe choisi par l'Admin.
@@ -224,7 +225,7 @@ class OnboardingTokenValidateSerializer(serializers.Serializer):
         return user
 
 
-class MonRestaurantUpdateSerializer(serializers.ModelSerializer):
+class MonRestaurantUpdateSerializer(ModelSerializerStrict):
     """
     Mise à jour partielle du restaurant par son propre Admin.
     L'email_admin et is_active sont gérés par le Super Admin uniquement.
@@ -275,7 +276,7 @@ class MonRestaurantUpdateSerializer(serializers.ModelSerializer):
         return value
 
 
-class RestaurantDeleteSerializer(serializers.Serializer):
+class RestaurantDeleteSerializer(SerializerStrict):
     """
     Serializer pour la suppression d'un restaurant.
     Requiert une confirmation : le nom exact du restaurant + mot de passe du Super Admin.

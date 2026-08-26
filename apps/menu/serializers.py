@@ -1,5 +1,6 @@
 # apps/menu/serializers.py
 from rest_framework import serializers
+from apps.serializers_stricts import ModelSerializerStrict, SerializerStrict
 from .models import Plat
 
 
@@ -56,7 +57,7 @@ class PlatDetailSerializer(PlatListSerializer):
         return obj.restaurant.nom
 
 
-class PlatCreateUpdateSerializer(serializers.ModelSerializer):
+class PlatCreateUpdateSerializer(ModelSerializerStrict):
     """
     Serializer création / modification d'un plat.
     - Le champ `restaurant` est injecté depuis request.user.restaurant (ne jamais

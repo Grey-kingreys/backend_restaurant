@@ -1,5 +1,6 @@
 # apps/accounts/serializers.py
 from rest_framework import serializers
+from apps.serializers_stricts import ModelSerializerStrict, SerializerStrict
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
@@ -32,7 +33,7 @@ def get_role_config_for_role(role: str) -> RoleConfig | None:
 # AUTH
 # ─────────────────────────────────────────────────────────────────────────────
 
-class LoginSerializer(serializers.Serializer):
+class LoginSerializer(SerializerStrict):
     """
     Serializer de connexion unifié.
 
@@ -187,7 +188,7 @@ class UserMeSerializer(serializers.ModelSerializer):
         return None
 
 
-class UpdateMeSerializer(serializers.ModelSerializer):
+class UpdateMeSerializer(ModelSerializerStrict):
     """Auto-édition du profil par l'utilisateur connecté (tous rôles réels)."""
 
     class Meta:
@@ -216,7 +217,7 @@ class UpdateMeSerializer(serializers.ModelSerializer):
 # CARNET D'ADRESSES CLIENT
 # ─────────────────────────────────────────────────────────────────────────────
 
-class AdresseClientSerializer(serializers.ModelSerializer):
+class AdresseClientSerializer(ModelSerializerStrict):
     """Adresse de livraison enregistrée par un client - CRUD self-service."""
 
     class Meta:
@@ -283,7 +284,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
         return obj.get_role_display()
 
 
-class UserCreateSerializer(serializers.ModelSerializer):
+class UserCreateSerializer(ModelSerializerStrict):
     """
     Création d'un utilisateur par l'Admin ou le Manager.
 
@@ -396,7 +397,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         return user
 
 
-class UserUpdateSerializer(serializers.ModelSerializer):
+class UserUpdateSerializer(ModelSerializerStrict):
     """Mise à jour partielle - Admin/Manager."""
 
     class Meta:
@@ -427,7 +428,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 # RESET MOT DE PASSE
 # ─────────────────────────────────────────────────────────────────────────────
 
-class AdminPasswordResetSerializer(serializers.Serializer):
+class AdminPasswordResetSerializer(SerializerStrict):
     """
     Reset du mot de passe d'un utilisateur par l'Admin.
     Force must_change_password=True - sauf pour les tables, dont le mot de passe
@@ -444,7 +445,7 @@ class AdminPasswordResetSerializer(serializers.Serializer):
         return user
 
 
-class PasswordResetRequestSerializer(serializers.Serializer):
+class PasswordResetRequestSerializer(SerializerStrict):
     """
     Demande de réinitialisation par l'utilisateur via son email.
     On ne confirme pas si l'email existe (sécurité anti-énumération).
@@ -473,7 +474,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         return True
 
 
-class PasswordResetConfirmSerializer(serializers.Serializer):
+class PasswordResetConfirmSerializer(SerializerStrict):
     """
     Confirmation de réinitialisation via le token reçu par email.
     """
@@ -512,7 +513,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         return user
 
 
-class ChangePasswordSerializer(serializers.Serializer):
+class ChangePasswordSerializer(SerializerStrict):
     """
     Changement de mot de passe par l'utilisateur connecté.
     Utilisé aussi pour le first-login (must_change_password=True).
@@ -597,7 +598,7 @@ class RoleConfigDetailSerializer(serializers.ModelSerializer):
         return dict(RoleConfig.DASHBOARD_CHOICES).get(obj.dashboard_type, obj.dashboard_type)
 
 
-class RoleConfigCreateSerializer(serializers.Serializer):
+class RoleConfigCreateSerializer(SerializerStrict):
     """Création d'un rôle custom par un admin."""
     nom            = serializers.CharField(max_length=100)
     slug           = serializers.SlugField(max_length=30)
@@ -631,7 +632,7 @@ class RoleConfigCreateSerializer(serializers.Serializer):
         return role
 
 
-class RoleConfigUpdateSerializer(serializers.Serializer):
+class RoleConfigUpdateSerializer(SerializerStrict):
     """Mise à jour partielle d'un rôle custom."""
     nom            = serializers.CharField(max_length=100, required=False)
     dashboard_type = serializers.ChoiceField(

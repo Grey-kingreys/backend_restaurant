@@ -1,5 +1,6 @@
 # apps/paiements/serializers.py
 from rest_framework import serializers
+from apps.serializers_stricts import ModelSerializerStrict, SerializerStrict
 from django.db import transaction
 from django.utils import timezone
 from decimal import Decimal
@@ -32,7 +33,7 @@ class CaisseGeneraleSerializer(serializers.ModelSerializer):
         return f"{obj.solde:,.0f} GNF".replace(',', ' ')
 
 
-class CaisseGeneraleInitSerializer(serializers.Serializer):
+class CaisseGeneraleInitSerializer(SerializerStrict):
     """Initialise le solde initial de la Caisse Generale (Admin uniquement)."""
     solde_initial = serializers.DecimalField(
         max_digits=14, decimal_places=2,
@@ -80,7 +81,7 @@ class CaisseGlobaleSerializer(serializers.ModelSerializer):
         return "fermee" if obj.is_closed else "ouverte"
 
 
-class CaisseGlobaleFermerSerializer(serializers.Serializer):
+class CaisseGlobaleFermerSerializer(SerializerStrict):
     """Fermeture de la Caisse Globale par le comptable ou l'admin."""
     montant_physique = serializers.DecimalField(
         max_digits=14, decimal_places=2,
@@ -227,7 +228,7 @@ class CaisseComptableOuvrirSerializer(serializers.Serializer):
         )
 
 
-class ApprovisionnerSerializer(serializers.Serializer):
+class ApprovisionnerSerializer(SerializerStrict):
     """
     Approvisionnement de la Caisse Comptable depuis la Caisse Generale.
     Debite la Caisse Generale et credite la Caisse Comptable.
@@ -298,7 +299,7 @@ class DemandeApprovisionnementSerializer(serializers.ModelSerializer):
         ]
 
 
-class DemandeApprovisionnementCreateSerializer(serializers.Serializer):
+class DemandeApprovisionnementCreateSerializer(SerializerStrict):
     """Le comptable cree une demande d'approvisionnement (aucun mouvement d'argent)."""
     montant = serializers.DecimalField(
         max_digits=14, decimal_places=2, min_value=Decimal('0.01'),
@@ -325,12 +326,12 @@ class DemandeApprovisionnementCreateSerializer(serializers.Serializer):
         )
 
 
-class DemandeRefusSerializer(serializers.Serializer):
+class DemandeRefusSerializer(SerializerStrict):
     """Motif de refus d'une demande d'approvisionnement."""
     motif_refus = serializers.CharField(max_length=255, min_length=3)
 
 
-class DepenseCreateSerializer(serializers.Serializer):
+class DepenseCreateSerializer(SerializerStrict):
     """
     Enregistrement d'une depense depuis la Caisse Comptable.
     Verifie que le solde est suffisant avant de debiter.
@@ -386,7 +387,7 @@ class DepenseCreateSerializer(serializers.Serializer):
         return depense
 
 
-class CaisseComptableFermerSerializer(serializers.Serializer):
+class CaisseComptableFermerSerializer(SerializerStrict):
     """Fermeture de la Caisse Comptable avec reconciliation physique."""
     montant_physique = serializers.DecimalField(
         max_digits=14, decimal_places=2,
@@ -531,7 +532,7 @@ class RemiseServeurSerializer(serializers.ModelSerializer):
         return "en_attente_remise"
 
 
-class RemiseValiderSerializer(serializers.Serializer):
+class RemiseValiderSerializer(SerializerStrict):
     """
     Validation physique d'une remise par le comptable.
     Le comptable saisit le montant physique recu et valide.

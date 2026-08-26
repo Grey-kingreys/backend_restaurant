@@ -12,6 +12,7 @@ Architecture SaaS v2 :
 import re
 
 from rest_framework import serializers
+from apps.serializers_stricts import ModelSerializerStrict, SerializerStrict
 from django.contrib.auth import get_user_model
 
 from .models import TableRestaurant, TableToken, TableSession
@@ -151,7 +152,7 @@ class TableRestaurantDetailSerializer(serializers.ModelSerializer):
         }
 
 
-class TableRestaurantCreateSerializer(serializers.ModelSerializer):
+class TableRestaurantCreateSerializer(ModelSerializerStrict):
     """
     Création d'une table physique + compte Rtable en un seul appel.
 
@@ -255,7 +256,7 @@ class TableRestaurantCreateSerializer(serializers.ModelSerializer):
         )
 
 
-class TableRestaurantUpdateSerializer(serializers.ModelSerializer):
+class TableRestaurantUpdateSerializer(ModelSerializerStrict):
     """
     Modification partielle d'une table existante.
     Permet aussi de renommer le compte Rtable via nom_complet.

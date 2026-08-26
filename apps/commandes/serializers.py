@@ -2,6 +2,7 @@
 import secrets
 
 from rest_framework import serializers
+from apps.serializers_stricts import ModelSerializerStrict, SerializerStrict
 from django.db import transaction
 from .models import Commande, CommandeItem, PanierItem
 from apps.menu.models import Plat
@@ -27,7 +28,7 @@ class PanierItemSerializer(serializers.ModelSerializer):
         return str(obj.sous_total)
 
 
-class PanierItemCreateSerializer(serializers.Serializer):
+class PanierItemCreateSerializer(SerializerStrict):
     plat_id  = serializers.IntegerField()
     quantite = serializers.IntegerField(min_value=1, max_value=10)
 
@@ -183,7 +184,7 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
 # VALIDATION PANIER → COMMANDE (Table)
 # ─────────────────────────────────────────────────────────────────────────────
 
-class CommandeValiderSerializer(serializers.Serializer):
+class CommandeValiderSerializer(SerializerStrict):
     """
     Valide le panier et crée une commande EN_ATTENTE liée à la session QR active.
     CDC §10.3 : chaque commande est associée à une SessionTable au moment de sa création.
@@ -248,7 +249,7 @@ class CommandeValiderSerializer(serializers.Serializer):
 # PRISE DE COMMANDE PAR LE SERVEUR (pour une table, sur place)
 # ─────────────────────────────────────────────────────────────────────────────
 
-class CommandeServeurCreateSerializer(serializers.Serializer):
+class CommandeServeurCreateSerializer(SerializerStrict):
     """
     Un serveur (ou admin/manager) saisit une commande. Trois types :
       - sur_table : rattachée à une table (table_id requis) ;
