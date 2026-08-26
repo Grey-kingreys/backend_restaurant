@@ -1,5 +1,6 @@
 # apps/company/models.py
-from django.db import models
+from django.db import models, transaction
+from django.db.models import Q
 from django.core.validators import EmailValidator, RegexValidator
 from django.utils import timezone
 from datetime import timedelta
@@ -140,8 +141,27 @@ class Restaurant(models.Model):
         self.is_active = True
         self.save(update_fields=['is_active', 'updated_at'])
 
+    @transaction.atomic
     def supprimer(self):
-        """Supprime le restaurant et toutes ses donnees associees (cascade)."""
+        """
+        Supprime le restaurant et TOUTES ses donnees associees.
+
+        Tout le reste part en cascade depuis ce modele : utilisateurs (donc
+        tables, sessions, paniers, tokens QR), plats, commandes, paiements,
+        caisses, remises, depenses, reservations et roles personnalises.
+
+        Une seule exception a lever au prealable : `CommandeItem.plat` est en
+        `PROTECT`, pour qu'un plat cite dans une commande passee ne puisse pas
+        etre efface et laisser un trou dans l'historique des prix. Cette garde
+        protege le restaurant vivant ; quand le restaurant entier disparait,
+        son historique part avec lui. Sans ce retrait explicite, Django levait
+        `ProtectedError` et la suppression repondait 500.
+        """
+        from apps.commandes.models import CommandeItem
+
+        CommandeItem.objects.filter(
+            Q(commande__restaurant=self) | Q(plat__restaurant=self)
+        ).delete()
         self.delete()
 
     def get_slug(self):

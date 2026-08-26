@@ -336,3 +336,99 @@ class TestPlatformStatsAPI:
         assert res.status_code == 200
         assert res.data["success"] is True
         assert res.data["data"]["restaurants_total"] >= 3
+
+
+@pytest.mark.django_db
+class TestSuppressionRestaurant:
+    """
+    Suppression d'un restaurant et de toutes ses donnees.
+
+    Regression : `CommandeItem.plat` est en PROTECT (un plat cite dans une
+    commande passee ne doit pas laisser de trou dans l'historique). La cascade
+    Restaurant -> Plat butait dessus, Django levait ProtectedError et l'API
+    repondait 500 - aucun restaurant ayant recu une commande n'etait supprimable.
+    """
+
+    def _restaurant_avec_donnees(self):
+        """Restaurant complet : utilisateur, plat, commande et sa ligne."""
+        from decimal import Decimal
+        from apps.menu.models import Plat
+        from apps.commandes.models import Commande, CommandeItem
+
+        resto = Restaurant.objects.create(
+            nom="Resto A Supprimer", email_admin="sup@test.com", telephone="+224620000009",
+        )
+        table = User.objects.create_user(
+            login="sup_table_01", email=None, password="x",
+            role="Rtable", restaurant=resto,
+        )
+        plat = Plat.objects.create(
+            restaurant=resto, nom="Riz gras", prix_unitaire=Decimal("50000"),
+            categorie="PLAT", disponible=True,
+        )
+        commande = Commande.objects.create(
+            restaurant=resto, table=table, montant_total=Decimal("50000"), statut="payee",
+        )
+        CommandeItem.objects.create(
+            commande=commande, plat=plat, quantite=1, prix_unitaire=plat.prix_unitaire,
+        )
+        return resto
+
+    def test_supprime_le_restaurant_malgre_les_commandes_passees(self):
+        resto = self._restaurant_avec_donnees()
+        rid = resto.pk
+
+        resto.supprimer()
+
+        assert not Restaurant.objects.filter(pk=rid).exists()
+
+    def test_supprime_toutes_les_donnees_liees(self):
+        from apps.menu.models import Plat
+        from apps.commandes.models import Commande, CommandeItem
+
+        resto = self._restaurant_avec_donnees()
+        rid = resto.pk
+
+        resto.supprimer()
+
+        assert User.objects.filter(restaurant_id=rid).count() == 0
+        assert Plat.objects.filter(restaurant_id=rid).count() == 0
+        assert Commande.objects.filter(restaurant_id=rid).count() == 0
+        assert CommandeItem.objects.filter(commande__restaurant_id=rid).count() == 0
+
+    def test_ne_touche_pas_aux_autres_restaurants(self):
+        from apps.menu.models import Plat
+
+        resto = self._restaurant_avec_donnees()
+        autre = Restaurant.objects.create(
+            nom="Resto Voisin", email_admin="voisin@test.com", telephone="+224620000010",
+        )
+        plat_voisin = Plat.objects.create(
+            restaurant=autre, nom="Attieke", prix_unitaire=30000,
+            categorie="PLAT", disponible=True,
+        )
+
+        resto.supprimer()
+
+        assert Restaurant.objects.filter(pk=autre.pk).exists()
+        assert Plat.objects.filter(pk=plat_voisin.pk).exists()
+
+    def test_endpoint_supprime_avec_confirmation_du_super_admin(self):
+        resto = self._restaurant_avec_donnees()
+        rid = resto.pk
+        superadmin = User.objects.create_user(
+            login="sa_sup", email="sa_sup@test.com", password="MotDePasse2026",
+            role="Rsuper_admin",
+        )
+        client = APIClient()
+        refresh = RefreshToken.for_user(superadmin)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
+
+        res = client.delete(
+            f"/api/company/restaurants/{rid}/",
+            {"nom_confirmation": resto.nom, "password": "MotDePasse2026"},
+            format="json",
+        )
+
+        assert res.status_code == status.HTTP_200_OK, res.data
+        assert not Restaurant.objects.filter(pk=rid).exists()
