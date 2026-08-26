@@ -1,8 +1,7 @@
 # apps/accounts/services/email_service.py
 import logging
-import resend
 from django.conf import settings
-from apps.company.services.email_service import render_email, email_button
+from apps.company.services.email_service import _send, render_email, email_button
 
 logger = logging.getLogger(__name__)
 
@@ -36,21 +35,11 @@ def send_password_reset_email(user, reset_token) -> bool:
         footer_line=f"resfly - {user.restaurant.nom if user.restaurant else 'Plateforme'}",
     )
 
-    if not settings.RESEND_KEY:
-        # Pas de clé configurée (dev sans email, tests) → no-op silencieux.
-        logger.info("[PasswordReset] RESEND_KEY absent - email non envoyé (no-op).")
-        return False
-
-    try:
-        resend.api_key = settings.RESEND_KEY
-        resend.Emails.send({
-            "from": settings.RESEND_FROM_EMAIL,
-            "to": [user.email],
-            "subject": "Réinitialisation de votre mot de passe",
-            "html": html_content,
-        })
-        logger.info(f"[PasswordReset] Email envoyé à {user.email}")
-        return True
-    except Exception as e:
-        logger.error(f"[PasswordReset] Échec envoi email à {user.email} : {e}")
-        return False
+    # Passe par l'envoi partagé (apps.company) : un seul point d'entrée pour
+    # tous les emails, au lieu du SDK d'un côté et d'un POST HTTP de l'autre.
+    # `_send` gère lui-même l'absence de clé (no-op loggé) et n'échoue jamais.
+    return _send(
+        to=user.email,
+        subject="Réinitialisation de votre mot de passe",
+        html_body=html_content,
+    )

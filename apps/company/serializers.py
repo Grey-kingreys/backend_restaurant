@@ -52,7 +52,7 @@ class RestaurantCreateSerializer(serializers.ModelSerializer):
     1. Valide et cree le Restaurant
     2. Cree le compte Admin avec login = {slug}_admin
     3. Genere un OnboardingToken (48h)
-    4. Envoie l'email de bienvenue via Resend
+    4. Envoie l'email de bienvenue via Zendou
     5. Retourne le restaurant + les infos du compte Admin cree
     """
 

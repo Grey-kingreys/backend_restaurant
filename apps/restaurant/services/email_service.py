@@ -1,6 +1,6 @@
 # apps/restaurant/services/email_service.py
 """
-Emails transactionnels liés aux réservations (via Resend).
+Emails transactionnels liés aux réservations (via Zendou).
 Réutilise l'envoi bas niveau de apps.company.services.email_service.
 """
 

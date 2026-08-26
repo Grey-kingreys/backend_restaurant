@@ -67,9 +67,9 @@ REDIS_URL=redis://resfly-redis:6379/0
 # CORS - origine publique du frontend
 CORS_ALLOWED_ORIGINS=https://mondomaine.com
 
-# Emails (Resend)
-RESEND_KEY=<clé API resend>
-RESEND_FROM_EMAIL=noreply@mondomaine.com
+# Emails (Zendou) - le domaine de l'expéditeur doit être vérifié sur le compte
+ZENDOU_API_KEY=<clé API zendou, zd_live_…>
+ZENDOU_FROM_EMAIL=resfly <noreply@mondomaine.com>
 FRONTEND_URL=https://mondomaine.com
 
 # Démarrage prod : migrations committées, pas de seed de démo

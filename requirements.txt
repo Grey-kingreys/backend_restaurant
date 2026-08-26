@@ -32,11 +32,9 @@ whitenoise==6.7.0
 # Serveur WSGI - Production
 gunicorn==23.0.0
 
-# Requests - Envoi d'emails via Resend
+# Requests - Envoi d'emails via Zendou
 requests==2.32.3
 
-# Resend - Envoi d'emails
-resend==2.27.0
 
 # Nimba SMS - Envoi de SMS / WhatsApp (opérateur guinéen)
 nimbasms==1.0.2

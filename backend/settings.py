@@ -310,10 +310,12 @@ AUTH_PASSWORD_VALIDATORS = [
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # ------------------------------------------
-# RESEND
+# ZENDOU - envoi d'emails transactionnels
+# Laisser ZENDOU_API_KEY vide desactive proprement l'envoi (no-op logge en dev).
+# Le domaine de ZENDOU_FROM_EMAIL doit etre verifie sur le compte Zendou.
 # ------------------------------------------
-RESEND_KEY = os.getenv('RESEND_KEY', '')
-RESEND_FROM_EMAIL = os.getenv('RESEND_FROM_EMAIL', 'noreply@kingreys.fr')
+ZENDOU_API_KEY = os.getenv('ZENDOU_API_KEY', '')
+ZENDOU_FROM_EMAIL = os.getenv('ZENDOU_FROM_EMAIL', 'resfly <noreply@resfly.org>')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
 # ------------------------------------------
