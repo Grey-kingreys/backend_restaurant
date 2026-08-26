@@ -1,8 +1,11 @@
 # apps/company/services/email_service.py
 """
-Service d'envoi d'email via Resend.
-Variable d'environnement requise : RESEND_KEY
-Domaine expediteur : kingreys.fr (verifie sur Resend)
+Service d'envoi d'email via Zendou.
+Variable d'environnement requise : ZENDOU_API_KEY
+Domaine expediteur : celui de ZENDOU_FROM_EMAIL, a verifier sur le compte Zendou.
+
+Point d'entree unique de TOUS les emails transactionnels de l'application :
+apps.accounts et apps.restaurant importent `_send` d'ici.
 """
 
 import logging
@@ -12,41 +15,83 @@ from django.utils.html import escape
 
 logger = logging.getLogger(__name__)
 
-RESEND_API_URL = "https://api.resend.com/emails"
+# NB : l'hote reel de l'API est bien `api.zendou.app`. La documentation publique
+# de Zendou annonce `api.zendou.dev`, qui ne resout pas (aucun enregistrement
+# DNS) - verifie le 2026-08-26. A rebasculer si Zendou publie ce domaine.
+ZENDOU_API_URL = "https://api.zendou.app/v1/emails"
 
 
-def _send(to: str, subject: str, html_body: str, reply_to: str | None = None) -> bool:
+def _message_erreur(response) -> str:
     """
-    Fonction interne - envoie un email via l'API Resend.
+    Extrait le message d'erreur d'une reponse Zendou.
+
+    Le champ `message` change de type selon l'erreur : tableau quand elle vient
+    de la validation du DTO, chaine quand elle est levee a la main - pour un
+    meme code 400. On absorbe les deux plutot que de tronquer le message.
+    """
+    try:
+        corps = response.json()
+    except ValueError:
+        return response.text[:200]
+    msg = corps.get("message", corps)
+    if isinstance(msg, list):
+        return " ".join(str(m) for m in msg)
+    return str(msg)
+
+
+def _send(to: str, subject: str, html_body: str) -> bool:
+    """
+    Fonction interne - envoie un email via l'API Zendou.
     Retourne True si succes, False si echec (sans lever d'exception).
-    `reply_to` (optionnel) : adresse à laquelle les réponses seront adressées.
+
+    `to` doit etre une adresse nue et unique (« client@exemple.gn ») : Zendou
+    v1 refuse les listes et les noms affiches du cote destinataire.
+
+    Pas de `reply_to` : non supporte par Zendou v1. Les emails qui ont besoin
+    d'une adresse de reponse (formulaire de contact) l'exposent dans leur corps.
     """
-    if not settings.RESEND_KEY:
+    if not settings.ZENDOU_API_KEY:
         # Pas de clé configurée (dev sans email, tests) → no-op sans appel réseau.
-        logger.info(f"[Email] RESEND_KEY absent - email a {to} non envoye (no-op).")
+        logger.info(f"[Email] ZENDOU_API_KEY absent - email a {to} non envoye (no-op).")
         return False
 
     payload = {
-        "from": settings.RESEND_FROM_EMAIL,
-        "to": [to],
+        "from": settings.ZENDOU_FROM_EMAIL,
+        "to": to,
         "subject": subject,
         "html": html_body,
     }
-    if reply_to:
-        payload["reply_to"] = reply_to
     headers = {
-        "Authorization": f"Bearer {settings.RESEND_KEY}",
+        "Authorization": f"Bearer {settings.ZENDOU_API_KEY}",
         "Content-Type": "application/json",
     }
     try:
         response = requests.post(
-            RESEND_API_URL,
+            ZENDOU_API_URL,
             json=payload,
             headers=headers,
             timeout=10
         )
-        response.raise_for_status()
-        logger.info(f"[Email] Envoye a {to} - sujet: {subject}")
+        if response.status_code >= 400:
+            # Le message de Zendou est explicite (domaine non verifie, credits
+            # epuises, quota atteint...) : le logger vaut mieux qu'un code nu.
+            logger.error(
+                f"[Email] Echec envoi a {to} - HTTP {response.status_code} : "
+                f"{_message_erreur(response)}"
+            )
+            return False
+        # Succes = 202 Accepted : l'email est accepte et mis en file, la
+        # distribution est asynchrone. `status` vaut « queued » ou « suppressed »
+        # (adresse en liste de suppression : accepte, non facture, jamais envoye).
+        statut = ""
+        try:
+            statut = response.json().get("status", "")
+        except ValueError:
+            pass
+        if statut == "suppressed":
+            logger.warning(f"[Email] {to} est en liste de suppression - email non distribue.")
+            return False
+        logger.info(f"[Email] Envoye a {to} - sujet: {subject} (statut: {statut or 'accepte'})")
         return True
     except Exception as exc:
         logger.error(f"[Email] Echec envoi a {to}: {exc}")
@@ -160,8 +205,10 @@ def send_welcome_email(admin_user, restaurant, onboarding_token) -> bool:
 def send_contact_message(nom: str, email: str, message: str) -> bool:
     """
     Envoie à l'équipe (settings.CONTACT_EMAIL) un message du formulaire de contact
-    de la vitrine. `reply_to` = email du visiteur pour répondre directement.
-    Les entrées utilisateur sont échappées (email HTML).
+    de la vitrine. Les entrées utilisateur sont échappées (email HTML).
+
+    Zendou v1 ne supporte pas `reply_to` : l'adresse du visiteur est exposée en
+    lien `mailto:` dans le corps du message, il suffit de cliquer pour répondre.
     """
     nom_s = escape(nom)
     email_s = escape(email)
@@ -191,5 +238,4 @@ def send_contact_message(nom: str, email: str, message: str) -> bool:
         to=settings.CONTACT_EMAIL,
         subject=f"Contact resfly - {nom_s}",
         html_body=html_body,
-        reply_to=email if email else None,
     )

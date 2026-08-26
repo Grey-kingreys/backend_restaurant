@@ -949,7 +949,7 @@ class LivraisonPubliqueActionView(APIView):
 # ── Contact (formulaire vitrine) ─────────────────────────────────────────────
 
 class ContactView(APIView):
-    """Formulaire de contact public - envoie un email à l'équipe via Resend."""
+    """Formulaire de contact public - envoie un email à l'équipe via Zendou."""
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'contact'

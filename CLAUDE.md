@@ -60,7 +60,7 @@ Ce qu'il crée (dates relatives à `today`) :
 - SimpleJWT avec rotation et blacklist
 - drf-spectacular (Swagger à `/api/docs/`)
 - django-prometheus (métriques à `/metrics`)
-- Resend API pour les emails transactionnels (pas SMTP)
+- Zendou API pour les emails transactionnels (pas SMTP)
 - Stockage local en dev, S3 en prod (`USE_S3=True`)
 - OpenTelemetry vers Tempo (stack obs commentée, voir ci-dessous)
 
@@ -157,7 +157,7 @@ Retourne des données différentes selon `request.user.role` :
 | `POST /logout/` | `LogoutView` | Authentifié - blackliste le refresh token |
 | `GET /me/` | `MeView` | Authentifié - profil complet |
 | `POST /change-password/` | `ChangePasswordView` | Authentifié - aussi utilisé au first-login |
-| `POST /password-reset/` | `PasswordResetRequestView` | Public - envoie email via Resend |
+| `POST /password-reset/` | `PasswordResetRequestView` | Public - envoie email via Zendou |
 | `POST /password-reset/confirm/` | `PasswordResetConfirmView` | Public - UUID token 1h |
 | `POST /token/refresh/` | SimpleJWT | Public - rotation avec blacklist |
 
@@ -204,10 +204,25 @@ Rôles simulables : `Rmanager`, `Rserveur`, `Rchef_cuisinier`, `Rcuisinier`, `Rc
 
 ## Emails
 
-**Ne pas utiliser Django EMAIL_BACKEND SMTP.** L'app utilise le SDK Resend directement.
+**Ne pas utiliser Django EMAIL_BACKEND SMTP.** L'app appelle l'API HTTP de Zendou.
 
-- `RESEND_KEY` : clé API Resend
-- `RESEND_FROM_EMAIL` : expéditeur (ex. `noreply@kingreys.fr`)
+**Point d'entrée unique** : `_send()` dans `apps/company/services/email_service.py`.
+`apps.accounts` (reset mot de passe) et `apps.restaurant` (réservations) l'importent —
+ne pas réintroduire d'appel direct au fournisseur ailleurs.
+
+- `ZENDOU_API_KEY` : clé API Zendou (`zd_live_…`). Absente → no-op loggé, jamais d'exception.
+- `ZENDOU_FROM_EMAIL` : expéditeur, `adresse@domaine` ou `Nom <adresse@domaine>` ;
+  le domaine doit être vérifié sur le compte Zendou (défaut `resfly <noreply@resfly.org>`).
+
+Contraintes de l'API v1, à connaître avant d'y toucher :
+
+- `to` = **une seule adresse nue**. Ni liste, ni `Nom <adresse>` → sinon HTTP 400.
+- **Pas de `reply_to`**. Le formulaire de contact expose l'adresse du visiteur
+  en lien `mailto:` dans le corps du message à la place.
+- Succès = **202 Accepted** (envoi asynchrone). Un statut `suppressed` signifie
+  accepté mais jamais distribué (adresse en liste de suppression) : traité comme un échec.
+- L'hôte réel est `api.zendou.app` ; la doc publique de Zendou annonce `api.zendou.dev`,
+  qui ne résout pas (constaté le 2026-08-26).
 - `FRONTEND_URL` : utilisé dans les liens des emails (`http://localhost:3000` en dev)
 
 ## Docker Compose
@@ -235,8 +250,8 @@ REDIS_URL
 JWT_ACCESS_TOKEN_LIFETIME_MINUTES   (défaut: 60)
 JWT_REFRESH_TOKEN_LIFETIME_DAYS     (défaut: 7)
 CORS_ALLOWED_ORIGINS                (ex. http://localhost:3000)
-RESEND_KEY
-RESEND_FROM_EMAIL
+ZENDOU_API_KEY
+ZENDOU_FROM_EMAIL
 FRONTEND_URL
 USE_S3                              (False en dev)
 AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_STORAGE_BUCKET_NAME
