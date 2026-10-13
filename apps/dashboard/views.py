@@ -4,10 +4,11 @@ from decimal import Decimal
 from django.utils import timezone
 from django.db.models import Sum, Count
 from django.db.models.functions import ExtractHour
+from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 
-from apps.accounts.api_views import success_response
+from apps.accounts.api_views import error_response, success_response
 from apps.accounts.permissions import IsRestaurantActive
 from apps.commandes.models import Commande, CommandeItem
 from apps.paiements.models import Paiement, Depense, RemiseServeur
@@ -52,7 +53,14 @@ class DashboardView(APIView):
             return self._dashboard_livreur(request, restaurant)
         if dtype == 'table':
             return self._dashboard_table(request)
-        return self._dashboard_superadmin()
+        if dtype == 'superadmin':
+            return self._dashboard_superadmin()
+        # Aucun type reconnu (client, personnel sans role_config) : jamais de repli
+        # sur le tableau de bord super admin, qui expose les chiffres de la plateforme.
+        return error_response(
+            message="Le tableau de bord est réservé au personnel du restaurant.",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
 
     # ── Admin / Manager ────────────────────────────────────────────────────────
 
