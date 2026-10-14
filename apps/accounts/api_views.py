@@ -4,7 +4,6 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.throttling import ScopedRateThrottle
-from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db.models import Q
@@ -25,6 +24,7 @@ from .permissions import (
 )
 from .perm_codes import PERM_MANAGE_ROLES, PERM_DEACTIVATE_EQUIPE
 from .serializers import (
+    emettre_refresh,
     LoginSerializer,
     LogoutSerializer,
     UserMeSerializer,
@@ -460,7 +460,7 @@ class ImpersonateView(APIView):
         if not target.actif:
             return error_response(message="Impossible de simuler un utilisateur inactif.")
 
-        refresh = RefreshToken.for_user(target)
+        refresh = emettre_refresh(target)
         return success_response(
             data={
                 'access': str(refresh.access_token),

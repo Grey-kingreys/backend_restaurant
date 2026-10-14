@@ -12,6 +12,16 @@ from .services.email_service import send_password_reset_email
 logger = logging.getLogger(__name__)
 
 
+def emettre_refresh(user):
+    """Émet le refresh token avec les mêmes claims pour tous les flux
+    (connexion, inscription client, connexion QR, simulation)."""
+    refresh = RefreshToken.for_user(user)
+    refresh['role'] = user.role
+    refresh['nom_complet'] = user.nom_complet
+    refresh['restaurant_id'] = user.restaurant_id
+    return refresh
+
+
 def get_role_config_for_role(role: str) -> RoleConfig | None:
     """
     Récupère le RoleConfig système pour un rôle donné.
@@ -114,11 +124,7 @@ class LoginSerializer(serializers.Serializer):
         return data
 
     def get_tokens(self, user):
-        refresh = RefreshToken.for_user(user)
-        # Enrichir le payload JWT
-        refresh['role'] = user.role
-        refresh['nom_complet'] = user.nom_complet
-        refresh['restaurant_id'] = user.restaurant_id
+        refresh = emettre_refresh(user)
         return {
             'access': str(refresh.access_token),
             'refresh': str(refresh),

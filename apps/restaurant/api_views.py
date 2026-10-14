@@ -442,8 +442,7 @@ class QRLoginView(APIView):
         tags=["Authentification"],
     )
     def post(self, request, token):
-        from rest_framework_simplejwt.tokens import RefreshToken
-        from apps.accounts.serializers import UserMeSerializer
+        from apps.accounts.serializers import UserMeSerializer, emettre_refresh
         from .models import haversine
 
         try:
@@ -503,7 +502,7 @@ class QRLoginView(APIView):
         )
 
         token_obj.marquer_utilise()
-        refresh = RefreshToken.for_user(table)
+        refresh = emettre_refresh(table)
 
         return ok(
             data={

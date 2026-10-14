@@ -13,7 +13,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework import status
-from rest_framework_simplejwt.tokens import RefreshToken
+from apps.accounts.serializers import emettre_refresh
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 from drf_spectacular.types import OpenApiTypes
 
@@ -138,7 +138,7 @@ class ClientRegisterView(APIView):
             must_change_password=False,
         )
 
-        refresh = RefreshToken.for_user(user)
+        refresh = emettre_refresh(user)
         return ok(
             data={
                 'access': str(refresh.access_token),
