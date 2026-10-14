@@ -16,6 +16,13 @@ urlpatterns = [
         name='client-register'
     ),
 
+    # ── Configuration des applications mobiles (versions) ────────────────
+    path(
+        'config-app/',
+        api_views.ConfigAppView.as_view(),
+        name='config-app'
+    ),
+
     # ── Contact (formulaire vitrine) ──────────────────────────────────────
     path(
         'contact/',

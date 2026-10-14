@@ -29,6 +29,7 @@ from .schemas import (
     ReserverRequeteSerializer, ReservationClientDocSerializer,
     MesReservationsDocSerializer, SuiviCommandeDocSerializer,
     LivraisonPubliqueDocSerializer, ActionLivraisonRequeteSerializer,
+    ConfigAppDocSerializer,
 )
 
 from django.utils import timezone
@@ -1148,3 +1149,37 @@ class ContactView(APIView):
                 code=status.HTTP_502_BAD_GATEWAY,
             )
         return ok(message="Message envoyé. Nous vous répondrons rapidement.")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONFIGURATION DES APPLICATIONS MOBILES
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ConfigAppView(APIView):
+    """
+    GET /api/v1/public/config-app/ (alias /api/public/config-app/)
+    Versions minimales et recommandées des applications client et équipe.
+    Accès : Public, sans limitation de débit.
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Configuration des applications mobiles",
+        tags=["Public - Application"],
+        operation_id="public_config_app",
+        responses={
+            200: enveloppe('ConfigAppReponse', ConfigAppDocSerializer()),
+        },
+    )
+    def get(self, request):
+        return ok(data={
+            'client': {
+                'version_minimale': settings.APP_CLIENT_VERSION_MIN,
+                'version_recommandee': settings.APP_CLIENT_VERSION_RECOMMANDEE,
+            },
+            'equipe': {
+                'version_minimale': settings.APP_EQUIPE_VERSION_MIN,
+                'version_recommandee': settings.APP_EQUIPE_VERSION_RECOMMANDEE,
+            },
+            'message_mise_a_jour': settings.APP_MESSAGE_MISE_A_JOUR,
+        })

@@ -1,4 +1,5 @@
 import pytest
+from django.test import override_settings
 from rest_framework.test import APIClient
 
 from apps.commandes.models import Commande, CommandeItem
@@ -150,3 +151,26 @@ def test_cache_utilise_redis_hors_test():
         assert reglages.CACHES["default"]["BACKEND"].endswith("redis.RedisCache")
         assert reglages.CACHES["default"]["LOCATION"] == "redis://exemple:6379/1"
     importlib.reload(reglages)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("chemin", ["/api/v1/public/config-app/", "/api/public/config-app/"])
+@override_settings(
+    APP_CLIENT_VERSION_MIN="2.1.0",
+    APP_CLIENT_VERSION_RECOMMANDEE="2.3.0",
+    APP_EQUIPE_VERSION_MIN="1.4.0",
+    APP_EQUIPE_VERSION_RECOMMANDEE="1.5.0",
+    APP_MESSAGE_MISE_A_JOUR="Mettez l'application à jour.",
+)
+def test_config_app_accessible_sans_authentification_et_valeurs_configurables(chemin):
+    reponse = APIClient().get(chemin)
+    assert reponse.status_code == 200
+    assert reponse.json() == {
+        "success": True,
+        "data": {
+            "client": {"version_minimale": "2.1.0", "version_recommandee": "2.3.0"},
+            "equipe": {"version_minimale": "1.4.0", "version_recommandee": "1.5.0"},
+            "message_mise_a_jour": "Mettez l'application à jour.",
+        },
+        "message": "",
+    }

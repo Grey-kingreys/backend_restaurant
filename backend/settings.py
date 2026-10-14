@@ -343,6 +343,17 @@ ZENDOU_FROM_EMAIL = os.getenv('ZENDOU_FROM_EMAIL', 'resfly <noreply@resfly.org>'
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
 # ------------------------------------------
+# Versions des applications mobiles, lues par GET /api/v1/public/config-app/.
+# ------------------------------------------
+APP_CLIENT_VERSION_MIN = os.getenv('APP_CLIENT_VERSION_MIN', '1.0.0')
+APP_CLIENT_VERSION_RECOMMANDEE = os.getenv('APP_CLIENT_VERSION_RECOMMANDEE', '1.0.0')
+APP_EQUIPE_VERSION_MIN = os.getenv('APP_EQUIPE_VERSION_MIN', '1.0.0')
+APP_EQUIPE_VERSION_RECOMMANDEE = os.getenv('APP_EQUIPE_VERSION_RECOMMANDEE', '1.0.0')
+APP_MESSAGE_MISE_A_JOUR = os.getenv(
+    'APP_MESSAGE_MISE_A_JOUR', 'Une mise à jour est nécessaire pour continuer.',
+)
+
+# ------------------------------------------
 # Nimba SMS (opérateur guinéen) - envoi de SMS transactionnels
 # Laisser SID/TOKEN vides désactive proprement l'envoi (no-op loggé en dev).
 # Le sender_name doit être validé au préalable sur le dashboard Nimba (24-48h).

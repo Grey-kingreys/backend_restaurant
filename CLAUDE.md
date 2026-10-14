@@ -254,6 +254,11 @@ CORS_ALLOWED_ORIGINS                (ex. http://localhost:3000)
 ZENDOU_API_KEY
 ZENDOU_FROM_EMAIL
 FRONTEND_URL
+APP_CLIENT_VERSION_MIN              (défaut: 1.0.0 ; GET /api/v1/public/config-app/)
+APP_CLIENT_VERSION_RECOMMANDEE      (défaut: 1.0.0)
+APP_EQUIPE_VERSION_MIN              (défaut: 1.0.0)
+APP_EQUIPE_VERSION_RECOMMANDEE      (défaut: 1.0.0)
+APP_MESSAGE_MISE_A_JOUR             (défaut: « Une mise à jour est nécessaire pour continuer. »)
 USE_S3                              (False en dev)
 AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_STORAGE_BUCKET_NAME
 AWS_S3_REGION_NAME / AWS_S3_LOCATION / AWS_S3_CUSTOM_DOMAIN

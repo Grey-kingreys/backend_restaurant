@@ -264,3 +264,14 @@ class LivraisonPubliqueDocSerializer(serializers.Serializer):
     items = LivraisonArticleDocSerializer(many=True)
     paiement_autorise = serializers.BooleanField()
     actions = LivraisonActionsDocSerializer()
+
+
+class VersionAppDocSerializer(serializers.Serializer):
+    version_minimale = serializers.CharField(help_text="En dessous, l'application ne fonctionne plus.")
+    version_recommandee = serializers.CharField(help_text="Version conseillée à l'utilisateur.")
+
+
+class ConfigAppDocSerializer(serializers.Serializer):
+    client = VersionAppDocSerializer()
+    equipe = VersionAppDocSerializer()
+    message_mise_a_jour = serializers.CharField(help_text="Message affiché quand une mise à jour est requise.")
