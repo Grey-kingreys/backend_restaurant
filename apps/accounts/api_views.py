@@ -8,8 +8,16 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db.models import Q
-from drf_spectacular.utils import extend_schema, OpenApiResponse
+from rest_framework_simplejwt.views import TokenRefreshView
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 
+from apps.schema_openapi import enveloppe, enveloppe_sans_data, erreurs
+from .schemas import (
+    ConnexionDocSerializer, RafraichirJetonRequeteSerializer, RafraichirJetonDocSerializer,
+    UtilisateursListeDocSerializer, ReinitialisationConfirmeeDocSerializer,
+    RolesListeDocSerializer,
+)
 from .models import User, Permission, RoleConfig, AdresseClient
 from .permissions import (
     IsRestaurantActive, IsSameRestaurant, IsClient,
@@ -71,8 +79,8 @@ class LoginView(APIView):
         ),
         request=LoginSerializer,
         responses={
-            200: OpenApiResponse(description="Tokens JWT + infos utilisateur"),
-            400: OpenApiResponse(description="Identifiants invalides"),
+            200: enveloppe('LoginReponse', ConnexionDocSerializer()),
+            **erreurs(400, 429),
         },
         tags=["Auth"],
     )
@@ -102,8 +110,8 @@ class LogoutView(APIView):
         description="Blackliste le refresh token. L'access token reste valide jusqu'à son expiration naturelle.",
         request=LogoutSerializer,
         responses={
-            200: OpenApiResponse(description="Déconnexion réussie"),
-            400: OpenApiResponse(description="Token invalide"),
+            200: enveloppe_sans_data('LogoutReponse'),
+            **erreurs(400, 401),
         },
         tags=["Auth"],
     )
@@ -122,8 +130,8 @@ class MeView(APIView):
         summary="Profil de l'utilisateur connecté",
         description="Retourne les informations complètes de l'utilisateur authentifié.",
         responses={
-            200: UserMeSerializer,
-            401: OpenApiResponse(description="Non authentifié"),
+            200: enveloppe('MeReponse', UserMeSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Auth"],
     )
@@ -136,8 +144,8 @@ class MeView(APIView):
         description="Permet à l'utilisateur connecté de modifier son nom, son email et son téléphone.",
         request=UpdateMeSerializer,
         responses={
-            200: UserMeSerializer,
-            400: OpenApiResponse(description="Données invalides"),
+            200: enveloppe('MeModifieReponse', UserMeSerializer()),
+            **erreurs(400, 401, 403),
         },
         tags=["Auth"],
     )
@@ -165,8 +173,8 @@ class ChangePasswordView(APIView):
         ),
         request=ChangePasswordSerializer,
         responses={
-            200: OpenApiResponse(description="Mot de passe modifié"),
-            400: OpenApiResponse(description="Ancien mot de passe incorrect ou mots de passe non concordants"),
+            200: enveloppe_sans_data('ChangePasswordReponse'),
+            **erreurs(400, 401),
         },
         tags=["Auth"],
     )
@@ -189,13 +197,21 @@ class UserListCreateView(APIView):
 
     @extend_schema(
         summary="Lister les utilisateurs du restaurant",
+        operation_id="accounts_auth_users_list",
         description=(
-            "Retourne la liste paginée des utilisateurs du restaurant connecté.\n"
+            "Retourne la liste des utilisateurs du restaurant connecté (non paginée).\n"
             "Filtres disponibles : `?role=Rserveur`, `?actif=true`"
         ),
+        parameters=[
+            OpenApiParameter('role', OpenApiTypes.STR, description="Filtrer par rôle, par exemple Rserveur."),
+            OpenApiParameter(
+                'actif', OpenApiTypes.STR,
+                description="`true` (défaut) pour les comptes actifs, toute autre valeur pour les inactifs.",
+            ),
+        ],
         responses={
-            200: UserListSerializer(many=True),
-            403: OpenApiResponse(description="Accès réservé Admin/Manager"),
+            200: enveloppe('UtilisateursListeReponse', UtilisateursListeDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Utilisateurs"],
     )
@@ -234,9 +250,8 @@ class UserListCreateView(APIView):
         ),
         request=UserCreateSerializer,
         responses={
-            201: UserDetailSerializer,
-            400: OpenApiResponse(description="Données invalides"),
-            403: OpenApiResponse(description="Accès réservé Admin/Manager"),
+            201: enveloppe('UtilisateurCreeReponse', UserDetailSerializer()),
+            **erreurs(400, 401, 403),
         },
         tags=["Utilisateurs"],
     )
@@ -268,9 +283,8 @@ class UserDetailView(APIView):
     @extend_schema(
         summary="Détail d'un utilisateur",
         responses={
-            200: UserDetailSerializer,
-            403: OpenApiResponse(description="Accès réservé Admin/Manager"),
-            404: OpenApiResponse(description="Utilisateur introuvable"),
+            200: enveloppe('UtilisateurDetailReponse', UserDetailSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["Utilisateurs"],
     )
@@ -283,10 +297,8 @@ class UserDetailView(APIView):
         description="Mise à jour partielle (nom, email, téléphone, rôle). Seul l'Admin peut modifier le rôle vers Admin/Manager.",
         request=UserUpdateSerializer,
         responses={
-            200: UserDetailSerializer,
-            400: OpenApiResponse(description="Données invalides"),
-            403: OpenApiResponse(description="Accès réservé Admin/Manager"),
-            404: OpenApiResponse(description="Utilisateur introuvable"),
+            200: enveloppe('UtilisateurModifieReponse', UserDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Utilisateurs"],
     )
@@ -304,17 +316,17 @@ class UserDetailView(APIView):
         return error_response(errors=serializer.errors, message="Données invalides.")
 
     @extend_schema(
-        summary="Supprimer un utilisateur",
+        summary="Désactiver un utilisateur",
         description=(
-            "Suppression définitive. **Accès Admin uniquement.**\n\n"
-            "- Un Admin ne peut pas se supprimer lui-même\n"
-            "- Le Super Admin ne peut pas être supprimé via cette route"
+            "Désactivation (suppression douce) : le compte passe à `actif=false`, "
+            "ses données historiques sont conservées. Réservé à la permission "
+            "`deactivate_equipe`.\n\n"
+            "- On ne peut pas désactiver son propre compte\n"
+            "- Un compte déjà désactivé est refusé"
         ),
         responses={
-            200: OpenApiResponse(description="Utilisateur supprimé"),
-            400: OpenApiResponse(description="Suppression impossible"),
-            403: OpenApiResponse(description="Accès réservé à l'Administrateur"),
-            404: OpenApiResponse(description="Utilisateur introuvable"),
+            200: enveloppe_sans_data('UtilisateurDesactiveReponse'),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Utilisateurs"],
     )
@@ -352,10 +364,8 @@ class UserToggleView(APIView):
         ),
         request=None,
         responses={
-            200: UserDetailSerializer,
-            400: OpenApiResponse(description="Impossible de désactiver son propre compte"),
-            403: OpenApiResponse(description="Accès réservé Admin/Manager"),
-            404: OpenApiResponse(description="Utilisateur introuvable"),
+            200: enveloppe('UtilisateurBasculeReponse', UserDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Utilisateurs"],
     )
@@ -397,9 +407,8 @@ class AdminPasswordResetView(APIView):
         ),
         request=AdminPasswordResetSerializer,
         responses={
-            200: OpenApiResponse(description="Mot de passe réinitialisé"),
-            403: OpenApiResponse(description="Accès réservé Admin/Manager"),
-            404: OpenApiResponse(description="Utilisateur introuvable"),
+            200: enveloppe_sans_data('AdminPasswordResetReponse'),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Utilisateurs"],
     )
@@ -432,10 +441,8 @@ class ImpersonateView(APIView):
         ),
         request=None,
         responses={
-            200: OpenApiResponse(description="Tokens JWT de l'utilisateur simulé"),
-            400: OpenApiResponse(description="Simulation impossible"),
-            403: OpenApiResponse(description="Accès réservé à l'Administrateur"),
-            404: OpenApiResponse(description="Utilisateur introuvable"),
+            200: enveloppe('ImpersonationReponse', ConnexionDocSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Auth"],
     )
@@ -479,7 +486,8 @@ class PasswordResetRequestView(APIView):
         ),
         request=PasswordResetRequestSerializer,
         responses={
-            200: OpenApiResponse(description="Email envoyé si l'adresse existe"),
+            200: enveloppe_sans_data('PasswordResetRequestReponse'),
+            **erreurs(429),
         },
         tags=["Mot de passe"],
     )
@@ -504,8 +512,8 @@ class PasswordResetConfirmView(APIView):
         ),
         request=PasswordResetConfirmSerializer,
         responses={
-            200: OpenApiResponse(description="Mot de passe réinitialisé - l'utilisateur peut se connecter"),
-            400: OpenApiResponse(description="Token invalide, expiré ou mots de passe non concordants"),
+            200: enveloppe('PasswordResetConfirmReponse', ReinitialisationConfirmeeDocSerializer()),
+            **erreurs(400),
         },
         tags=["Mot de passe"],
     )
@@ -531,7 +539,10 @@ class PermissionListView(APIView):
     @extend_schema(
         summary="Catalogue des permissions",
         description="Retourne toutes les permissions disponibles, groupées par catégorie. Accès : manage_roles.",
-        responses={200: PermissionSerializer(many=True)},
+        responses={
+            200: enveloppe('PermissionsListeReponse', PermissionSerializer(many=True)),
+            **erreurs(401, 403),
+        },
         tags=["Rôles"],
     )
     def get(self, request):
@@ -557,11 +568,15 @@ class RoleConfigListCreateView(APIView):
 
     @extend_schema(
         summary="Liste des rôles",
+        operation_id="accounts_roles_list",
         description=(
             "Retourne les rôles système (is_system=True) + les rôles custom du restaurant connecté.\n"
             "Accès : manage_roles."
         ),
-        responses={200: RoleConfigListSerializer(many=True)},
+        responses={
+            200: enveloppe('RolesListeReponse', RolesListeDocSerializer()),
+            **erreurs(401, 403),
+        },
         tags=["Rôles"],
     )
     def get(self, request):
@@ -585,9 +600,8 @@ class RoleConfigListCreateView(APIView):
         description="Crée un rôle personnalisé pour le restaurant. Accès : manage_roles.",
         request=RoleConfigCreateSerializer,
         responses={
-            201: RoleConfigDetailSerializer,
-            400: OpenApiResponse(description="Données invalides"),
-            403: OpenApiResponse(description="Permission manage_roles requise"),
+            201: enveloppe('RoleCreeReponse', RoleConfigDetailSerializer()),
+            **erreurs(400, 401, 403),
         },
         tags=["Rôles"],
     )
@@ -629,7 +643,10 @@ class RoleConfigDetailView(APIView):
 
     @extend_schema(
         summary="Détail d'un rôle",
-        responses={200: RoleConfigDetailSerializer},
+        responses={
+            200: enveloppe('RoleDetailReponse', RoleConfigDetailSerializer()),
+            **erreurs(401, 403, 404),
+        },
         tags=["Rôles"],
     )
     def get(self, request, pk):
@@ -645,8 +662,8 @@ class RoleConfigDetailView(APIView):
         description="Modification partielle (nom, dashboard_type, permissions) d'un rôle custom du restaurant. Les rôles système sont protégés (403).",
         request=RoleConfigUpdateSerializer,
         responses={
-            200: RoleConfigDetailSerializer,
-            400: OpenApiResponse(description="Données invalides"),
+            200: enveloppe('RoleModifieReponse', RoleConfigDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Rôles"],
     )
@@ -674,8 +691,8 @@ class RoleConfigDetailView(APIView):
         summary="Supprimer un rôle",
         description="Suppression d'un rôle. Impossible si des utilisateurs y sont encore associés.",
         responses={
-            200: OpenApiResponse(description="Rôle supprimé"),
-            400: OpenApiResponse(description="Des utilisateurs utilisent encore ce rôle"),
+            200: enveloppe_sans_data('RoleSupprimeReponse'),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Rôles"],
     )
@@ -710,7 +727,10 @@ class AdresseClientListCreateView(APIView):
     @extend_schema(
         summary="Lister mes adresses de livraison",
         description="Retourne le carnet d'adresses du client, l'adresse par défaut en tête.",
-        responses={200: AdresseClientSerializer(many=True)},
+        responses={
+            200: enveloppe('AdressesListeReponse', AdresseClientSerializer(many=True)),
+            **erreurs(401, 403),
+        },
         tags=["Carnet d'adresses"],
     )
     def get(self, request):
@@ -720,7 +740,10 @@ class AdresseClientListCreateView(APIView):
     @extend_schema(
         summary="Ajouter une adresse de livraison",
         request=AdresseClientSerializer,
-        responses={201: AdresseClientSerializer, 400: OpenApiResponse(description="Données invalides")},
+        responses={
+            201: enveloppe('AdresseCreeeReponse', AdresseClientSerializer()),
+            **erreurs(400, 401, 403),
+        },
         tags=["Carnet d'adresses"],
     )
     def post(self, request):
@@ -751,7 +774,10 @@ class AdresseClientDetailView(APIView):
     @extend_schema(
         summary="Modifier une adresse",
         request=AdresseClientSerializer,
-        responses={200: AdresseClientSerializer, 404: OpenApiResponse(description="Adresse introuvable")},
+        responses={
+            200: enveloppe('AdresseModifieeReponse', AdresseClientSerializer()),
+            **erreurs(400, 401, 403, 404),
+        },
         tags=["Carnet d'adresses"],
     )
     def patch(self, request, pk):
@@ -767,7 +793,10 @@ class AdresseClientDetailView(APIView):
 
     @extend_schema(
         summary="Supprimer une adresse",
-        responses={200: OpenApiResponse(description="Adresse supprimée")},
+        responses={
+            200: enveloppe_sans_data('AdresseSupprimeeReponse'),
+            **erreurs(401, 403, 404),
+        },
         tags=["Carnet d'adresses"],
     )
     def delete(self, request, pk):
@@ -790,7 +819,11 @@ class AdresseClientSetDefaultView(APIView):
 
     @extend_schema(
         summary="Définir une adresse par défaut",
-        responses={200: AdresseClientSerializer, 404: OpenApiResponse(description="Adresse introuvable")},
+        request=None,  # action sans corps : l'adresse est désignée par l'URL
+        responses={
+            200: enveloppe('AdresseParDefautReponse', AdresseClientSerializer()),
+            **erreurs(401, 403, 404),
+        },
         tags=["Carnet d'adresses"],
     )
     def post(self, request, pk):
@@ -804,3 +837,24 @@ class AdresseClientSetDefaultView(APIView):
             data=AdresseClientSerializer(adresse).data,
             message="Adresse par défaut mise à jour.",
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RAFRAÎCHISSEMENT DU JETON (vue SimpleJWT, routée dans urls.py)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Description de la vue SimpleJWT sans la modifier : elle renvoie {access, refresh}
+# hors enveloppe (rest_framework_simplejwt/views.py, TokenViewBase.post).
+extend_schema_view(
+    post=extend_schema(
+        summary="Rafraîchir le jeton d'accès",
+        description="Échange un refresh token valide contre un nouvel access token. "
+                    "Le refresh token est renouvelé (rotation) et l'ancien est blacklisté.",
+        request=RafraichirJetonRequeteSerializer,
+        responses={
+            200: RafraichirJetonDocSerializer,
+            **erreurs(400, 401),
+        },
+        tags=["Auth"],
+    )
+)(TokenRefreshView)

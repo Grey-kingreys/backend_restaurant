@@ -23,6 +23,7 @@ DESCRIPTIONS_ERREURS = {
     403: "Accès refusé.",
     404: "Ressource introuvable.",
     409: "Conflit avec l'état actuel de la ressource.",
+    410: "Ressource expirée ou déjà utilisée.",
     429: "Trop de requêtes, réessayer plus tard.",
     500: "Erreur serveur interne.",
     502: "Service externe en échec.",

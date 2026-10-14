@@ -164,20 +164,20 @@ class UserMeSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_restaurant_nom(self, obj):
+    def get_restaurant_nom(self, obj) -> str | None:
         return obj.restaurant.nom if obj.restaurant else None
 
-    def get_statut(self, obj):
+    def get_statut(self, obj) -> str:
         return "actif" if obj.actif else "inactif"
 
-    def get_permissions(self, obj):
+    def get_permissions(self, obj) -> list[str]:
         """Liste des codes de permissions de l'utilisateur."""
         return sorted(obj.get_all_permissions_codes())
 
-    def get_role_config_id(self, obj):
+    def get_role_config_id(self, obj) -> int | None:
         return obj.role_config_id
 
-    def get_dashboard_type(self, obj):
+    def get_dashboard_type(self, obj) -> str | None:
         if obj.role_config_id:
             return obj.role_config.dashboard_type
         if obj.is_super_admin():
@@ -257,7 +257,7 @@ class UserListSerializer(serializers.ModelSerializer):
             'actif', 'must_change_password', 'date_creation',
         ]
 
-    def get_restaurant_nom(self, obj):
+    def get_restaurant_nom(self, obj) -> str | None:
         return obj.restaurant.nom if obj.restaurant else None
 
 
@@ -276,10 +276,10 @@ class UserDetailSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'login', 'date_creation', 'last_login']
 
-    def get_restaurant_nom(self, obj):
+    def get_restaurant_nom(self, obj) -> str | None:
         return obj.restaurant.nom if obj.restaurant else None
 
-    def get_role_display(self, obj):
+    def get_role_display(self, obj) -> str:
         return obj.get_role_display()
 
 
@@ -564,13 +564,13 @@ class RoleConfigListSerializer(serializers.ModelSerializer):
             'permissions_count', 'users_count',
         ]
 
-    def get_permissions_count(self, obj):
+    def get_permissions_count(self, obj) -> int:
         return obj.permissions.count()
 
-    def get_users_count(self, obj):
+    def get_users_count(self, obj) -> int:
         return obj.users.count()
 
-    def get_dashboard_label(self, obj):
+    def get_dashboard_label(self, obj) -> str:
         return dict(RoleConfig.DASHBOARD_CHOICES).get(obj.dashboard_type, obj.dashboard_type)
 
 
@@ -587,13 +587,13 @@ class RoleConfigDetailSerializer(serializers.ModelSerializer):
             'permissions', 'permission_codes', 'users_count',
         ]
 
-    def get_permission_codes(self, obj):
+    def get_permission_codes(self, obj) -> list[str]:
         return sorted(obj.get_permission_codes())
 
-    def get_users_count(self, obj):
+    def get_users_count(self, obj) -> int:
         return obj.users.count()
 
-    def get_dashboard_label(self, obj):
+    def get_dashboard_label(self, obj) -> str:
         return dict(RoleConfig.DASHBOARD_CHOICES).get(obj.dashboard_type, obj.dashboard_type)
 
 

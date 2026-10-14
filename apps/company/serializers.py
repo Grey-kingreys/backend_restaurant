@@ -33,14 +33,14 @@ class RestaurantSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
-    def get_has_geo(self, obj):
+    def get_has_geo(self, obj) -> bool:
         return obj.latitude is not None and obj.longitude is not None
 
-    def get_nombre_utilisateurs(self, obj):
+    def get_nombre_utilisateurs(self, obj) -> int:
         # Exclut les Rtable du compte - ce sont des comptes systeme
         return obj.users.filter(is_active=True).exclude(role='Rtable').count()
 
-    def get_statut(self, obj):
+    def get_statut(self, obj) -> str:
         return "actif" if obj.is_active else "suspendu"
 
 

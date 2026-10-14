@@ -39,6 +39,8 @@ from apps.accounts.perm_codes import (
     PERM_VIEW_TABLES, PERM_MANAGE_TABLES,
     PERM_MANAGE_COMMANDES,
 )
+from apps.schema_openapi import enveloppe, erreurs
+from .schemas import QRLoginRequeteSerializer, QRLoginDocSerializer
 from .models import TableRestaurant, TableToken, TableSession
 from .serializers import (
     TableRestaurantListSerializer,
@@ -424,9 +426,10 @@ class QRLoginView(APIView):
             "- Crée une session avec expiration\n\n"
             "**Accès :** Public"
         ),
+        request=QRLoginRequeteSerializer,
         responses={
-            200: OpenApiResponse(description="Tokens JWT + session_token"),
-            400: OpenApiResponse(description="QR Code invalide, expiré ou hors zone"),
+            200: enveloppe('QRLoginReponse', QRLoginDocSerializer()),
+            **erreurs(400),
         },
         tags=["Authentification"],
     )
