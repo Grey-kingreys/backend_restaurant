@@ -76,6 +76,8 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
+    # Seul l'alias /api/v1/ est décrit (l'app mobile n'utilise que lui)
+    'PREPROCESSING_HOOKS': ['apps.schema_openapi.seulement_api_v1'],
     # Noms explicites des enums dont le champ porte le même nom dans plusieurs modèles
     'ENUM_NAME_OVERRIDES': {
         'StatutCommandeEnum': 'apps.commandes.models.Commande.STATUS_CHOICES',

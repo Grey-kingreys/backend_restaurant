@@ -17,6 +17,13 @@ class ErreurSerializer(serializers.Serializer):
     message = serializers.CharField(help_text="Message lisible, affichable tel quel.")
 
 
+def seulement_api_v1(endpoints):
+    """Hook de prétraitement : seules les routes /api/v1/ sont décrites.
+    Les routes /api/... historiques (web) restent servies mais ne sont pas
+    dupliquées dans le schéma (operationId en collision)."""
+    return [e for e in endpoints if e[0].startswith('/api/v1/')]
+
+
 DESCRIPTIONS_ERREURS = {
     400: "Données invalides.",
     401: "Authentification requise.",

@@ -33,6 +33,16 @@ urlpatterns = [
     # ── Vitrine publique ──────────────────────────────────────────────────
     path('api/public/', include('apps.public.api_urls')),
 
+    # ── Alias versionné /api/v1/ : mêmes routes, espaces de noms distincts ─
+    path('api/v1/company/', include(('apps.company.urls', 'company'), namespace='company_v1')),
+    path('api/v1/accounts/', include(('apps.accounts.urls', 'accounts'), namespace='accounts_v1')),
+    path('api/v1/menu/', include(('apps.menu.urls', 'menu'), namespace='menu_v1')),
+    path('api/v1/commandes/', include(('apps.commandes.urls', 'commandes'), namespace='commandes_v1')),
+    path('api/v1/restaurant/', include(('apps.restaurant.api_urls', 'restaurant_api'), namespace='restaurant_api_v1')),
+    path('api/v1/paiements/', include(('apps.paiements.urls', 'paiements'), namespace='paiements_v1')),
+    path('api/v1/dashboard/', include(('apps.dashboard.urls', 'dashboard'), namespace='dashboard_v1')),
+    path('api/v1/public/', include(('apps.public.api_urls', 'public_api'), namespace='public_api_v1')),
+
     # ── Prometheus ────────────────────────────────────────────────────────
     path('', include('django_prometheus.urls')),
 ]
