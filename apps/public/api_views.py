@@ -54,15 +54,14 @@ def err(message="Erreur.", code=status.HTTP_400_BAD_REQUEST, errors=None):
 
 def get_restaurant_by_slug(slug):
     """Retourne le restaurant actif correspondant au slug ou None."""
-    try:
-        return Restaurant.objects.get(is_active=True, nom__iexact=slug.replace('-', ' '))
-    except Restaurant.DoesNotExist:
-        pass
-    # Deuxième tentative : slug dérivé (lebaobab → Le Baobab)
-    for resto in Restaurant.objects.filter(is_active=True):
-        if resto.get_slug() == slug:
-            return resto
-    return None
+    resto = Restaurant.objects.filter(is_active=True, slug=slug).first()
+    if resto:
+        return resto
+    # Repli : forme dérivée du nom (le-baobab → Le Baobab), des liens de cette
+    # forme ont pu être partagés avant l'existence du champ slug.
+    return Restaurant.objects.filter(
+        is_active=True, nom__iexact=slug.replace('-', ' ')
+    ).first()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -280,7 +279,7 @@ class PlatsPublicListView(APIView):
                 ),
                 'restaurant': {
                     'nom': p.restaurant.nom,
-                    'slug': p.restaurant.get_slug(),
+                    'slug': p.restaurant.slug,
                     'adresse': p.restaurant.adresse,
                     'latitude': str(p.restaurant.latitude) if p.restaurant.latitude else None,
                     'longitude': str(p.restaurant.longitude) if p.restaurant.longitude else None,
@@ -295,7 +294,7 @@ def _serialize_restaurant(r):
     return {
         'id': r.id,
         'nom': r.nom,
-        'slug': r.get_slug(),
+        'slug': r.slug,
         'adresse': r.adresse,
         'telephone': r.telephone,
         'latitude': str(r.latitude) if r.latitude else None,
@@ -451,7 +450,7 @@ class CommanderView(APIView):
                 'montant_total': str(commande.montant_total),
                 'type_commande': commande.type_commande,
                 'mode_paiement': commande.mode_paiement,
-                'suivi_url': f"{settings.FRONTEND_URL.rstrip('/')}/restaurant/{resto.get_slug()}/confirmation/{cle}/",
+                'suivi_url': f"{settings.FRONTEND_URL.rstrip('/')}/restaurant/{resto.slug}/confirmation/{cle}/",
             },
             message="Commande passée avec succès !",
             code=status.HTTP_201_CREATED,
@@ -505,7 +504,7 @@ class MesCommandesClientView(APIView):
                 'commande_id': cmd.id,
                 'cle_suivi': cmd.cle_suivi,
                 'restaurant': cmd.restaurant.nom,
-                'restaurant_slug': cmd.restaurant.get_slug(),
+                'restaurant_slug': cmd.restaurant.slug,
                 'statut': cmd.statut,
                 'statut_label': STATUT_LABELS.get(cmd.statut, cmd.statut),
                 'type_commande': cmd.type_commande,
@@ -678,7 +677,7 @@ def _serialize_reservation(r):
     return {
         'id': r.id,
         'restaurant': r.restaurant.nom,
-        'restaurant_slug': r.restaurant.get_slug(),
+        'restaurant_slug': r.restaurant.slug,
         'date_reservation': r.date_reservation.isoformat(),
         'heure': r.heure.strftime('%H:%M'),
         'heure_fin': _heure_fin_str(r.heure, r.duree_minutes),
