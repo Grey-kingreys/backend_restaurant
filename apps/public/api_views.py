@@ -74,6 +74,8 @@ class ClientRegisterView(APIView):
     Accès : Public
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'register'
 
     @extend_schema(
         summary="Inscription client",
@@ -81,7 +83,7 @@ class ClientRegisterView(APIView):
         request=InscriptionClientRequeteSerializer,
         responses={
             201: enveloppe('InscriptionClientReponse', InscriptionClientDocSerializer()),
-            **erreurs(400),
+            **erreurs(400, 429),
         },
     )
     def post(self, request):

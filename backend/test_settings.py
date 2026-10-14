@@ -22,6 +22,13 @@ RESEND_KEY = ''
 NIMBA_SMS_SID = ''
 NIMBA_SMS_TOKEN = ''
 
+# Cache en mémoire locale : isolation des tests (compteurs de throttle notamment)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    },
+}
+
 # Désactiver Celery - exécuter les tâches immédiatement
 CELERY_ALWAYS_EAGER = True
 CELERY_EAGER_PROPAGATES_EXCEPTIONS = True

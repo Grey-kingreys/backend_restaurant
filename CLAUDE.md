@@ -246,7 +246,8 @@ SECRET_KEY
 DEBUG
 ALLOWED_HOSTS
 DB_NAME / DB_USER / DB_PASSWORD / DB_HOST / DB_PORT / DB_SSLMODE
-REDIS_URL
+REDIS_URL                           (broker Celery et cache Django, dont les compteurs de throttle)
+NUM_PROXIES                         (défaut: 0 ; 1 derrière Traefik, à confirmer en préproduction)
 JWT_ACCESS_TOKEN_LIFETIME_MINUTES   (défaut: 60)
 JWT_REFRESH_TOKEN_LIFETIME_DAYS     (défaut: 7)
 CORS_ALLOWED_ORIGINS                (ex. http://localhost:3000)

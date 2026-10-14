@@ -185,6 +185,20 @@ REST_FRAMEWORK = {
         'login': '10/minute',            # anti brute-force login (staff + tables)
         'password_reset': '5/hour',      # anti email-bombing / énumération
         'livraison_public': '30/minute', # anti brute-force du token de livraison
+        'register': '5/hour',            # anti création de comptes en masse (par IP)
+    },
+    # Nombre de proxys de confiance devant l'API (0 en dev, 1 derrière Traefik).
+    # Sans cela, tous les clients partagent l'IP du proxy pour les throttles.
+    'NUM_PROXIES': int(os.getenv('NUM_PROXIES', 0)),
+}
+
+# ------------------------------------------
+# CACHE - Redis partagé entre workers (compteurs des throttles notamment)
+# ------------------------------------------
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
     },
 }
 
