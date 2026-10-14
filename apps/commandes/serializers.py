@@ -3,6 +3,7 @@ import secrets
 
 from rest_framework import serializers
 from django.db import transaction
+from drf_spectacular.utils import extend_schema_field
 from .models import Commande, CommandeItem, PanierItem
 from apps.menu.models import Plat
 from apps.menu.serializers import PlatListSerializer
@@ -23,7 +24,7 @@ class PanierItemSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'date_ajout']
         extra_kwargs = {'plat': {'write_only': True}}
 
-    def get_sous_total(self, obj):
+    def get_sous_total(self, obj) -> str:
         return str(obj.sous_total)
 
 
@@ -80,17 +81,17 @@ class CommandeItemSerializer(serializers.ModelSerializer):
             'necessite_validation_cuisine',
         ]
 
-    def get_sous_total(self, obj):
+    def get_sous_total(self, obj) -> str:
         return str(obj.sous_total)
 
 
 class CommandeListSerializer(serializers.ModelSerializer):
     """Lecture allégée - pour les listes (toutes les vues)."""
     statut_display = serializers.CharField(source='get_statut_display', read_only=True)
-    table_login    = serializers.CharField(source='table.login', read_only=True, default=None)
+    table_login    = serializers.CharField(source='table.login', read_only=True, default=None, allow_null=True)
     type_commande_display = serializers.CharField(source='get_type_commande_display', read_only=True)
     client_display = serializers.SerializerMethodField()
-    nb_items       = serializers.SerializerMethodField()
+    nb_items      = serializers.SerializerMethodField()
     necessite_passage_cuisine = serializers.SerializerMethodField()
     peut_annuler_staff = serializers.BooleanField(read_only=True)
 
@@ -104,7 +105,7 @@ class CommandeListSerializer(serializers.ModelSerializer):
             'date_commande', 'date_modification',
         ]
 
-    def get_client_display(self, obj):
+    def get_client_display(self, obj) -> str:
         # Commande client en ligne → nom du client ; sinon identifiant de la table
         if obj.type_commande in ('livraison', 'emporter') and obj.client_nom:
             return obj.client_nom
@@ -112,11 +113,11 @@ class CommandeListSerializer(serializers.ModelSerializer):
             return obj.table.nom_complet or obj.table.login
         return obj.client_nom or "-"
 
-    def get_nb_items(self, obj):
+    def get_nb_items(self, obj) -> int:
         # items préfetchés (items__plat) → pas de requête supplémentaire
         return len(obj.items.all())
 
-    def get_necessite_passage_cuisine(self, obj):
+    def get_necessite_passage_cuisine(self, obj) -> bool:
         # Un plat au moins nécessite la validation cuisine ? (items préfetchés)
         return any(i.plat.necessite_validation_cuisine for i in obj.items.all())
 
@@ -125,9 +126,9 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
     """Lecture complète - pour le détail (toutes les vues)."""
     items                   = CommandeItemSerializer(many=True, read_only=True)
     statut_display          = serializers.CharField(source='get_statut_display', read_only=True)
-    table_login             = serializers.CharField(source='table.login', read_only=True, default=None)
+    table_login             = serializers.CharField(source='table.login', read_only=True, default=None, allow_null=True)
     type_commande_display   = serializers.CharField(source='get_type_commande_display', read_only=True)
-    mode_paiement_display   = serializers.CharField(source='get_mode_paiement_display', read_only=True)
+    mode_paiement_display   = serializers.CharField(source='get_mode_paiement_display', read_only=True, allow_null=True)
     client_display          = serializers.SerializerMethodField()
     serveur_login           = serializers.SerializerMethodField()
     cuisinier_login         = serializers.SerializerMethodField()
@@ -159,23 +160,23 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
             'date_commande', 'date_modification', 'date_paiement',
         ]
 
-    def get_annulee_par_login(self, obj):
+    def get_annulee_par_login(self, obj) -> str | None:
         return obj.annulee_par.login if obj.annulee_par else None
 
-    def get_client_display(self, obj):
+    def get_client_display(self, obj) -> str:
         if obj.type_commande in ('livraison', 'emporter') and obj.client_nom:
             return obj.client_nom
         if obj.table:
             return obj.table.nom_complet or obj.table.login
         return obj.client_nom or "-"
 
-    def get_serveur_login(self, obj):
+    def get_serveur_login(self, obj) -> str | None:
         return obj.serveur_ayant_servi.login if obj.serveur_ayant_servi else None
 
-    def get_cuisinier_login(self, obj):
+    def get_cuisinier_login(self, obj) -> str | None:
         return obj.cuisinier_ayant_prepare.login if obj.cuisinier_ayant_prepare else None
 
-    def get_necessite_passage_cuisine(self, obj):
+    def get_necessite_passage_cuisine(self, obj) -> bool:
         return obj.necessite_passage_cuisine()
 
 
@@ -397,8 +398,8 @@ class CommandeCuisinierSerializer(serializers.ModelSerializer):
     """Vue cuisine : commandes en_attente avec items nécessitant cuisine."""
     items          = CommandeItemSerializer(many=True, read_only=True)
     items_cuisine  = serializers.SerializerMethodField()
-    table_login    = serializers.CharField(source='table.login', read_only=True, default=None)
-    table_numero   = serializers.SerializerMethodField()
+    table_login    = serializers.CharField(source='table.login', read_only=True, default=None, allow_null=True)
+    table_numero  = serializers.SerializerMethodField()
     type_commande_display = serializers.CharField(source='get_type_commande_display', read_only=True)
     client_display = serializers.SerializerMethodField()
     statut_display = serializers.CharField(source='get_statut_display', read_only=True)
@@ -412,18 +413,19 @@ class CommandeCuisinierSerializer(serializers.ModelSerializer):
             'montant_total', 'items', 'items_cuisine', 'date_commande',
         ]
 
+    @extend_schema_field(CommandeItemSerializer(many=True))
     def get_items_cuisine(self, obj):
         items = obj.items.filter(plat__necessite_validation_cuisine=True)
         return CommandeItemSerializer(items, many=True).data
 
-    def get_table_numero(self, obj):
+    def get_table_numero(self, obj) -> str | None:
         # Numéro de table pour une commande sur place ; None pour une commande en ligne
         try:
             return obj.table.table_restaurant.numero_table
         except Exception:
             return None
 
-    def get_client_display(self, obj):
+    def get_client_display(self, obj) -> str | None:
         # Nom du client pour une commande en ligne (livraison / emporter)
         if obj.type_commande in ('livraison', 'emporter'):
             return obj.client_nom

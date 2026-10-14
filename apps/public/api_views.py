@@ -13,7 +13,21 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
-from drf_spectacular.utils import extend_schema, OpenApiResponse
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
+from drf_spectacular.types import OpenApiTypes
+
+from apps.schema_openapi import enveloppe, enveloppe_sans_data, erreurs
+from .schemas import (
+    InscriptionClientRequeteSerializer, InscriptionClientDocSerializer,
+    ContactRequeteSerializer, RestaurantListeDocSerializer,
+    RestaurantDetailDocSerializer, PlatsPublicsListeDocSerializer,
+    CommanderRequeteSerializer, CommandeCreeeDocSerializer,
+    MesCommandesDocSerializer, AnnulerCommandeRequeteSerializer,
+    CommandeAnnuleeDocSerializer, TablesDisponiblesDocSerializer,
+    ReserverRequeteSerializer, ReservationClientDocSerializer,
+    MesReservationsDocSerializer, SuiviCommandeDocSerializer,
+    LivraisonPubliqueDocSerializer, ActionLivraisonRequeteSerializer,
+)
 
 from django.utils import timezone
 from apps.company.models import Restaurant
@@ -64,6 +78,11 @@ class ClientRegisterView(APIView):
     @extend_schema(
         summary="Inscription client",
         tags=["Public - Auth"],
+        request=InscriptionClientRequeteSerializer,
+        responses={
+            201: enveloppe('InscriptionClientReponse', InscriptionClientDocSerializer()),
+            **erreurs(400),
+        },
     )
     def post(self, request):
         data = request.data
@@ -146,7 +165,14 @@ class RestaurantListPublicView(APIView):
     """
     permission_classes = [AllowAny]
 
-    @extend_schema(summary="Liste restaurants publics", tags=["Public - Restaurants"])
+    @extend_schema(
+        summary="Liste restaurants publics",
+        tags=["Public - Restaurants"],
+        operation_id="public_restaurants_list",
+        responses={
+            200: enveloppe('RestaurantListePubliqueReponse', RestaurantListeDocSerializer()),
+        },
+    )
     def get(self, request):
         restos = Restaurant.objects.filter(
             is_active=True
@@ -171,7 +197,14 @@ class RestaurantDetailPublicView(APIView):
     """
     permission_classes = [AllowAny]
 
-    @extend_schema(summary="Détail restaurant public + menu", tags=["Public - Restaurants"])
+    @extend_schema(
+        summary="Détail restaurant public + menu",
+        tags=["Public - Restaurants"],
+        responses={
+            200: enveloppe('RestaurantDetailPublicReponse', RestaurantDetailDocSerializer()),
+            **erreurs(404),
+        },
+    )
     def get(self, request, slug):
         resto = get_restaurant_by_slug(slug)
         if not resto:
@@ -209,7 +242,13 @@ class PlatsPublicListView(APIView):
     """
     permission_classes = [AllowAny]
 
-    @extend_schema(summary="Tous les plats publics", tags=["Public - Restaurants"])
+    @extend_schema(
+        summary="Tous les plats publics",
+        tags=["Public - Restaurants"],
+        responses={
+            200: enveloppe('PlatsPublicsListeReponse', PlatsPublicsListeDocSerializer()),
+        },
+    )
     def get(self, request):
         restos = Restaurant.objects.filter(is_active=True).filter(
             Q(accept_livraison=True) | Q(accept_emporter=True)
@@ -282,7 +321,15 @@ class CommanderView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(summary="Créer une commande livraison/emporter", tags=["Public - Commandes"])
+    @extend_schema(
+        summary="Créer une commande livraison/emporter",
+        tags=["Public - Commandes"],
+        request=CommanderRequeteSerializer,
+        responses={
+            201: enveloppe('CommanderReponse', CommandeCreeeDocSerializer()),
+            **erreurs(400, 401, 403, 404),
+        },
+    )
     def post(self, request, slug):
         user = request.user
         if user.role != 'Rclient':
@@ -400,7 +447,14 @@ class MesCommandesClientView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(summary="Mes commandes (client)", tags=["Public - Commandes"])
+    @extend_schema(
+        summary="Mes commandes (client)",
+        tags=["Public - Commandes"],
+        responses={
+            200: enveloppe('MesCommandesClientReponse', MesCommandesDocSerializer()),
+            **erreurs(401, 403),
+        },
+    )
     def get(self, request):
         user = request.user
         if user.role != 'Rclient':
@@ -458,7 +512,14 @@ class RecuPdfPublicView(APIView):
     """
     permission_classes = [AllowAny]
 
-    @extend_schema(summary="Télécharger le reçu (PDF public)", tags=["Public - Commandes"])
+    @extend_schema(
+        summary="Télécharger le reçu (PDF public)",
+        tags=["Public - Commandes"],
+        responses={
+            (200, 'application/pdf'): OpenApiResponse(OpenApiTypes.BINARY, description="Fichier PDF du reçu."),
+            **erreurs(404, 500),
+        },
+    )
     def get(self, request, cle_suivi):
         try:
             commande = (
@@ -488,7 +549,15 @@ class RenvoyerRecuSmsView(APIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'recu_sms'
 
-    @extend_schema(summary="Envoyer le reçu par SMS", tags=["Public - Commandes"])
+    @extend_schema(
+        summary="Envoyer le reçu par SMS",
+        tags=["Public - Commandes"],
+        request=None,  # action sans corps : le numéro vient de la commande
+        responses={
+            200: enveloppe_sans_data('RenvoyerRecuSmsReponse'),
+            **erreurs(400, 404, 429, 503),
+        },
+    )
     def post(self, request, cle_suivi):
         try:
             commande = Commande.objects.select_related('restaurant').get(cle_suivi=cle_suivi)
@@ -515,7 +584,15 @@ class AnnulerCommandeClientView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(summary="Annuler ma commande (client)", tags=["Public - Commandes"])
+    @extend_schema(
+        summary="Annuler ma commande (client)",
+        tags=["Public - Commandes"],
+        request=AnnulerCommandeRequeteSerializer,
+        responses={
+            200: enveloppe('AnnulerCommandeClientReponse', CommandeAnnuleeDocSerializer()),
+            **erreurs(401, 403, 404, 409),
+        },
+    )
     def post(self, request, pk):
         if request.user.role != 'Rclient':
             return err(message="Réservé aux clients.", code=status.HTTP_403_FORBIDDEN)
@@ -608,7 +685,19 @@ class TablesDisponiblesView(APIView):
     """
     permission_classes = [AllowAny]
 
-    @extend_schema(summary="Disponibilité pour réservation", tags=["Public - Réservations"])
+    @extend_schema(
+        summary="Disponibilité pour réservation",
+        tags=["Public - Réservations"],
+        parameters=[
+            OpenApiParameter('date', OpenApiTypes.STR, required=True, description="Format AAAA-MM-JJ."),
+            OpenApiParameter('heure', OpenApiTypes.STR, required=True, description="Format HH:MM."),
+            OpenApiParameter('personnes', OpenApiTypes.INT, description="Nombre de personnes, 1 par défaut."),
+        ],
+        responses={
+            200: enveloppe('TablesDisponiblesReponse', TablesDisponiblesDocSerializer()),
+            **erreurs(400, 404),
+        },
+    )
     def get(self, request, slug):
         resto = get_restaurant_by_slug(slug)
         if not resto:
@@ -661,7 +750,15 @@ class ReserverView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(summary="Réserver une table", tags=["Public - Réservations"])
+    @extend_schema(
+        summary="Réserver une table",
+        tags=["Public - Réservations"],
+        request=ReserverRequeteSerializer,
+        responses={
+            201: enveloppe('ReserverReponse', ReservationClientDocSerializer()),
+            **erreurs(400, 401, 403, 404, 409),
+        },
+    )
     def post(self, request, slug):
         user = request.user
         if user.role != 'Rclient':
@@ -732,7 +829,14 @@ class MesReservationsView(APIView):
     """GET /api/public/mes-reservations/ - réservations du client connecté."""
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(summary="Mes réservations (client)", tags=["Public - Réservations"])
+    @extend_schema(
+        summary="Mes réservations (client)",
+        tags=["Public - Réservations"],
+        responses={
+            200: enveloppe('MesReservationsReponse', MesReservationsDocSerializer()),
+            **erreurs(401, 403),
+        },
+    )
     def get(self, request):
         if request.user.role != 'Rclient':
             return err(message="Réservé aux clients.", code=status.HTTP_403_FORBIDDEN)
@@ -748,7 +852,15 @@ class AnnulerReservationView(APIView):
     """POST /api/public/reservations/<pk>/annuler/ - le client annule sa réservation."""
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(summary="Annuler une réservation", tags=["Public - Réservations"])
+    @extend_schema(
+        summary="Annuler une réservation",
+        tags=["Public - Réservations"],
+        request=None,  # action sans corps : la réservation est désignée par l'URL
+        responses={
+            200: enveloppe('AnnulerReservationReponse', ReservationClientDocSerializer()),
+            **erreurs(400, 401, 404, 409),
+        },
+    )
     def post(self, request, pk):
         try:
             resa = Reservation.objects.get(pk=pk, client=request.user)
@@ -792,7 +904,14 @@ class SuiviCommandeView(APIView):
     """
     permission_classes = [AllowAny]
 
-    @extend_schema(summary="Suivi commande client", tags=["Public - Commandes"])
+    @extend_schema(
+        summary="Suivi commande client",
+        tags=["Public - Commandes"],
+        responses={
+            200: enveloppe('SuiviCommandeReponse', SuiviCommandeDocSerializer()),
+            **erreurs(404),
+        },
+    )
     def get(self, request, cle_suivi):
         try:
             cmd = Commande.objects.select_related('restaurant').get(cle_suivi=cle_suivi)
@@ -885,7 +1004,14 @@ class LivraisonPubliqueView(APIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'livraison_public'
 
-    @extend_schema(summary="Livraison externe - détail", tags=["Public - Livraison"])
+    @extend_schema(
+        summary="Livraison externe - détail",
+        tags=["Public - Livraison"],
+        responses={
+            200: enveloppe('LivraisonPubliqueReponse', LivraisonPubliqueDocSerializer()),
+            **erreurs(404, 429),
+        },
+    )
     def get(self, request, token):
         try:
             lt = LivraisonToken.objects.select_related('commande', 'commande__restaurant').get(token=token)
@@ -905,7 +1031,15 @@ class LivraisonPubliqueActionView(APIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'livraison_public'
 
-    @extend_schema(summary="Livraison externe - action", tags=["Public - Livraison"])
+    @extend_schema(
+        summary="Livraison externe - action",
+        tags=["Public - Livraison"],
+        request=ActionLivraisonRequeteSerializer,
+        responses={
+            200: enveloppe('LivraisonPubliqueActionReponse', LivraisonPubliqueDocSerializer()),
+            **erreurs(400, 403, 404, 429),
+        },
+    )
     def post(self, request, token):
         try:
             lt = LivraisonToken.objects.select_related('commande', 'commande__restaurant', 'cree_par').get(token=token)
@@ -956,8 +1090,11 @@ class ContactView(APIView):
 
     @extend_schema(
         summary="Envoyer un message via le formulaire de contact",
-        request=None,
-        responses={200: OpenApiResponse(description="Message envoyé")},
+        request=ContactRequeteSerializer,
+        responses={
+            200: enveloppe_sans_data('ContactReponse'),
+            **erreurs(400, 429, 502),
+        },
     )
     def post(self, request):
         nom = (request.data.get('nom') or '').strip()

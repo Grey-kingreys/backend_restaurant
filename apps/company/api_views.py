@@ -4,8 +4,14 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import extend_schema, OpenApiResponse
+from drf_spectacular.utils import extend_schema
 
+from apps.schema_openapi import enveloppe, enveloppe_sans_data, erreurs
+from .schemas import (
+    RestaurantsPlateformeDocSerializer, RestaurantCreeDocSerializer,
+    OnboardingVerifieDocSerializer, OnboardingActiveDocSerializer,
+    StatsPlateformeDocSerializer, OnboardingActivationRequeteSerializer,
+)
 from .models import Restaurant, OnboardingToken
 from .permissions import IsSuperAdmin
 from .serializers import (
@@ -47,10 +53,11 @@ class RestaurantListCreateView(APIView):
 
     @extend_schema(
         summary="Lister tous les restaurants",
+        operation_id="company_restaurants_list",
         description="Retourne la liste complète de tous les restaurants de la plateforme. Accès Super Admin uniquement.",
         responses={
-            200: RestaurantSerializer(many=True),
-            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
+            200: enveloppe('RestaurantsListeReponse', RestaurantsPlateformeDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Restaurants"],
     )
@@ -78,9 +85,8 @@ class RestaurantListCreateView(APIView):
         ),
         request=RestaurantCreateSerializer,
         responses={
-            201: RestaurantSerializer,
-            400: OpenApiResponse(description="Données invalides (nom déjà pris, email déjà utilisé, etc.)"),
-            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
+            201: enveloppe('RestaurantCreeReponse', RestaurantCreeDocSerializer()),
+            **erreurs(400, 401, 403),
         },
         tags=["Restaurants"],
     )
@@ -116,9 +122,8 @@ class RestaurantDetailView(APIView):
         summary="Détail d'un restaurant",
         description="Retourne les informations complètes d'un restaurant par son ID.",
         responses={
-            200: RestaurantSerializer,
-            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
-            404: OpenApiResponse(description="Restaurant introuvable"),
+            200: enveloppe('RestaurantDetailReponse', RestaurantSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["Restaurants"],
     )
@@ -132,10 +137,8 @@ class RestaurantDetailView(APIView):
         description="Mise à jour partielle des informations d'un restaurant (nom, email, téléphone, adresse).",
         request=RestaurantUpdateSerializer,
         responses={
-            200: RestaurantSerializer,
-            400: OpenApiResponse(description="Données invalides"),
-            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
-            404: OpenApiResponse(description="Restaurant introuvable"),
+            200: enveloppe('RestaurantModifieReponse', RestaurantSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Restaurants"],
     )
@@ -163,10 +166,8 @@ class RestaurantDetailView(APIView):
         ),
         request=RestaurantDeleteSerializer,
         responses={
-            200: OpenApiResponse(description="Restaurant supprimé avec succès"),
-            400: OpenApiResponse(description="Confirmation invalide ou mot de passe incorrect"),
-            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
-            404: OpenApiResponse(description="Restaurant introuvable"),
+            200: enveloppe_sans_data('RestaurantSupprimeReponse'),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Restaurants"],
     )
@@ -206,10 +207,8 @@ class RestaurantSuspendView(APIView):
         ),
         request=None,
         responses={
-            200: RestaurantSerializer,
-            400: OpenApiResponse(description="Restaurant déjà suspendu"),
-            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
-            404: OpenApiResponse(description="Restaurant introuvable"),
+            200: enveloppe('RestaurantSuspenduReponse', RestaurantSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Restaurants"],
     )
@@ -239,10 +238,8 @@ class RestaurantActivateView(APIView):
         description="Réactive un restaurant précédemment suspendu. Les accès utilisateurs sont rétablis immédiatement.",
         request=None,
         responses={
-            200: RestaurantSerializer,
-            400: OpenApiResponse(description="Restaurant déjà actif"),
-            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
-            404: OpenApiResponse(description="Restaurant introuvable"),
+            200: enveloppe('RestaurantReactiveReponse', RestaurantSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Restaurants"],
     )
@@ -277,7 +274,10 @@ class MonRestaurantView(APIView):
                     "Lecture ouverte à tout le staff (la prise de commande a besoin des "
                     "réglages livraison/emporter et des frais) ; modification via PATCH "
                     "réservée à manage_restaurant.",
-        responses={200: RestaurantSerializer, 404: OpenApiResponse(description="Aucun restaurant associé")},
+        responses={
+            200: enveloppe('MonRestaurantReponse', RestaurantSerializer()),
+            **erreurs(401, 404),
+        },
         tags=["Restaurants"],
     )
     def get(self, request):
@@ -294,7 +294,10 @@ class MonRestaurantView(APIView):
             "commande en ligne et réservations (Admin uniquement)."
         ),
         request=MonRestaurantUpdateSerializer,
-        responses={200: RestaurantSerializer, 400: OpenApiResponse(description="Données invalides"), 403: OpenApiResponse(description="Admin uniquement")},
+        responses={
+            200: enveloppe('MonRestaurantModifieReponse', RestaurantSerializer()),
+            **erreurs(400, 401, 403),
+        },
         tags=["Restaurants"],
     )
     def patch(self, request):
@@ -333,9 +336,8 @@ class OnboardingValidateView(APIView):
             "pour afficher le formulaire ou un message d'erreur. Accès public."
         ),
         responses={
-            200: OpenApiResponse(description="Token valide - retourne login et nom du restaurant"),
-            404: OpenApiResponse(description="Token inexistant"),
-            410: OpenApiResponse(description="Token expiré ou déjà utilisé"),
+            200: enveloppe('OnboardingVerifieReponse', OnboardingVerifieDocSerializer()),
+            **erreurs(404, 410),
         },
         tags=["Onboarding"],
     )
@@ -373,10 +375,10 @@ class OnboardingValidateView(APIView):
             "L'Admin choisit son mot de passe lors de sa toute première connexion. "
             "Après cette opération, le token devient inutilisable. Accès public."
         ),
-        request=OnboardingTokenValidateSerializer,
+        request=OnboardingActivationRequeteSerializer,
         responses={
-            200: OpenApiResponse(description="Compte activé - l'Admin peut maintenant se connecter"),
-            400: OpenApiResponse(description="Token invalide, expiré ou mots de passe non concordants"),
+            200: enveloppe('OnboardingActiveReponse', OnboardingActiveDocSerializer()),
+            **erreurs(400),
         },
         tags=["Onboarding"],
     )
@@ -427,8 +429,8 @@ class PlatformStatsView(APIView):
             "Accès Super Admin uniquement."
         ),
         responses={
-            200: PlatformStatsSerializer,
-            403: OpenApiResponse(description="Accès refusé - Super Admin requis"),
+            200: enveloppe('StatsPlateformeReponse', StatsPlateformeDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Stats"],
     )

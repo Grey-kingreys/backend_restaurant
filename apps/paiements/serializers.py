@@ -28,7 +28,7 @@ class CaisseGeneraleSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_solde_formate(self, obj):
+    def get_solde_formate(self, obj) -> str:
         return f"{obj.solde:,.0f} GNF".replace(',', ' ')
 
 
@@ -70,13 +70,13 @@ class CaisseGlobaleSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_fermee_par_login(self, obj):
+    def get_fermee_par_login(self, obj) -> str | None:
         return obj.fermee_par.login if obj.fermee_par else None
 
-    def get_solde_formate(self, obj):
+    def get_solde_formate(self, obj) -> str:
         return f"{obj.solde:,.0f} GNF".replace(',', ' ')
 
-    def get_statut(self, obj):
+    def get_statut(self, obj) -> str:
         return "fermee" if obj.is_closed else "ouverte"
 
 
@@ -135,10 +135,10 @@ class MouvementCaisseSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_effectue_par_login(self, obj):
+    def get_effectue_par_login(self, obj) -> str | None:
         return obj.effectue_par.login if obj.effectue_par else None
 
-    def get_montant_formate(self, obj):
+    def get_montant_formate(self, obj) -> str:
         return f"{obj.montant:,.0f} GNF".replace(',', ' ')
 
 
@@ -147,7 +147,7 @@ class MouvementCaisseSerializer(serializers.ModelSerializer):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class CaisseComptableSerializer(serializers.ModelSerializer):
-    comptable_nom    = serializers.CharField(source='comptable.nom_complet', read_only=True)
+    comptable_nom    = serializers.CharField(source='comptable.nom_complet', read_only=True, allow_null=True)
     comptable_login  = serializers.CharField(source='comptable.login', read_only=True)
     restaurant_nom   = serializers.CharField(source='restaurant.nom', read_only=True)
     solde_formate    = serializers.SerializerMethodField()
@@ -167,16 +167,16 @@ class CaisseComptableSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_solde_formate(self, obj):
+    def get_solde_formate(self, obj) -> str:
         return f"{obj.solde:,.0f} GNF".replace(',', ' ')
 
-    def get_statut(self, obj):
+    def get_statut(self, obj) -> str:
         return "fermee" if obj.is_closed else "ouverte"
 
 
 class CaisseComptableListSerializer(serializers.ModelSerializer):
     """Version allégée sans les mouvements - pour les listes."""
-    comptable_nom   = serializers.CharField(source='comptable.nom_complet', read_only=True)
+    comptable_nom   = serializers.CharField(source='comptable.nom_complet', read_only=True, allow_null=True)
     comptable_login = serializers.CharField(source='comptable.login', read_only=True)
     solde_formate   = serializers.SerializerMethodField()
     statut          = serializers.SerializerMethodField()
@@ -192,10 +192,10 @@ class CaisseComptableListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_solde_formate(self, obj):
+    def get_solde_formate(self, obj) -> str:
         return f"{obj.solde:,.0f} GNF".replace(',', ' ')
 
-    def get_statut(self, obj):
+    def get_statut(self, obj) -> str:
         return "fermee" if obj.is_closed else "ouverte"
 
 
@@ -282,10 +282,10 @@ class ApprovisionnerSerializer(serializers.Serializer):
 class DemandeApprovisionnementSerializer(serializers.ModelSerializer):
     """Lecture d'une demande d'approvisionnement."""
     statut_display     = serializers.CharField(source='get_statut_display', read_only=True)
-    demande_par_nom    = serializers.CharField(source='demande_par.nom_complet', read_only=True, default=None)
-    demande_par_login  = serializers.CharField(source='demande_par.login', read_only=True, default=None)
-    validee_par_login  = serializers.CharField(source='validee_par.login', read_only=True, default=None)
-    comptable_nom      = serializers.CharField(source='caisse_comptable.comptable.nom_complet', read_only=True, default=None)
+    demande_par_nom    = serializers.CharField(source='demande_par.nom_complet', read_only=True, default=None, allow_null=True)
+    demande_par_login  = serializers.CharField(source='demande_par.login', read_only=True, default=None, allow_null=True)
+    validee_par_login  = serializers.CharField(source='validee_par.login', read_only=True, default=None, allow_null=True)
+    comptable_nom      = serializers.CharField(source='caisse_comptable.comptable.nom_complet', read_only=True, default=None, allow_null=True)
 
     class Meta:
         model  = DemandeApprovisionnement
@@ -437,10 +437,10 @@ class DepenseSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_enregistree_par_login(self, obj):
+    def get_enregistree_par_login(self, obj) -> str | None:
         return obj.enregistree_par.login if obj.enregistree_par else None
 
-    def get_montant_formate(self, obj):
+    def get_montant_formate(self, obj) -> str:
         return f"{obj.montant:,.0f} GNF".replace(',', ' ')
 
 
@@ -462,14 +462,14 @@ class PaiementSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_commande_table_login(self, obj):
+    def get_commande_table_login(self, obj) -> str:
         c = obj.commande
         return c.table.login if c.table_id else (c.client_nom or c.get_type_commande_display())
 
-    def get_montant_formate(self, obj):
+    def get_montant_formate(self, obj) -> str:
         return f"{obj.montant:,.0f} GNF".replace(',', ' ')
 
-    def get_remise_validee(self, obj):
+    def get_remise_validee(self, obj) -> bool | None:
         try:
             return obj.remise.valide
         except Exception:
@@ -503,27 +503,27 @@ class RemiseServeurSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_serveur_login(self, obj):
+    def get_serveur_login(self, obj) -> str | None:
         return obj.serveur.login if obj.serveur else None
 
-    def get_validee_par_login(self, obj):
+    def get_validee_par_login(self, obj) -> str | None:
         return obj.validee_par.login if obj.validee_par else None
 
-    def get_montant_virtuel_formate(self, obj):
+    def get_montant_virtuel_formate(self, obj) -> str:
         return f"{obj.montant_virtuel:,.0f} GNF".replace(',', ' ')
 
-    def get_montant_physique_formate(self, obj):
+    def get_montant_physique_formate(self, obj) -> str | None:
         if obj.montant_physique is not None:
             return f"{obj.montant_physique:,.0f} GNF".replace(',', ' ')
         return None
 
-    def get_ecart_formate(self, obj):
+    def get_ecart_formate(self, obj) -> str | None:
         e = obj.ecart
         if e is not None:
             return f"{e:,.0f} GNF".replace(',', ' ')
         return None
 
-    def get_statut(self, obj):
+    def get_statut(self, obj) -> str:
         if obj.valide:
             return "validee"
         if obj.montant_physique is not None:

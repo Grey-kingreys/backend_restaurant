@@ -39,6 +39,16 @@ from apps.accounts.perm_codes import (
     PERM_VIEW_TABLES, PERM_MANAGE_TABLES,
     PERM_MANAGE_COMMANDES,
 )
+from apps.schema_openapi import enveloppe, enveloppe_sans_data, erreurs
+from apps.commandes.serializers import CommandeDetailSerializer
+from .schemas import (
+    QRLoginRequeteSerializer, QRLoginDocSerializer, PositionGpsRequeteSerializer,
+    ReservationReaffecterRequeteSerializer, ReservationBloquerRequeteSerializer,
+    TablesListeDocSerializer, QRInfoDocSerializer, QRGenererDocSerializer,
+    PositionStatutDocSerializer, DistanceStatutDocSerializer,
+    DashboardServeurDocSerializer, ReservationStaffDocSerializer,
+    ReservationsStaffListeDocSerializer,
+)
 from .models import TableRestaurant, TableToken, TableSession
 from .serializers import (
     TableRestaurantListSerializer,
@@ -77,6 +87,7 @@ class TableListView(APIView):
 
     @extend_schema(
         summary="Liste des tables du restaurant",
+        operation_id="restaurant_tables_list",
         description=(
             "Retourne toutes les tables du restaurant avec leur statut en temps réel.\n\n"
             "**Statuts possibles :** libre · en_attente · prete · servie\n\n"
@@ -87,8 +98,8 @@ class TableListView(APIView):
             OpenApiParameter('statut', OpenApiTypes.STR, description="Filtrer par statut", required=False),
         ],
         responses={
-            200: TableRestaurantListSerializer(many=True),
-            403: OpenApiResponse(description="Accès refusé"),
+            200: enveloppe('TablesListeReponse', TablesListeDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Tables"],
     )
@@ -138,9 +149,8 @@ class TableListView(APIView):
         ),
         request=TableRestaurantCreateSerializer,
         responses={
-            201: TableRestaurantDetailSerializer,
-            400: OpenApiResponse(description="Données invalides"),
-            403: OpenApiResponse(description="Admin uniquement"),
+            201: enveloppe('TableCreeeReponse', TableRestaurantDetailSerializer()),
+            **erreurs(400, 401, 403),
         },
         tags=["Tables"],
     )
@@ -185,9 +195,8 @@ class TableDetailView(APIView):
             "**Accès :** Serveur, Chef Cuisinier, Admin, Manager"
         ),
         responses={
-            200: TableRestaurantDetailSerializer,
-            403: OpenApiResponse(description="Accès refusé"),
-            404: OpenApiResponse(description="Table non trouvée"),
+            200: enveloppe('TableDetailReponse', TableRestaurantDetailSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["Tables"],
     )
@@ -202,9 +211,8 @@ class TableDetailView(APIView):
         summary="Modifier une table",
         request=TableRestaurantUpdateSerializer,
         responses={
-            200: TableRestaurantDetailSerializer,
-            400: OpenApiResponse(description="Données invalides"),
-            403: OpenApiResponse(description="Admin uniquement"),
+            200: enveloppe('TableModifieeReponse', TableRestaurantDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Tables"],
     )
@@ -227,8 +235,8 @@ class TableDetailView(APIView):
         summary="Modifier partiellement une table",
         request=TableRestaurantUpdateSerializer,
         responses={
-            200: TableRestaurantDetailSerializer,
-            403: OpenApiResponse(description="Admin uniquement"),
+            200: enveloppe('TableModifieePartielReponse', TableRestaurantDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Tables"],
     )
@@ -254,9 +262,8 @@ class TableDetailView(APIView):
             "**Accès :** Admin uniquement (CDC §5.6 / §10.5)"
         ),
         responses={
-            200: OpenApiResponse(description="Table supprimée"),
-            403: OpenApiResponse(description="Admin uniquement"),
-            404: OpenApiResponse(description="Table non trouvée"),
+            200: enveloppe_sans_data('TableSupprimeeReponse'),
+            **erreurs(401, 403, 404),
         },
         tags=["Tables"],
     )
@@ -284,11 +291,14 @@ class QRCodeInfoView(APIView):
 
     @extend_schema(
         summary="Informations QR Code d'une table",
-        description="Retourne les informations du QR Code de la table (validité, dates).\n\n**Accès :** Admin",
+        description=(
+            "Indique si la table a un QR Code (`a_qr_code`). S'il existe, retourne aussi l'image "
+            "du QR Code (`qr_code_url`), l'URL de connexion (`qr_login_url`) et le numéro de table "
+            "(`table`).\n\n**Accès :** Admin"
+        ),
         responses={
-            200: QRCodeInfoSerializer,
-            403: OpenApiResponse(description="Admin uniquement"),
-            404: OpenApiResponse(description="Table ou QR Code non trouvé"),
+            200: enveloppe('QRInfoReponse', QRInfoDocSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["QR Code"],
     )
@@ -349,14 +359,14 @@ class QRCodeGenererView(APIView):
         description=(
             "Génère un nouveau QR Code pour la table.\n\n"
             "- L'ancien token est remplacé → l'ancien QR Code ne fonctionne plus\n"
-            "- Retourne l'image PNG directement (pour téléchargement / plastification)\n"
+            "- Retourne l'image PNG du QR Code en data URL base64 dans la réponse JSON\n"
             "- Le QR Code encode l'URL de connexion automatique\n\n"
             "**Accès :** Admin uniquement"
         ),
+        request=None,  # action sans corps : la table est désignée par l'URL
         responses={
-            200: OpenApiResponse(description="Image PNG du QR Code"),
-            403: OpenApiResponse(description="Admin uniquement"),
-            404: OpenApiResponse(description="Table non trouvée"),
+            200: enveloppe('QRGenererReponse', QRGenererDocSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["QR Code"],
     )
@@ -424,9 +434,10 @@ class QRLoginView(APIView):
             "- Crée une session avec expiration\n\n"
             "**Accès :** Public"
         ),
+        request=QRLoginRequeteSerializer,
         responses={
-            200: OpenApiResponse(description="Tokens JWT + session_token"),
-            400: OpenApiResponse(description="QR Code invalide, expiré ou hors zone"),
+            200: enveloppe('QRLoginReponse', QRLoginDocSerializer()),
+            **erreurs(400),
         },
         tags=["Authentification"],
     )
@@ -524,7 +535,10 @@ class TableSessionListView(APIView):
     @extend_schema(
         summary="Sessions actives des tables",
         description="Liste les sessions QR actives. Accès : Admin, Manager.",
-        responses={200: TableSessionSerializer(many=True)},
+        responses={
+            200: enveloppe('SessionsTableReponse', TableSessionSerializer(many=True)),
+            **erreurs(401, 403),
+        },
         tags=["Sessions"],
     )
     def get(self, request):
@@ -565,6 +579,11 @@ class CheckPositionView(APIView):
 
     @extend_schema(
         summary="Vérification position GPS table",
+        request=PositionGpsRequeteSerializer,
+        responses={
+            200: enveloppe('CheckPositionReponse', PositionStatutDocSerializer()),
+            **erreurs(401, 403),
+        },
         tags=["Sessions"],
     )
     def post(self, request):
@@ -684,7 +703,15 @@ class CheckDistanceView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(summary="Vérification distance table (login+password)", tags=["Sessions"])
+    @extend_schema(
+        summary="Vérification distance table (login+password)",
+        request=PositionGpsRequeteSerializer,
+        responses={
+            200: enveloppe('CheckDistanceReponse', DistanceStatutDocSerializer()),
+            **erreurs(401, 403),
+        },
+        tags=["Sessions"],
+    )
     def post(self, request):
         from .models import haversine
 
@@ -738,8 +765,8 @@ class ServeurDashboardView(APIView):
             "**Accès :** Serveur, Admin, Manager"
         ),
         responses={
-            200: OpenApiResponse(description="Dashboard serveur"),
-            403: OpenApiResponse(description="Accès refusé"),
+            200: enveloppe('DashboardServeurReponse', DashboardServeurDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Serveur"],
     )
@@ -824,11 +851,10 @@ class ServeurCommandeServieView(APIView):
             "Statut requis : PRÊTE (ou sans étape cuisine).\n\n"
             "CDC §7.1 étape 4. **Accès :** Serveur uniquement."
         ),
+        request=None,  # action sans corps : la commande est désignée par l'URL
         responses={
-            200: OpenApiResponse(description="Commande marquée SERVIE"),
-            400: OpenApiResponse(description="Statut invalide"),
-            403: OpenApiResponse(description="Serveur uniquement"),
-            404: OpenApiResponse(description="Commande non trouvée"),
+            200: enveloppe('ServeurCommandeServieReponse', CommandeDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Serveur"],
     )
@@ -871,10 +897,10 @@ class ServeurCommandePayeeView(APIView):
             "Déclenche l'expiration de la session QR dans 1 minute.\n\n"
             "CDC §7.1 étape 5. **Accès :** Serveur uniquement."
         ),
+        request=None,  # action sans corps : la commande est désignée par l'URL
         responses={
-            200: OpenApiResponse(description="Commande marquée PAYÉE"),
-            400: OpenApiResponse(description="Statut invalide"),
-            403: OpenApiResponse(description="Serveur uniquement"),
+            200: enveloppe('ServeurCommandePayeeReponse', CommandeDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Serveur"],
     )
@@ -955,6 +981,21 @@ class ReservationListView(APIView):
     """GET /api/restaurant/reservations/?statut= - réservations du restaurant (staff)."""
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Lister les réservations du restaurant",
+        description="Réservations du restaurant, de la plus récente à la plus ancienne. Accès : personnel du restaurant.",
+        parameters=[
+            OpenApiParameter(
+                'statut', OpenApiTypes.STR, required=False,
+                description="en_attente | confirmee | refusee | annulee | terminee | no_show",
+            ),
+        ],
+        responses={
+            200: enveloppe('ReservationsStaffListeReponse', ReservationsStaffListeDocSerializer()),
+            **erreurs(401, 403),
+        },
+        tags=["Réservations (staff)"],
+    )
     def get(self, request):
         resto = _staff_resto_or_none(request.user)
         if not resto:
@@ -975,6 +1016,16 @@ class ReservationConfirmerView(APIView):
     """POST /api/restaurant/reservations/<pk>/confirmer/"""
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Confirmer une réservation",
+        description="Passe une réservation en attente à confirmée et prévient le client par email.",
+        request=None,  # action sans corps : la réservation est désignée par l'URL
+        responses={
+            200: enveloppe('ReservationConfirmeeReponse', ReservationStaffDocSerializer()),
+            **erreurs(400, 401, 403, 404),
+        },
+        tags=["Réservations (staff)"],
+    )
     def post(self, request, pk):
         resto = _staff_resto_or_none(request.user)
         if not resto:
@@ -998,6 +1049,16 @@ class ReservationRefuserView(APIView):
     """POST /api/restaurant/reservations/<pk>/refuser/"""
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Refuser une réservation",
+        description="Passe une réservation en attente à refusée.",
+        request=None,  # action sans corps : la réservation est désignée par l'URL
+        responses={
+            200: enveloppe('ReservationRefuseeReponse', ReservationStaffDocSerializer()),
+            **erreurs(400, 401, 403, 404),
+        },
+        tags=["Réservations (staff)"],
+    )
     def post(self, request, pk):
         resto = _staff_resto_or_none(request.user)
         if not resto:
@@ -1028,6 +1089,16 @@ class ReservationReaffecterView(APIView):
     """POST /api/restaurant/reservations/<pk>/reaffecter/ - body: table_id. Change la table attribuée."""
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Réaffecter la table d'une réservation",
+        description="Attribue une autre table du restaurant à une réservation active, si elle est assez grande et libre sur le créneau.",
+        request=ReservationReaffecterRequeteSerializer,
+        responses={
+            200: enveloppe('ReservationReaffecteeReponse', ReservationStaffDocSerializer()),
+            **erreurs(400, 401, 403, 404),
+        },
+        tags=["Réservations (staff)"],
+    )
     def post(self, request, pk):
         resto, resa = _get_resa_staff(request.user, pk)
         if not resto:
@@ -1056,6 +1127,16 @@ class ReservationTerminerView(APIView):
     """POST /api/restaurant/reservations/<pk>/terminer/ - le client est venu, service terminé."""
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Terminer une réservation",
+        description="Marque une réservation active comme terminée (le client est venu).",
+        request=None,  # action sans corps : la réservation est désignée par l'URL
+        responses={
+            200: enveloppe('ReservationTermineeReponse', ReservationStaffDocSerializer()),
+            **erreurs(400, 401, 403, 404),
+        },
+        tags=["Réservations (staff)"],
+    )
     def post(self, request, pk):
         resto, resa = _get_resa_staff(request.user, pk)
         if not resto:
@@ -1073,6 +1154,16 @@ class ReservationNoShowView(APIView):
     """POST /api/restaurant/reservations/<pk>/no-show/ - le client n'est pas venu."""
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Marquer une réservation comme absence (no-show)",
+        description="Marque une réservation active comme non honorée (le client n'est pas venu).",
+        request=None,  # action sans corps : la réservation est désignée par l'URL
+        responses={
+            200: enveloppe('ReservationNoShowReponse', ReservationStaffDocSerializer()),
+            **erreurs(400, 401, 403, 404),
+        },
+        tags=["Réservations (staff)"],
+    )
     def post(self, request, pk):
         resto, resa = _get_resa_staff(request.user, pk)
         if not resto:
@@ -1090,6 +1181,16 @@ class ReservationBloquerClientView(APIView):
     """POST /api/restaurant/reservations/<pk>/bloquer-client/ - bloque le client du resto."""
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Bloquer un client pour les réservations",
+        description="Empêche le client de la réservation de réserver dans ce restaurant. Sans effet s'il est déjà bloqué.",
+        request=ReservationBloquerRequeteSerializer,
+        responses={
+            200: enveloppe('ReservationClientBloqueReponse', ReservationStaffDocSerializer()),
+            **erreurs(401, 403, 404),
+        },
+        tags=["Réservations (staff)"],
+    )
     def post(self, request, pk):
         resto, resa = _get_resa_staff(request.user, pk)
         if not resto:
@@ -1107,6 +1208,16 @@ class ReservationDebloquerClientView(APIView):
     """POST /api/restaurant/reservations/<pk>/debloquer-client/ - lève le blocage du client."""
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Débloquer un client pour les réservations",
+        description="Lève le blocage du client de la réservation dans ce restaurant.",
+        request=None,  # action sans corps : la réservation est désignée par l'URL
+        responses={
+            200: enveloppe('ReservationClientDebloqueReponse', ReservationStaffDocSerializer()),
+            **erreurs(401, 403, 404),
+        },
+        tags=["Réservations (staff)"],
+    )
     def post(self, request, pk):
         resto, resa = _get_resa_staff(request.user, pk)
         if not resto:

@@ -13,7 +13,9 @@ import re
 
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema_field, inline_serializer
 
+from apps.commandes.serializers import CommandeListSerializer
 from .models import TableRestaurant, TableToken, TableSession
 
 User = get_user_model()
@@ -29,7 +31,7 @@ class TableRestaurantListSerializer(serializers.ModelSerializer):
     Inclut le login du User Rtable associé et le statut courant.
     """
     utilisateur_login    = serializers.CharField(source='utilisateur.login', read_only=True)
-    utilisateur_nom      = serializers.CharField(source='utilisateur.nom_complet', read_only=True)
+    utilisateur_nom      = serializers.CharField(source='utilisateur.nom_complet', read_only=True, allow_null=True)
     utilisateur_actif    = serializers.BooleanField(source='utilisateur.actif', read_only=True)
     statut_courant       = serializers.SerializerMethodField()
     a_qr_code            = serializers.SerializerMethodField()
@@ -44,7 +46,7 @@ class TableRestaurantListSerializer(serializers.ModelSerializer):
             'date_creation', 'date_modification',
         ]
 
-    def get_statut_courant(self, obj):
+    def get_statut_courant(self, obj) -> str:
         """
         Statut en temps réel basé sur les commandes actives.
         libre | en_attente | prete | servie
@@ -59,7 +61,7 @@ class TableRestaurantListSerializer(serializers.ModelSerializer):
             return 'libre'
         return derniere.statut
 
-    def get_a_qr_code(self, obj):
+    def get_a_qr_code(self, obj) -> bool:
         """True si un QR code valide existe pour cette table."""
         try:
             token = obj.utilisateur.auth_token
@@ -67,7 +69,7 @@ class TableRestaurantListSerializer(serializers.ModelSerializer):
         except TableToken.DoesNotExist:
             return False
 
-    def get_nb_commandes_actives(self, obj):
+    def get_nb_commandes_actives(self, obj) -> int:
         from apps.commandes.models import Commande
         return Commande.objects.filter(
             table=obj.utilisateur,
@@ -78,7 +80,7 @@ class TableRestaurantListSerializer(serializers.ModelSerializer):
 class TableRestaurantDetailSerializer(serializers.ModelSerializer):
     """Lecture complète - détail d'une table avec statistiques."""
     utilisateur_login = serializers.CharField(source='utilisateur.login', read_only=True)
-    utilisateur_nom   = serializers.CharField(source='utilisateur.nom_complet', read_only=True)
+    utilisateur_nom   = serializers.CharField(source='utilisateur.nom_complet', read_only=True, allow_null=True)
     utilisateur_actif = serializers.BooleanField(source='utilisateur.actif', read_only=True)
     statut_courant    = serializers.SerializerMethodField()
     a_qr_code         = serializers.SerializerMethodField()
@@ -96,7 +98,7 @@ class TableRestaurantDetailSerializer(serializers.ModelSerializer):
             'date_creation', 'date_modification',
         ]
 
-    def get_statut_courant(self, obj):
+    def get_statut_courant(self, obj) -> str:
         from apps.commandes.models import Commande
         derniere = Commande.objects.filter(
             table=obj.utilisateur,
@@ -106,12 +108,13 @@ class TableRestaurantDetailSerializer(serializers.ModelSerializer):
             return 'libre'
         return derniere.statut
 
-    def get_a_qr_code(self, obj):
+    def get_a_qr_code(self, obj) -> bool:
         try:
             return obj.utilisateur.auth_token.est_valide()
         except TableToken.DoesNotExist:
             return False
 
+    @extend_schema_field(CommandeListSerializer(many=True))
     def get_commandes_actives(self, obj):
         from apps.commandes.models import Commande
         from apps.commandes.serializers import CommandeListSerializer
@@ -121,6 +124,12 @@ class TableRestaurantDetailSerializer(serializers.ModelSerializer):
         ).order_by('-date_commande')
         return CommandeListSerializer(qs, many=True).data
 
+    @extend_schema_field(inline_serializer('SessionActiveTable', {
+        'id': serializers.IntegerField(),
+        'session_token': serializers.CharField(),
+        'date_creation': serializers.DateTimeField(),
+        'date_paiement': serializers.DateTimeField(allow_null=True),
+    }, allow_null=True))
     def get_session_active(self, obj):
         try:
             session = TableSession.objects.get(
@@ -136,6 +145,11 @@ class TableRestaurantDetailSerializer(serializers.ModelSerializer):
         except TableSession.DoesNotExist:
             return None
 
+    @extend_schema_field(inline_serializer('StatsTable', {
+        'total_commandes': serializers.IntegerField(),
+        'commandes_payees': serializers.IntegerField(),
+        'montant_total': serializers.CharField(help_text="Décimal en texte."),
+    }))
     def get_stats(self, obj):
         from apps.commandes.models import Commande
         from django.db.models import Sum
@@ -309,7 +323,7 @@ class QRCodeInfoSerializer(serializers.ModelSerializer):
             'date_creation', 'date_derniere_utilisation',
         ]
 
-    def get_est_valide(self, obj):
+    def get_est_valide(self, obj) -> bool:
         return obj.est_valide()
 
 
@@ -331,7 +345,7 @@ class TableSessionSerializer(serializers.ModelSerializer):
             'est_active', 'duree_secondes',
         ]
 
-    def get_duree_secondes(self, obj):
+    def get_duree_secondes(self, obj) -> int | None:
         """Secondes restantes avant expiration (si paiement effectué)."""
         if not obj.date_paiement or not obj.est_active:
             return None

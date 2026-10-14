@@ -24,7 +24,7 @@ class PlatListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'date_creation', 'date_modification']
 
-    def get_image_url(self, obj):
+    def get_image_url(self, obj) -> str | None:
         # URL externe prioritaire (démo), sinon fichier uploadé
         if obj.image_url:
             return obj.image_url
@@ -35,10 +35,10 @@ class PlatListSerializer(serializers.ModelSerializer):
             return obj.image.url
         return None
 
-    def get_prix_formate(self, obj):
+    def get_prix_formate(self, obj) -> str:
         return f"{obj.prix_unitaire:,.0f}".replace(',', ' ') + " GNF"
 
-    def get_categorie_display(self, obj):
+    def get_categorie_display(self, obj) -> str:
         return obj.get_categorie_display()
 
 
@@ -52,7 +52,7 @@ class PlatDetailSerializer(PlatListSerializer):
     class Meta(PlatListSerializer.Meta):
         fields = PlatListSerializer.Meta.fields + ['restaurant_nom']
 
-    def get_restaurant_nom(self, obj):
+    def get_restaurant_nom(self, obj) -> str:
         return obj.restaurant.nom
 
 

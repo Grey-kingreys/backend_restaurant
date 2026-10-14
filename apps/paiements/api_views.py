@@ -9,6 +9,13 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
+from apps.schema_openapi import enveloppe, erreurs
+from .schemas import (
+    CaissesGlobalesListeDocSerializer, CaissesComptablesListeDocSerializer,
+    DemandesApprovisionnementListeDocSerializer, DepensesListeDocSerializer,
+    RemisesListeDocSerializer, PaiementsListeDocSerializer,
+    DashboardComptableDocSerializer,
+)
 from .exceptions import ErreurMetier
 
 from .models import (
@@ -79,9 +86,8 @@ class CaisseGeneraleView(APIView):
             "Acces : permission view_caisse_generale."
         ),
         responses={
-            200: CaisseGeneraleSerializer,
-            403: OpenApiResponse(description="Permission view_caisse_generale requise"),
-            404: OpenApiResponse(description="Caisse non initialisee"),
+            200: enveloppe('CaisseGeneraleReponse', CaisseGeneraleSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["Paiements - Caisse Generale"],
     )
@@ -114,9 +120,8 @@ class CaisseGeneraleInitView(APIView):
         ),
         request=CaisseGeneraleInitSerializer,
         responses={
-            200: CaisseGeneraleSerializer,
-            400: OpenApiResponse(description="Donnees invalides"),
-            403: OpenApiResponse(description="Acces reserve a l'Admin"),
+            200: enveloppe('CaisseGeneraleInitReponse', CaisseGeneraleSerializer()),
+            **erreurs(400, 401, 403),
         },
         tags=["Paiements - Caisse Generale"],
     )
@@ -154,7 +159,7 @@ class CaisseGlobaleListView(APIView):
     @extend_schema(
         summary="Liste des Caisses Globales (historique)",
         description=(
-            "Retourne la liste paginee des caisses globales du restaurant. "
+            "Retourne la liste des caisses globales du restaurant (non paginee). "
             "Filtre : ?is_closed=true/false. "
             "Acces : permission view_caisse_globale."
         ),
@@ -166,8 +171,8 @@ class CaisseGlobaleListView(APIView):
             ),
         ],
         responses={
-            200: CaisseGlobaleSerializer(many=True),
-            403: OpenApiResponse(description="Permission view_caisse_globale requise"),
+            200: enveloppe('CaissesGlobalesListeReponse', CaissesGlobalesListeDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Paiements - Caisse Globale"],
     )
@@ -208,9 +213,8 @@ class CaisseGlobaleActiveView(APIView):
     @extend_schema(
         summary="Caisse Globale active (journee en cours)",
         responses={
-            200: CaisseGlobaleSerializer,
-            403: OpenApiResponse(description="Permission view_caisse_globale requise"),
-            404: OpenApiResponse(description="Aucune caisse ouverte"),
+            200: enveloppe('CaisseGlobaleActiveReponse', CaisseGlobaleSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["Paiements - Caisse Globale"],
     )
@@ -242,10 +246,8 @@ class CaisseGlobaleFermerView(APIView):
         ),
         request=CaisseGlobaleFermerSerializer,
         responses={
-            200: CaisseGlobaleSerializer,
-            400: OpenApiResponse(description="Donnees invalides ou caisse deja fermee"),
-            403: OpenApiResponse(description="Permission manage_caisse_globale requise"),
-            404: OpenApiResponse(description="Aucune caisse ouverte"),
+            200: enveloppe('CaisseGlobaleFermerReponse', CaisseGlobaleSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Paiements - Caisse Globale"],
     )
@@ -310,9 +312,8 @@ class CaisseGlobaleOuvrirView(APIView):
         ),
         request=None,
         responses={
-            201: CaisseGlobaleSerializer,
-            400: OpenApiResponse(description="Une caisse est deja ouverte"),
-            403: OpenApiResponse(description="Acces reserve a l'Admin"),
+            201: enveloppe('CaisseGlobaleOuvrirReponse', CaisseGlobaleSerializer()),
+            **erreurs(400, 401, 403),
         },
         tags=["Paiements - Caisse Globale"],
     )
@@ -362,6 +363,7 @@ class CaisseComptableListView(APIView):
 
     @extend_schema(
         summary="Mes caisses comptables",
+        operation_id="paiements_caisse_comptable_list",
         description=(
             "Comptable : retourne uniquement ses propres caisses. "
             "Admin / Manager : retourne toutes les caisses du restaurant. "
@@ -375,8 +377,8 @@ class CaisseComptableListView(APIView):
             ),
         ],
         responses={
-            200: CaisseComptableListSerializer(many=True),
-            403: OpenApiResponse(description="Acces reserve"),
+            200: enveloppe('CaissesComptablesListeReponse', CaissesComptablesListeDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Paiements - Caisse Comptable"],
     )
@@ -418,9 +420,8 @@ class CaisseComptableOuvrirView(APIView):
         ),
         request=None,
         responses={
-            201: CaisseComptableSerializer,
-            400: OpenApiResponse(description="Une caisse est deja ouverte"),
-            403: OpenApiResponse(description="Acces reserve au Comptable"),
+            201: enveloppe('CaisseComptableOuvrirReponse', CaisseComptableSerializer()),
+            **erreurs(400, 401, 403),
         },
         tags=["Paiements - Caisse Comptable"],
     )
@@ -459,9 +460,8 @@ class CaisseComptableDetailView(APIView):
         summary="Detail d'une Caisse Comptable",
         description="Inclut tous les mouvements. Comptable : sa caisse uniquement.",
         responses={
-            200: CaisseComptableSerializer,
-            403: OpenApiResponse(description="Acces refuse"),
-            404: OpenApiResponse(description="Caisse introuvable"),
+            200: enveloppe('CaisseComptableDetailReponse', CaisseComptableSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["Paiements - Caisse Comptable"],
     )
@@ -487,9 +487,8 @@ class CaisseComptableActiveView(APIView):
             "Acces : Comptable uniquement."
         ),
         responses={
-            200: CaisseComptableSerializer,
-            403: OpenApiResponse(description="Acces reserve au Comptable"),
-            404: OpenApiResponse(description="Aucune caisse ouverte"),
+            200: enveloppe('CaisseComptableActiveReponse', CaisseComptableSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["Paiements - Caisse Comptable"],
     )
@@ -524,10 +523,8 @@ class CaisseComptableApprovisionnerView(APIView):
         ),
         request=DemandeApprovisionnementCreateSerializer,
         responses={
-            201: DemandeApprovisionnementSerializer,
-            400: OpenApiResponse(description="Donnees invalides ou caisse fermee"),
-            403: OpenApiResponse(description="Acces refuse"),
-            404: OpenApiResponse(description="Caisse introuvable"),
+            201: enveloppe('ApprovisionnementDemandeReponse', DemandeApprovisionnementSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Paiements - Caisse Comptable"],
     )
@@ -564,7 +561,10 @@ class DemandeApprovisionnementListView(APIView):
             "toutes les demandes du restaurant. Filtre optionnel ?statut=en_attente|approuvee|refusee."
         ),
         parameters=[OpenApiParameter('statut', OpenApiTypes.STR, required=False)],
-        responses={200: DemandeApprovisionnementSerializer(many=True)},
+        responses={
+            200: enveloppe('ApprovisionnementsListeReponse', DemandesApprovisionnementListeDocSerializer()),
+            **erreurs(401, 403),
+        },
         tags=["Paiements - Caisse Comptable"],
     )
     def get(self, request):
@@ -597,7 +597,10 @@ class DemandeApprovisionnementApprouverView(APIView):
         summary="Approuver une demande d'approvisionnement",
         description="L'argent bouge ENFIN (Caisse Generale -> Caisse Comptable). Acces : permission validate_approvisionnement.",
         request=None,
-        responses={200: DemandeApprovisionnementSerializer, 400: OpenApiResponse(description="Impossible"), 403: OpenApiResponse(description="Acces refuse")},
+        responses={
+            200: enveloppe('ApprovisionnementApprouveReponse', DemandeApprovisionnementSerializer()),
+            **erreurs(400, 401, 403, 404),
+        },
         tags=["Paiements - Caisse Comptable"],
     )
     def post(self, request, pk):
@@ -627,7 +630,10 @@ class DemandeApprovisionnementRefuserView(APIView):
         summary="Refuser une demande d'approvisionnement",
         description="Aucun mouvement d'argent. Motif de refus requis. Acces : permission validate_approvisionnement.",
         request=DemandeRefusSerializer,
-        responses={200: DemandeApprovisionnementSerializer, 400: OpenApiResponse(description="Impossible"), 403: OpenApiResponse(description="Acces refuse")},
+        responses={
+            200: enveloppe('ApprovisionnementRefuseReponse', DemandeApprovisionnementSerializer()),
+            **erreurs(400, 401, 403, 404),
+        },
         tags=["Paiements - Caisse Comptable"],
     )
     def post(self, request, pk):
@@ -665,10 +671,8 @@ class DepenseCreateView(APIView):
         ),
         request=DepenseCreateSerializer,
         responses={
-            201: DepenseSerializer,
-            400: OpenApiResponse(description="Solde insuffisant ou donnees invalides"),
-            403: OpenApiResponse(description="Acces reserve au Comptable"),
-            404: OpenApiResponse(description="Caisse introuvable"),
+            201: enveloppe('DepenseCreeeReponse', DepenseSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Paiements - Caisse Comptable"],
     )
@@ -705,9 +709,8 @@ class DepenseListView(APIView):
     @extend_schema(
         summary="Liste des depenses d'une Caisse Comptable",
         responses={
-            200: DepenseSerializer(many=True),
-            403: OpenApiResponse(description="Acces refuse"),
-            404: OpenApiResponse(description="Caisse introuvable"),
+            200: enveloppe('DepensesListeReponse', DepensesListeDocSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["Paiements - Caisse Comptable"],
     )
@@ -746,10 +749,8 @@ class CaisseComptableFermerView(APIView):
         ),
         request=CaisseComptableFermerSerializer,
         responses={
-            200: CaisseComptableSerializer,
-            400: OpenApiResponse(description="Donnees invalides ou caisse deja fermee"),
-            403: OpenApiResponse(description="Acces reserve au Comptable"),
-            404: OpenApiResponse(description="Caisse introuvable"),
+            200: enveloppe('CaisseComptableFermerReponse', CaisseComptableSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Paiements - Caisse Comptable"],
     )
@@ -798,6 +799,7 @@ class RemiseServeurListView(APIView):
 
     @extend_schema(
         summary="Liste des remises serveurs",
+        operation_id="paiements_remises_list",
         description=(
             "view_remises seul : ses remises uniquement. "
             "manage_remises : remises en attente de validation. "
@@ -812,8 +814,8 @@ class RemiseServeurListView(APIView):
             ),
         ],
         responses={
-            200: RemiseServeurSerializer(many=True),
-            403: OpenApiResponse(description="Acces refuse"),
+            200: enveloppe('RemisesListeReponse', RemisesListeDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Paiements - Remises"],
     )
@@ -859,9 +861,8 @@ class RemiseServeurDetailView(APIView):
     @extend_schema(
         summary="Detail d'une remise serveur",
         responses={
-            200: RemiseServeurSerializer,
-            403: OpenApiResponse(description="Acces refuse"),
-            404: OpenApiResponse(description="Remise introuvable"),
+            200: enveloppe('RemiseDetailReponse', RemiseServeurSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["Paiements - Remises"],
     )
@@ -901,10 +902,8 @@ class RemiseValiderView(APIView):
         ),
         request=RemiseValiderSerializer,
         responses={
-            200: RemiseServeurSerializer,
-            400: OpenApiResponse(description="Donnees invalides ou remise deja validee"),
-            403: OpenApiResponse(description="Acces reserve au Comptable"),
-            404: OpenApiResponse(description="Remise introuvable"),
+            200: enveloppe('RemiseValideeReponse', RemiseServeurSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Paiements - Remises"],
     )
@@ -966,8 +965,8 @@ class PaiementListView(APIView):
             "Acces : Comptable, Admin, Manager."
         ),
         responses={
-            200: PaiementSerializer(many=True),
-            403: OpenApiResponse(description="Acces reserve"),
+            200: enveloppe('PaiementsListeReponse', PaiementsListeDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Paiements"],
     )
@@ -1009,8 +1008,8 @@ class DashboardComptableView(APIView):
             "Acces : Comptable uniquement."
         ),
         responses={
-            200: DashboardComptableSerializer,
-            403: OpenApiResponse(description="Acces reserve au Comptable"),
+            200: enveloppe('DashboardComptablePaiementsReponse', DashboardComptableDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Paiements - Dashboard"],
     )
