@@ -10,7 +10,11 @@ from rest_framework import serializers
 
 class InscriptionClientRequeteSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(min_length=8, help_text="8 caractères minimum.")
+    password = serializers.CharField(
+        min_length=8,
+        help_text="8 caractères minimum, pas uniquement des chiffres, pas un mot de passe courant. "
+                  "Refusé avec une erreur 400 sur errors.password.",
+    )
     password_confirm = serializers.CharField(help_text="Doit être identique à password.")
     nom_complet = serializers.CharField()
     telephone = serializers.CharField(required=False, allow_blank=True)

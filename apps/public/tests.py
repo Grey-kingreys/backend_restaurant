@@ -98,6 +98,48 @@ def test_inscription_limitee_a_5_par_heure_et_par_ip(cache_vide):
     assert reponse.json()["success"] is False
 
 
+@pytest.mark.django_db
+@pytest.mark.parametrize("mot_de_passe", ["12345678", "password", "abc"])
+def test_inscription_refuse_mot_de_passe_faible_avec_message_francais(cache_vide, mot_de_passe):
+    api = APIClient()
+    reponse = api.post(
+        "/api/public/auth/register/",
+        {
+            "email": "faible@test.com",
+            "password": mot_de_passe,
+            "password_confirm": mot_de_passe,
+            "nom_complet": "Client faible",
+            "telephone": "620000009",
+        },
+        format="json",
+    )
+    assert reponse.status_code == 400
+    corps = reponse.json()
+    assert corps["success"] is False
+    messages = corps["errors"]["password"]
+    assert messages
+    assert all("This password" not in m and "too " not in m for m in messages)
+    from django.contrib.auth import get_user_model
+    assert not get_user_model().objects.filter(email="faible@test.com").exists()
+
+
+@pytest.mark.django_db
+def test_inscription_accepte_mot_de_passe_solide(cache_vide):
+    api = APIClient()
+    reponse = api.post(
+        "/api/public/auth/register/",
+        {
+            "email": "solide@test.com",
+            "password": "Riviere-Soleil-42",
+            "password_confirm": "Riviere-Soleil-42",
+            "nom_complet": "Client solide",
+            "telephone": "620000008",
+        },
+        format="json",
+    )
+    assert reponse.status_code == 201
+
+
 def test_cache_utilise_redis_hors_test():
     import importlib
     import os

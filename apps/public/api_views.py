@@ -5,6 +5,7 @@ import logging
 import secrets
 from django.db.models import Q
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
 from django.core.validators import EmailValidator
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.conf import settings
@@ -107,10 +108,13 @@ class ClientRegisterView(APIView):
                 if User.objects.filter(email=email).exists():
                     errors['email'] = ["Un compte avec cet email existe déjà."]
 
-        if not password or len(password) < 8:
-            errors['password'] = ["Le mot de passe doit faire au moins 8 caractères."]
-        elif password != password2:
-            errors['password_confirm'] = ["Les mots de passe ne correspondent pas."]
+        try:
+            validate_password(password)
+        except DjangoValidationError as exc:
+            errors['password'] = list(exc.messages)
+        else:
+            if password != password2:
+                errors['password_confirm'] = ["Les mots de passe ne correspondent pas."]
 
         if not nom_complet:
             errors['nom_complet'] = ["Le nom complet est obligatoire."]
