@@ -34,6 +34,13 @@ app.conf.beat_schedule = {
         'options': {'expires': 3600},  # expire si non execute en 1h
     },
 
+    # Purge des clés d'idempotence de plus de 24 h (toutes les heures)
+    'purger-cles-idempotence': {
+        'task': 'apps.public.tasks.purger_cles_idempotence',
+        'schedule': crontab(minute=15),
+        'options': {'expires': 3000},
+    },
+
     # Phase 8 - rapport quotidien a 18h00
     # 'rapport-quotidien-18h00': {
     #     'task': 'apps.dashboard.tasks.envoyer_rapport_quotidien',

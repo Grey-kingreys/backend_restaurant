@@ -15,6 +15,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework import status
 from apps.accounts.serializers import emettre_refresh
+from .idempotence import PARAMETRE_CLE_IDEMPOTENCE, idempotente
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 from drf_spectacular.types import OpenApiTypes
 
@@ -343,11 +344,13 @@ class CommanderView(APIView):
         summary="Créer une commande livraison/emporter",
         tags=["Public - Commandes"],
         request=CommanderRequeteSerializer,
+        parameters=[PARAMETRE_CLE_IDEMPOTENCE],
         responses={
             201: enveloppe('CommanderReponse', CommandeCreeeDocSerializer()),
-            **erreurs(400, 401, 403, 404),
+            **erreurs(400, 401, 403, 404, 409),
         },
     )
+    @idempotente
     def post(self, request, slug):
         user = request.user
         if user.role != 'Rclient':
@@ -777,11 +780,13 @@ class ReserverView(APIView):
         summary="Réserver une table",
         tags=["Public - Réservations"],
         request=ReserverRequeteSerializer,
+        parameters=[PARAMETRE_CLE_IDEMPOTENCE],
         responses={
             201: enveloppe('ReserverReponse', ReservationClientDocSerializer()),
             **erreurs(400, 401, 403, 404, 409),
         },
     )
+    @idempotente
     def post(self, request, slug):
         user = request.user
         if user.role != 'Rclient':
