@@ -6,7 +6,15 @@ from django.db.models import Sum, Count
 from django.db.models.functions import ExtractHour
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from drf_spectacular.utils import extend_schema, PolymorphicProxySerializer
 
+from apps.schema_openapi import enveloppe, erreurs
+from .schemas import (
+    DashboardAdminDocSerializer, DashboardServeurTypeDocSerializer,
+    DashboardCuisineDocSerializer, DashboardComptableTypeDocSerializer,
+    DashboardLivreurDocSerializer, DashboardTableDocSerializer,
+    DashboardSuperadminDocSerializer,
+)
 from apps.accounts.api_views import success_response
 from apps.accounts.permissions import IsRestaurantActive
 from apps.commandes.models import Commande, CommandeItem
@@ -26,6 +34,32 @@ CAT_LABELS = {
 class DashboardView(APIView):
     permission_classes = [IsAuthenticated, IsRestaurantActive]
 
+    @extend_schema(
+        summary="Tableau de bord selon le type de compte",
+        description=(
+            "La réponse dépend du `dashboard_type` du rôle de l'utilisateur : admin, serveur, "
+            "cuisine, comptable, livreur, table ou superadmin. Le champ `type` de `data` "
+            "indique la variante. Un compte dont le type n'est pas reconnu reçoit la "
+            "variante superadmin (comportement actuel de la vue)."
+        ),
+        responses={
+            200: enveloppe('DashboardStatsReponse', PolymorphicProxySerializer(
+                component_name='DashboardStatsDonnees',
+                serializers={
+                    'admin': DashboardAdminDocSerializer,
+                    'serveur': DashboardServeurTypeDocSerializer,
+                    'cuisine': DashboardCuisineDocSerializer,
+                    'comptable': DashboardComptableTypeDocSerializer,
+                    'livreur': DashboardLivreurDocSerializer,
+                    'table': DashboardTableDocSerializer,
+                    'superadmin': DashboardSuperadminDocSerializer,
+                },
+                resource_type_field_name='type',
+            )),
+            **erreurs(401, 403),
+        },
+        tags=["Dashboard"],
+    )
     def get(self, request):
         user       = request.user
         restaurant = user.restaurant
