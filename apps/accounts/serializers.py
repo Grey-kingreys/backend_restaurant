@@ -6,6 +6,7 @@ from django.contrib.auth import authenticate
 from django.db import transaction
 import logging
 
+from . import refresh_grace
 from .models import User, PasswordResetToken, Permission, RoleConfig, AdresseClient
 from .services.email_service import send_password_reset_email
 
@@ -140,11 +141,17 @@ class LogoutSerializer(serializers.Serializer):
             token = RefreshToken(value)
             token.verify()
         except Exception:
+            # Refresh déjà tourné (rotation) puis déconnexion : la grâce ne doit plus servir
+            jti = refresh_grace.jti_de(value)
+            if jti:
+                refresh_grace.oublier(jti)
             raise serializers.ValidationError("Token invalide ou déjà expiré.")
         self.token = token
         return value
 
     def save(self):
+        # Déconnexion : le refresh ne doit plus être rejouable pendant la période de grâce
+        refresh_grace.oublier(self.token['jti'])
         self.token.blacklist()
 
 

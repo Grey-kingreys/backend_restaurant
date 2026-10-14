@@ -159,7 +159,7 @@ Retourne des données différentes selon `request.user.role` :
 | `POST /change-password/` | `ChangePasswordView` | Authentifié - aussi utilisé au first-login |
 | `POST /password-reset/` | `PasswordResetRequestView` | Public - envoie email via Zendou |
 | `POST /password-reset/confirm/` | `PasswordResetConfirmView` | Public - UUID token 1h |
-| `POST /token/refresh/` | SimpleJWT | Public - rotation avec blacklist |
+| `POST /token/refresh/` | `RafraichirJetonView` | Public - rotation avec blacklist, grâce de 60 s (même refresh rejoué = même couple, cache) |
 
 ### Impersonation
 
