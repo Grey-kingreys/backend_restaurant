@@ -7,6 +7,7 @@ from django.db.models import Q
 from django.contrib.auth import get_user_model
 from django.core.validators import EmailValidator
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.conf import settings
 from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -446,7 +447,7 @@ class CommanderView(APIView):
                 'montant_total': str(commande.montant_total),
                 'type_commande': commande.type_commande,
                 'mode_paiement': commande.mode_paiement,
-                'suivi_url': f"/restaurant/{resto.get_slug()}/confirmation/{cle}/",
+                'suivi_url': f"{settings.FRONTEND_URL.rstrip('/')}/restaurant/{resto.get_slug()}/confirmation/{cle}/",
             },
             message="Commande passée avec succès !",
             code=status.HTTP_201_CREATED,

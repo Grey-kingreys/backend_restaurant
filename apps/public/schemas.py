@@ -143,7 +143,7 @@ class CommandeCreeeDocSerializer(serializers.Serializer):
     montant_total = serializers.CharField(help_text="Décimal en texte.")
     type_commande = serializers.CharField()
     mode_paiement = serializers.CharField()
-    suivi_url = serializers.CharField(help_text="Chemin relatif de la page de suivi.")
+    suivi_url = serializers.CharField(help_text="URL absolue de la page de suivi de la commande.")
 
 
 class CommandeClientDocSerializer(serializers.Serializer):

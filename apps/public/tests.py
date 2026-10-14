@@ -51,6 +51,21 @@ def test_commander_quantite_valide_cree_la_commande(commande_client, quantite):
     assert CommandeItem.objects.get().quantite == int(quantite)
 
 
+@pytest.mark.django_db
+@pytest.mark.parametrize("frontend_url", ["https://resfly.org", "https://resfly.org/"])
+def test_commander_suivi_url_absolue_sans_double_barre(commande_client, frontend_url):
+    from django.test import override_settings
+
+    api, resto, plat = commande_client
+    with override_settings(FRONTEND_URL=frontend_url):
+        reponse = _commander(api, resto, plat, 1)
+    assert reponse.status_code == 201
+    suivi_url = reponse.json()["data"]["suivi_url"]
+    cle = reponse.json()["data"]["cle_suivi"]
+    assert suivi_url == f"https://resfly.org/restaurant/{resto.get_slug()}/confirmation/{cle}/"
+    assert "//" not in suivi_url.split("://", 1)[1]
+
+
 @pytest.fixture
 def cache_vide():
     from django.core.cache import cache
