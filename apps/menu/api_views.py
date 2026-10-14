@@ -9,6 +9,8 @@ from django.db.models import Q
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
+from apps.schema_openapi import enveloppe, erreurs
+from .schemas import PlatsListeDocSerializer, CategoriesPlatDocSerializer
 from .models import Plat
 from .serializers import (
     PlatListSerializer,
@@ -56,6 +58,7 @@ class PlatListCreateView(APIView):
 
     @extend_schema(
         summary="Lister les plats du restaurant",
+        operation_id="menu_plats_list",
         description=(
             "Retourne la liste des plats du restaurant connecté.\n\n"
             "- **Table** : uniquement les plats `disponible=True`\n"
@@ -67,7 +70,10 @@ class PlatListCreateView(APIView):
             OpenApiParameter('disponible', OpenApiTypes.BOOL, description="true / false"),
             OpenApiParameter('q', OpenApiTypes.STR, description="Recherche dans nom et description"),
         ],
-        responses={200: PlatListSerializer(many=True)},
+        responses={
+            200: enveloppe('PlatsListeReponse', PlatsListeDocSerializer()),
+            **erreurs(401, 403),
+        },
         tags=["Menu"],
     )
     def get(self, request):
@@ -111,9 +117,8 @@ class PlatListCreateView(APIView):
         ),
         request=PlatCreateUpdateSerializer,
         responses={
-            201: PlatDetailSerializer,
-            400: OpenApiResponse(description="Données invalides"),
-            403: OpenApiResponse(description="Accès refusé"),
+            201: enveloppe('PlatCreeReponse', PlatDetailSerializer()),
+            **erreurs(400, 401, 403),
         },
         tags=["Menu"],
     )
@@ -157,8 +162,8 @@ class PlatDetailView(APIView):
     @extend_schema(
         summary="Détail d'un plat",
         responses={
-            200: PlatDetailSerializer,
-            404: OpenApiResponse(description="Plat introuvable ou hors restaurant"),
+            200: enveloppe('PlatDetailReponse', PlatDetailSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["Menu"],
     )
@@ -179,10 +184,8 @@ class PlatDetailView(APIView):
         summary="Modifier un plat (complète)",
         request=PlatCreateUpdateSerializer,
         responses={
-            200: PlatDetailSerializer,
-            400: OpenApiResponse(description="Données invalides"),
-            403: OpenApiResponse(description="Accès refusé"),
-            404: OpenApiResponse(description="Plat introuvable"),
+            200: enveloppe('PlatModifieReponse', PlatDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Menu"],
     )
@@ -193,10 +196,8 @@ class PlatDetailView(APIView):
         summary="Modifier un plat (partielle)",
         request=PlatCreateUpdateSerializer,
         responses={
-            200: PlatDetailSerializer,
-            400: OpenApiResponse(description="Données invalides"),
-            403: OpenApiResponse(description="Accès refusé"),
-            404: OpenApiResponse(description="Plat introuvable"),
+            200: enveloppe('PlatModifiePartielReponse', PlatDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Menu"],
     )
@@ -241,9 +242,8 @@ class PlatToggleView(APIView):
         ),
         request=None,
         responses={
-            200: PlatDetailSerializer,
-            403: OpenApiResponse(description="Accès refusé"),
-            404: OpenApiResponse(description="Plat introuvable"),
+            200: enveloppe('PlatBasculeReponse', PlatDetailSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["Menu"],
     )
@@ -278,7 +278,10 @@ class PlatCategoriesView(APIView):
     @extend_schema(
         summary="Lister les catégories de plats",
         description="Retourne toutes les catégories disponibles avec leurs libellés.",
-        responses={200: OpenApiResponse(description="Liste des catégories")},
+        responses={
+            200: enveloppe('PlatCategoriesReponse', CategoriesPlatDocSerializer()),
+            **erreurs(401, 403),
+        },
         tags=["Menu"],
     )
     def get(self, request):

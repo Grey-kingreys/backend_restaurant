@@ -12,6 +12,15 @@ from django.http import HttpResponse
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
+from apps.schema_openapi import enveloppe, enveloppe_sans_data, erreurs
+from .schemas import (
+    PanierQuantiteRequeteSerializer, CommandeServeurRequeteSerializer,
+    AnnulerCommandeStaffRequeteSerializer, PanierDocSerializer,
+    PanierViderDocSerializer, CommandesDetailListeDocSerializer,
+    CommandesListeDocSerializer, CommandesCuisineDocSerializer,
+    LivraisonLienDocSerializer,
+)
+
 from apps.accounts.perm_codes import (
     PERM_VIEW_COMMANDES, PERM_MANAGE_COMMANDES,
     PERM_VIEW_CUISINE, PERM_MANAGE_CUISINE,
@@ -73,7 +82,10 @@ class PanierView(APIView):
     @extend_schema(
         summary="Voir le panier",
         description="Retourne les items du panier, le nombre d'articles et le montant total. Accès : Table uniquement.",
-        responses={200: PanierItemSerializer, 403: OpenApiResponse(description="Accès réservé aux Tables")},
+        responses={
+            200: enveloppe('PanierReponse', PanierDocSerializer()),
+            **erreurs(401, 403),
+        },
         tags=["Panier"],
     )
     def get(self, request):
@@ -91,7 +103,10 @@ class PanierView(APIView):
         summary="Ajouter ou mettre à jour un plat dans le panier",
         description="Ajoute un plat au panier ou met à jour sa quantité. Accès : Table uniquement.",
         request=PanierItemCreateSerializer,
-        responses={200: PanierItemSerializer, 400: OpenApiResponse(description="Données invalides"), 403: OpenApiResponse(description="Accès réservé aux Tables")},
+        responses={
+            200: enveloppe('PanierAjoutReponse', PanierItemSerializer()),
+            **erreurs(400, 401, 403),
+        },
         tags=["Panier"],
     )
     def post(self, request):
@@ -109,7 +124,11 @@ class PanierView(APIView):
     @extend_schema(
         summary="Vider le panier",
         description="Supprime tous les items du panier. Accès : Table uniquement.",
-        responses={200: OpenApiResponse(description="Panier vidé"), 403: OpenApiResponse(description="Accès réservé aux Tables")},
+        operation_id="commandes_panier_vider",
+        responses={
+            200: enveloppe('PanierViderReponse', PanierViderDocSerializer()),
+            **erreurs(401, 403),
+        },
         tags=["Panier"],
     )
     def delete(self, request):
@@ -125,10 +144,10 @@ class PanierItemView(APIView):
     @extend_schema(
         summary="Retirer un plat du panier",
         description="Supprime un plat spécifique du panier. Accès : Table uniquement.",
+        operation_id="commandes_panier_retirer",
         responses={
-            200: OpenApiResponse(description="Plat retiré"),
-            403: OpenApiResponse(description="Accès réservé aux Tables"),
-            404: OpenApiResponse(description="Plat non trouvé dans le panier"),
+            200: enveloppe_sans_data('PanierRetirerReponse'),
+            **erreurs(401, 403, 404),
         },
         tags=["Panier"],
     )
@@ -143,11 +162,10 @@ class PanierItemView(APIView):
     @extend_schema(
         summary="Mettre à jour la quantité d'un plat du panier",
         description="Définit la quantité d'un plat déjà présent dans le panier (1 à 10). Accès : Table uniquement.",
+        request=PanierQuantiteRequeteSerializer,
         responses={
-            200: PanierItemSerializer,
-            400: OpenApiResponse(description="Quantité invalide"),
-            403: OpenApiResponse(description="Accès réservé aux Tables"),
-            404: OpenApiResponse(description="Plat non trouvé dans le panier"),
+            200: enveloppe('PanierQuantiteReponse', PanierItemSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Panier"],
     )
@@ -179,10 +197,10 @@ class CommandeValiderView(APIView):
     @extend_schema(
         summary="Valider le panier → créer une commande EN_ATTENTE",
         description="Transforme le panier en commande liée à la session QR active. Le panier est vidé. Accès : Table uniquement.",
+        request=None,  # action sans corps : la commande est construite depuis le panier
         responses={
-            201: CommandeDetailSerializer,
-            400: OpenApiResponse(description="Panier vide ou plats indisponibles"),
-            403: OpenApiResponse(description="Accès réservé aux Tables"),
+            201: enveloppe('CommandeValiderReponse', CommandeDetailSerializer()),
+            **erreurs(400, 401, 403),
         },
         tags=["Commandes"],
     )
@@ -215,11 +233,10 @@ class CommandeServeurCreerView(APIView):
                     "client_adresse_livraison (texte libre, requis si livraison), "
                     "items: [{plat_id, quantite}] }. "
                     "Accès : permission manage_commandes.",
-        request=CommandeServeurCreateSerializer,
+        request=CommandeServeurRequeteSerializer,
         responses={
-            201: CommandeDetailSerializer,
-            400: OpenApiResponse(description="Données invalides"),
-            403: OpenApiResponse(description="Permission manage_commandes requise"),
+            201: enveloppe('CommandeServeurCreerReponse', CommandeDetailSerializer()),
+            **erreurs(400, 401, 403),
         },
         tags=["Commandes"],
     )
@@ -263,8 +280,8 @@ class MesCommandesView(APIView):
         summary="Mes commandes (session courante)",
         description="Retourne les commandes de la table connectée filtrées par session QR courante. Accès : Table uniquement.",
         responses={
-            200: CommandeDetailSerializer(many=True),
-            403: OpenApiResponse(description="Accès réservé aux Tables"),
+            200: enveloppe('MesCommandesTableReponse', CommandesDetailListeDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Commandes"],
     )
@@ -304,14 +321,15 @@ class AllCommandesView(APIView):
 
     @extend_schema(
         summary="Toutes les commandes du restaurant",
+        operation_id="commandes_list",
         description="Retourne toutes les commandes du restaurant. Filtres : statut, table_id. Accès : permission view_commandes.",
         parameters=[
-            OpenApiParameter('statut', OpenApiTypes.STR, description="en_attente | prete | en_livraison | servie | payee", required=False),
+            OpenApiParameter('statut', OpenApiTypes.STR, description="en_attente | prete | en_livraison | servie | payee | annulee", required=False),
             OpenApiParameter('table_id', OpenApiTypes.INT, description="ID de la table", required=False),
         ],
         responses={
-            200: CommandeListSerializer(many=True),
-            403: OpenApiResponse(description="Permission view_commandes requise"),
+            200: enveloppe('ToutesCommandesReponse', CommandesListeDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Commandes"],
     )
@@ -353,8 +371,8 @@ class LivraisonsView(APIView):
             OpenApiParameter('statut', OpenApiTypes.STR, description="Filtre optionnel : en_attente | prete | en_livraison | servie | payee", required=False),
         ],
         responses={
-            200: CommandeDetailSerializer(many=True),
-            403: OpenApiResponse(description="Permission view_livraisons requise"),
+            200: enveloppe('LivraisonsReponse', CommandesDetailListeDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Livraison"],
     )
@@ -393,10 +411,10 @@ class LivraisonLienView(APIView):
         description="Crée (ou régénère) un lien public + QR Code pour qu'un livreur externe "
                     "sans compte puisse suivre et faire avancer la commande. "
                     "Accès : permission manage_livraison_links.",
+        request=None,  # action sans corps : la commande est désignée par l'URL
         responses={
-            200: OpenApiResponse(description="Lien + QR Code (base64)"),
-            403: OpenApiResponse(description="Permission manage_livraison_links requise"),
-            404: OpenApiResponse(description="Commande non trouvée"),
+            200: enveloppe('LivraisonLienReponse', LivraisonLienDocSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Livraison"],
     )
@@ -442,9 +460,8 @@ class CommandeDetailView(APIView):
         summary="Détail d'une commande",
         description="Retourne le détail complet d'une commande. Table : sa session courante uniquement. Staff : toute commande du restaurant.",
         responses={
-            200: CommandeDetailSerializer,
-            403: OpenApiResponse(description="Accès refusé"),
-            404: OpenApiResponse(description="Commande non trouvée"),
+            200: enveloppe('CommandeDetailReponse', CommandeDetailSerializer()),
+            **erreurs(401, 403, 404),
         },
         tags=["Commandes"],
     )
@@ -486,8 +503,8 @@ class CuisinierCommandesView(APIView):
             OpenApiParameter('statut', OpenApiTypes.STR, description="en_attente (défaut) | prete", required=False),
         ],
         responses={
-            200: CommandeCuisinierSerializer(many=True),
-            403: OpenApiResponse(description="Accès réservé aux Cuisiniers"),
+            200: enveloppe('CuisineCommandesReponse', CommandesCuisineDocSerializer()),
+            **erreurs(401, 403),
         },
         tags=["Cuisine"],
     )
@@ -517,11 +534,10 @@ class CommandePreteView(APIView):
     @extend_schema(
         summary="Marquer une commande comme PRÊTE",
         description="Le cuisinier marque la commande comme prête à être servie. Statut requis : EN_ATTENTE. Accès : Cuisinier, Chef Cuisinier.",
+        request=None,  # action sans corps : la commande est désignée par l'URL
         responses={
-            200: CommandeDetailSerializer,
-            400: OpenApiResponse(description="Statut invalide"),
-            403: OpenApiResponse(description="Accès réservé aux Cuisiniers"),
-            404: OpenApiResponse(description="Commande non trouvée"),
+            200: enveloppe('CommandePreteReponse', CommandeDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Cuisine"],
     )
@@ -550,6 +566,11 @@ class CommandeEnLivraisonView(APIView):
     @extend_schema(
         summary="Marquer une commande comme EN LIVRAISON",
         description="Disponible uniquement pour les commandes de type 'livraison' au statut 'prete'. Accès : Staff avec permission manage_commandes.",
+        request=None,  # action sans corps : la commande est désignée par l'URL
+        responses={
+            200: enveloppe('CommandeEnLivraisonReponse', CommandeDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
+        },
         tags=["Service"],
     )
     def post(self, request, pk):
@@ -577,11 +598,10 @@ class CommandeServieView(APIView):
     @extend_schema(
         summary="Marquer une commande comme SERVIE",
         description="Le serveur marque la commande comme servie. Statut requis : PRÊTE (ou sans étape cuisine). CDC §7.1 étape 4. Accès : Serveur uniquement.",
+        request=None,  # action sans corps : la commande est désignée par l'URL
         responses={
-            200: CommandeDetailSerializer,
-            400: OpenApiResponse(description="Statut invalide"),
-            403: OpenApiResponse(description="Accès réservé aux Serveurs"),
-            404: OpenApiResponse(description="Commande non trouvée"),
+            200: enveloppe('CommandeServieReponse', CommandeDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Service"],
     )
@@ -611,11 +631,10 @@ class CommandePayeeView(APIView):
     @extend_schema(
         summary="Marquer une commande comme PAYÉE",
         description="Le serveur valide le paiement. Statut requis : SERVIE. Déclenche l'expiration de la session QR (1 min). CDC §7.1 étape 5. Accès : Serveur uniquement.",
+        request=None,  # action sans corps : la commande est désignée par l'URL
         responses={
-            200: CommandeDetailSerializer,
-            400: OpenApiResponse(description="Statut invalide"),
-            403: OpenApiResponse(description="Accès réservé aux Serveurs"),
-            404: OpenApiResponse(description="Commande non trouvée"),
+            200: enveloppe('CommandePayeeReponse', CommandeDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Service"],
     )
@@ -651,11 +670,10 @@ class CommandeAnnulerView(APIView):
             "n'est ni servie/livrée, ni payée (jusqu'à « en livraison » inclus). "
             "Le motif est obligatoire."
         ),
+        request=AnnulerCommandeStaffRequeteSerializer,
         responses={
-            200: CommandeDetailSerializer,
-            400: OpenApiResponse(description="Statut invalide ou motif manquant"),
-            403: OpenApiResponse(description="Permission manage_commandes requise"),
-            404: OpenApiResponse(description="Commande non trouvée"),
+            200: enveloppe('CommandeAnnulerReponse', CommandeDetailSerializer()),
+            **erreurs(400, 401, 403, 404),
         },
         tags=["Service"],
     )
@@ -690,10 +708,8 @@ class CommandeRecuView(APIView):
         summary="Télécharger le reçu PDF",
         description="Génère et retourne le reçu PDF d'une commande. Table : sa commande de sa session courante. Staff : toute commande du restaurant (permission view_commandes).",
         responses={
-            200: OpenApiResponse(description="Fichier PDF"),
-            403: OpenApiResponse(description="Accès non autorisé"),
-            404: OpenApiResponse(description="Commande non trouvée"),
-            500: OpenApiResponse(description="Erreur génération PDF"),
+            (200, 'application/pdf'): OpenApiResponse(OpenApiTypes.BINARY, description="Fichier PDF du reçu."),
+            **erreurs(401, 403, 404, 500),
         },
         tags=["Commandes"],
     )
@@ -742,9 +758,8 @@ class CommandeDeleteView(APIView):
         summary="Supprimer une commande (Admin uniquement)",
         description="Supprime définitivement une commande. Action irréversible. CDC §5.6 / §10.5. Accès : Admin uniquement.",
         responses={
-            200: OpenApiResponse(description="Commande supprimée"),
-            403: OpenApiResponse(description="Seul l'Admin peut supprimer une commande"),
-            404: OpenApiResponse(description="Commande non trouvée"),
+            200: enveloppe_sans_data('CommandeSupprimeeReponse'),
+            **erreurs(401, 403, 404),
         },
         tags=["Commandes"],
     )
