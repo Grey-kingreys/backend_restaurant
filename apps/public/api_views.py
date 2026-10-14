@@ -305,6 +305,17 @@ def _serialize_restaurant(r):
 MODES_PAIEMENT_DISPONIBLES = {'livraison'}  # seul mode actif pour l'instant
 
 
+def _quantite_valide(valeur):
+    """Entier de 1 à 50 (même borne que la prise de commande staff), sinon None."""
+    if isinstance(valeur, bool):
+        return None
+    if isinstance(valeur, str) and valeur.strip().isdigit():
+        valeur = int(valeur.strip())
+    if not isinstance(valeur, int) or not 1 <= valeur <= 50:
+        return None
+    return valeur
+
+
 class CommanderView(APIView):
     """
     POST /api/public/restaurants/<slug>/commander/
@@ -382,7 +393,12 @@ class CommanderView(APIView):
                 plat = Plat.objects.get(id=item.get('plat_id'), restaurant=resto, disponible=True)
             except Plat.DoesNotExist:
                 return err(message=f"Plat #{item.get('plat_id')} introuvable ou indisponible.")
-            qte = max(1, int(item.get('quantite', 1)))
+            qte = _quantite_valide(item.get('quantite', 1))
+            if qte is None:
+                return err(
+                    message="Données invalides.",
+                    errors={'items': ["La quantité doit être un nombre entier entre 1 et 50."]},
+                )
             montant += plat.prix_unitaire * qte
             items_valides.append((plat, qte))
 
