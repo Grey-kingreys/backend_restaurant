@@ -76,6 +76,14 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
+    # Noms explicites des enums dont le champ porte le même nom dans plusieurs modèles
+    'ENUM_NAME_OVERRIDES': {
+        'StatutCommandeEnum': 'apps.commandes.models.Commande.STATUS_CHOICES',
+        'TypeCommandeEnum': 'apps.commandes.models.Commande.TYPE_CHOICES',
+        'DashboardTypeEnum': 'apps.accounts.models.RoleConfig.DASHBOARD_CHOICES',
+        # Même ensemble de valeurs, déclaré sans libellés dans les serializers de saisie des rôles
+        'DashboardTypeSaisieEnum': ['admin', 'serveur', 'cuisine', 'comptable', 'livreur'],
+    },
 }
 
 # ------------------------------------------
