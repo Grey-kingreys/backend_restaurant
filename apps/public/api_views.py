@@ -4,7 +4,7 @@
 import logging
 import secrets
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.validators import EmailValidator
@@ -20,7 +20,7 @@ from .idempotence import PARAMETRE_CLE_IDEMPOTENCE, idempotente
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 from drf_spectacular.types import OpenApiTypes
 
-from apps.schema_openapi import enveloppe, enveloppe_sans_data, erreurs
+from apps.schema_openapi import donnees_paginables, enveloppe, enveloppe_sans_data, erreurs
 from .schemas import (
     InscriptionClientRequeteSerializer, InscriptionClientDocSerializer,
     ContactRequeteSerializer, RestaurantListeDocSerializer,
@@ -32,7 +32,10 @@ from .schemas import (
     MesReservationsDocSerializer, SuiviCommandeDocSerializer,
     LivraisonPubliqueDocSerializer, ActionLivraisonRequeteSerializer,
     ConfigAppDocSerializer, SupprimerCompteRequeteSerializer,
+    RestaurantPublicDocSerializer, PlatPublicDocSerializer, CommandeClientDocSerializer,
+    StatsCommandesClientDocSerializer,
 )
+from .pagination import PARAMETRES_PAGINATION, paginer
 
 from django.utils import timezone
 from apps.company.models import Restaurant
@@ -178,8 +181,13 @@ class RestaurantListPublicView(APIView):
         summary="Liste restaurants publics",
         tags=["Public - Restaurants"],
         operation_id="public_restaurants_list",
+        parameters=PARAMETRES_PAGINATION,
         responses={
-            200: enveloppe('RestaurantListePubliqueReponse', RestaurantListeDocSerializer()),
+            200: enveloppe('RestaurantListePubliqueReponse', donnees_paginables(
+                'RestaurantListeDonnees', RestaurantListeDocSerializer(),
+                RestaurantPublicDocSerializer(many=True),
+            )),
+            **erreurs(400, 404),
         },
     )
     def get(self, request):
@@ -193,6 +201,10 @@ class RestaurantListPublicView(APIView):
             accept_emporter=True
         )
         restos = restos.distinct()
+
+        pagine = paginer(request, restos, _serialize_restaurant)
+        if pagine is not None:
+            return pagine
 
         data = [_serialize_restaurant(r) for r in restos]
         return ok(data={'restaurants': data, 'count': len(data)})
@@ -254,8 +266,13 @@ class PlatsPublicListView(APIView):
     @extend_schema(
         summary="Tous les plats publics",
         tags=["Public - Restaurants"],
+        parameters=PARAMETRES_PAGINATION,
         responses={
-            200: enveloppe('PlatsPublicsListeReponse', PlatsPublicsListeDocSerializer()),
+            200: enveloppe('PlatsPublicsListeReponse', donnees_paginables(
+                'PlatsPublicsListeDonnees', PlatsPublicsListeDocSerializer(),
+                PlatPublicDocSerializer(many=True),
+            )),
+            **erreurs(400, 404),
         },
     )
     def get(self, request):
@@ -270,8 +287,8 @@ class PlatsPublicListView(APIView):
             .order_by('nom')
         )
 
-        data = [
-            {
+        def serialiser(p):
+            return {
                 'id': p.id,
                 'nom': p.nom,
                 'description': p.description,
@@ -288,8 +305,12 @@ class PlatsPublicListView(APIView):
                     'longitude': str(p.restaurant.longitude) if p.restaurant.longitude else None,
                 },
             }
-            for p in plats
-        ]
+
+        pagine = paginer(request, plats, serialiser)
+        if pagine is not None:
+            return pagine
+
+        data = [serialiser(p) for p in plats]
         return ok(data={'plats': data, 'count': len(data)})
 
 
@@ -477,9 +498,16 @@ class MesCommandesClientView(APIView):
     @extend_schema(
         summary="Mes commandes (client)",
         tags=["Public - Commandes"],
+        parameters=PARAMETRES_PAGINATION,
         responses={
-            200: enveloppe('MesCommandesClientReponse', MesCommandesDocSerializer()),
-            **erreurs(401, 403),
+            200: enveloppe('MesCommandesClientReponse', donnees_paginables(
+                'MesCommandesClientDonnees', MesCommandesDocSerializer(),
+                CommandeClientDocSerializer(many=True),
+                champs_en_plus={'stats': StatsCommandesClientDocSerializer(
+                    help_text="Statistiques sur toutes les commandes du client, pas seulement la page.",
+                )},
+            )),
+            **erreurs(400, 401, 403, 404),
         },
     )
     def get(self, request):
@@ -495,17 +523,8 @@ class MesCommandesClientView(APIView):
             .order_by('-date_commande')
         )
 
-        en_cours_statuts = {'en_attente', 'prete', 'en_livraison', 'servie'}
-        data = []
-        total_depense = 0
-        nb_en_cours = 0
-        for cmd in commandes:
-            nb_items = sum(i.quantite for i in cmd.items.all())
-            if cmd.statut in en_cours_statuts:
-                nb_en_cours += 1
-            if cmd.statut == 'payee':
-                total_depense += cmd.montant_total
-            data.append({
+        def serialiser(cmd):
+            return {
                 'commande_id': cmd.id,
                 'cle_suivi': cmd.cle_suivi,
                 'restaurant': cmd.restaurant.nom,
@@ -515,11 +534,37 @@ class MesCommandesClientView(APIView):
                 'type_commande': cmd.type_commande,
                 'mode_paiement': cmd.mode_paiement,
                 'montant_total': str(cmd.montant_total),
-                'nb_items': nb_items,
+                'nb_items': sum(i.quantite for i in cmd.items.all()),
                 'annulable': cmd.peut_annuler_client(),
                 'motif_annulation': cmd.motif_annulation,
                 'date_commande': cmd.date_commande.isoformat(),
-            })
+            }
+
+        en_cours_statuts = {'en_attente', 'prete', 'en_livraison', 'servie'}
+
+        def stats_globales():
+            # Sur toutes les commandes du client (l'app ne peut pas les déduire d'une page)
+            return {'stats': {
+                'total': commandes.count(),
+                'en_cours': commandes.filter(statut__in=en_cours_statuts).count(),
+                'total_depense': str(
+                    commandes.filter(statut='payee').aggregate(s=Sum('montant_total'))['s'] or 0
+                ),
+            }}
+
+        pagine = paginer(request, commandes, serialiser, en_plus=stats_globales)
+        if pagine is not None:
+            return pagine
+
+        data = []
+        total_depense = 0
+        nb_en_cours = 0
+        for cmd in commandes:
+            if cmd.statut in en_cours_statuts:
+                nb_en_cours += 1
+            if cmd.statut == 'payee':
+                total_depense += cmd.montant_total
+            data.append(serialiser(cmd))
 
         return ok(data={
             'commandes': data,
@@ -861,9 +906,13 @@ class MesReservationsView(APIView):
     @extend_schema(
         summary="Mes réservations (client)",
         tags=["Public - Réservations"],
+        parameters=PARAMETRES_PAGINATION,
         responses={
-            200: enveloppe('MesReservationsReponse', MesReservationsDocSerializer()),
-            **erreurs(401, 403),
+            200: enveloppe('MesReservationsReponse', donnees_paginables(
+                'MesReservationsDonnees', MesReservationsDocSerializer(),
+                ReservationClientDocSerializer(many=True),
+            )),
+            **erreurs(400, 401, 403, 404),
         },
     )
     def get(self, request):
@@ -874,6 +923,9 @@ class MesReservationsView(APIView):
             .select_related('restaurant', 'table')
             .order_by('-date_reservation', '-heure')
         )
+        pagine = paginer(request, resas, _serialize_reservation)
+        if pagine is not None:
+            return pagine
         return ok(data={'reservations': [_serialize_reservation(r) for r in resas], 'count': resas.count()})
 
 

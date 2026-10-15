@@ -3,7 +3,7 @@
 # et format d'erreur. Utilisées uniquement par les décorateurs `extend_schema`,
 # jamais à l'exécution des vues.
 
-from drf_spectacular.utils import OpenApiResponse, inline_serializer
+from drf_spectacular.utils import OpenApiResponse, PolymorphicProxySerializer, inline_serializer
 from rest_framework import serializers
 
 
@@ -50,6 +50,25 @@ def enveloppe(nom, data):
         'data': data,
         'message': serializers.CharField(help_text="Message lisible, peut être vide."),
     })
+
+
+def donnees_paginables(nom, forme_complete, element, champs_en_plus=None):
+    """`data` d'une liste à pagination optionnelle : soit la forme d'origine (sans `page`),
+    soit `{count, suivant, precedent, resultats}` (avec `page`). Décrit en oneOf.
+
+    `nom` : nom de composant unique ; `forme_complete` : instance de serializer de la forme
+    d'origine ; `element` : instance de serializer (many=True) des éléments de `resultats` ;
+    `champs_en_plus` : dict {nom: champ DRF} ajoutés à la forme paginée (ex. des statistiques)."""
+    page = inline_serializer(name=f"{nom}Page", fields={
+        'count': serializers.IntegerField(help_text="Nombre total d'éléments."),
+        'suivant': serializers.URLField(allow_null=True, help_text="URL absolue de la page suivante, null si dernière page."),
+        'precedent': serializers.URLField(allow_null=True, help_text="URL absolue de la page précédente, null si première page."),
+        'resultats': element,
+        **(champs_en_plus or {}),
+    })
+    return PolymorphicProxySerializer(
+        component_name=nom, serializers=[forme_complete, page], resource_type_field_name=None,
+    )
 
 
 def enveloppe_sans_data(nom):
