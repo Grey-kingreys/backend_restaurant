@@ -88,6 +88,12 @@ urlpatterns = [
         name='annuler-commande'
     ),
 
+    path(
+        'mon-compte/supprimer/',
+        api_views.SupprimerMonCompteView.as_view(),
+        name='supprimer-mon-compte'
+    ),
+
     # ── Suivi commande (clé publique) ─────────────────────────────────────
     path(
         'commandes/<str:cle_suivi>/',

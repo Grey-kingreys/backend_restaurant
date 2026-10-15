@@ -6,6 +6,9 @@ from django.core.validators import EmailValidator, RegexValidator
 from datetime import timedelta
 import uuid
 
+# Domaine non routable de l'email d'un compte client supprimé (anonymisé)
+DOMAINE_COMPTE_SUPPRIME = '@compte-supprime.invalid'
+
 
 class Permission(models.Model):
     """
@@ -267,6 +270,20 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def is_client(self):
         return self.role == 'Rclient'
+
+    @property
+    def est_supprime(self):
+        """Compte client anonymisé (suppression de compte, voir apps/public)."""
+        return (
+            self.is_client()
+            and not self.is_active
+            and (self.email or '').endswith(DOMAINE_COMPTE_SUPPRIME)
+        )
+
+    @property
+    def login_affiche(self):
+        """Login lisible pour le personnel : jamais l'identifiant technique d'un compte supprimé."""
+        return "Client supprimé" if self.est_supprime else self.login
 
     def requires_personal_info(self):
         return self.role != 'Rtable'

@@ -188,6 +188,7 @@ REST_FRAMEWORK = {
         'password_reset': '5/hour',      # anti email-bombing / énumération
         'livraison_public': '30/minute', # anti brute-force du token de livraison
         'register': '5/hour',            # anti création de comptes en masse (par IP)
+        'suppression_compte': '5/hour',  # anti essai de mots de passe sur la suppression (par utilisateur)
     },
     # Nombre de proxys de confiance devant l'API (0 en dev, 1 derrière Traefik).
     # Sans cela, tous les clients partagent l'IP du proxy pour les throttles.

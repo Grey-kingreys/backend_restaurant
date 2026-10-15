@@ -88,7 +88,7 @@ class CommandeItemSerializer(serializers.ModelSerializer):
 class CommandeListSerializer(serializers.ModelSerializer):
     """Lecture allégée - pour les listes (toutes les vues)."""
     statut_display = serializers.CharField(source='get_statut_display', read_only=True)
-    table_login    = serializers.CharField(source='table.login', read_only=True, default=None, allow_null=True)
+    table_login    = serializers.CharField(source='table.login_affiche', read_only=True, default=None, allow_null=True)
     type_commande_display = serializers.CharField(source='get_type_commande_display', read_only=True)
     client_display = serializers.SerializerMethodField()
     nb_items      = serializers.SerializerMethodField()
@@ -126,7 +126,7 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
     """Lecture complète - pour le détail (toutes les vues)."""
     items                   = CommandeItemSerializer(many=True, read_only=True)
     statut_display          = serializers.CharField(source='get_statut_display', read_only=True)
-    table_login             = serializers.CharField(source='table.login', read_only=True, default=None, allow_null=True)
+    table_login             = serializers.CharField(source='table.login_affiche', read_only=True, default=None, allow_null=True)
     type_commande_display   = serializers.CharField(source='get_type_commande_display', read_only=True)
     mode_paiement_display   = serializers.CharField(source='get_mode_paiement_display', read_only=True, allow_null=True)
     client_display          = serializers.SerializerMethodField()
@@ -398,7 +398,7 @@ class CommandeCuisinierSerializer(serializers.ModelSerializer):
     """Vue cuisine : commandes en_attente avec items nécessitant cuisine."""
     items          = CommandeItemSerializer(many=True, read_only=True)
     items_cuisine  = serializers.SerializerMethodField()
-    table_login    = serializers.CharField(source='table.login', read_only=True, default=None, allow_null=True)
+    table_login    = serializers.CharField(source='table.login_affiche', read_only=True, default=None, allow_null=True)
     table_numero  = serializers.SerializerMethodField()
     type_commande_display = serializers.CharField(source='get_type_commande_display', read_only=True)
     client_display = serializers.SerializerMethodField()

@@ -3,6 +3,7 @@
 
 import logging
 import secrets
+from django.db import transaction
 from django.db.models import Q
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -30,7 +31,7 @@ from .schemas import (
     ReserverRequeteSerializer, ReservationClientDocSerializer,
     MesReservationsDocSerializer, SuiviCommandeDocSerializer,
     LivraisonPubliqueDocSerializer, ActionLivraisonRequeteSerializer,
-    ConfigAppDocSerializer,
+    ConfigAppDocSerializer, SupprimerCompteRequeteSerializer,
 )
 
 from django.utils import timezone
@@ -1188,3 +1189,114 @@ class ConfigAppView(APIView):
             },
             'message_mise_a_jour': settings.APP_MESSAGE_MISE_A_JOUR,
         })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SUPPRESSION DE COMPTE CLIENT (anonymisation)
+# ─────────────────────────────────────────────────────────────────────────────
+
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+from apps.accounts import refresh_grace
+from apps.accounts.models import AdresseClient, DOMAINE_COMPTE_SUPPRIME, PasswordResetToken
+from apps.commandes.models import PanierItem
+from .models import CleIdempotence
+
+
+class SupprimerMonCompteView(APIView):
+    """
+    POST /api/v1/public/mon-compte/supprimer/
+    Supprime le compte du client par anonymisation (décision D09) : le compte est
+    désactivé et vidé de ses données personnelles ; commandes et paiements restent
+    (comptabilité des restaurants) mais sans nom, téléphone ni adresse.
+    Accès : Rclient authentifié
+    """
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'suppression_compte'
+
+    @extend_schema(
+        summary="Supprimer mon compte (client)",
+        description=(
+            "Anonymise le compte : données personnelles effacées, adresses supprimées, "
+            "réservations à venir annulées, sessions fermées. Les commandes passées sont "
+            "conservées sans nom, téléphone ni adresse. Irréversible. Refusée (409) tant qu'une "
+            "commande est en cours (en attente, prête ou en livraison) ou qu'une réservation "
+            "est confirmée pour aujourd'hui."
+        ),
+        tags=["Public - Auth"],
+        request=SupprimerCompteRequeteSerializer,
+        responses={
+            200: enveloppe_sans_data('SupprimerCompteReponse'),
+            **erreurs(400, 401, 403, 409, 429),
+        },
+    )
+    def post(self, request):
+        user = request.user
+        if user.role != 'Rclient':
+            return err(message="Réservé aux clients.", code=status.HTTP_403_FORBIDDEN)
+
+        password = request.data.get('password') or ''
+        if not password or not user.check_password(password):
+            return err(
+                message="Mot de passe incorrect. Saisissez votre mot de passe actuel pour supprimer votre compte.",
+                errors={'password': ["Mot de passe incorrect."]},
+            )
+
+        # Une seule transaction : en cas d'échec, rien n'est anonymisé à moitié
+        with transaction.atomic():
+            # Refus tant qu'une commande ou une réservation du jour est en cours (D14)
+            if Commande.objects.filter(
+                table=user, statut__in=('en_attente', 'prete', 'en_livraison'),
+            ).exists():
+                return err(
+                    message="Vous avez une commande en cours. "
+                            "Vous pourrez supprimer votre compte une fois qu'elle sera terminée.",
+                    code=status.HTTP_409_CONFLICT,
+                )
+            if Reservation.objects.filter(
+                client=user, statut='confirmee', date_reservation=timezone.localdate(),
+            ).exists():
+                return err(
+                    message="Vous avez une réservation confirmée aujourd'hui. "
+                            "Vous pourrez supprimer votre compte une fois qu'elle sera passée.",
+                    code=status.HTTP_409_CONFLICT,
+                )
+
+            # Déconnexion partout, y compris pendant la période de grâce du refresh
+            for jeton in OutstandingToken.objects.filter(user=user):
+                refresh_grace.oublier(jeton.jti)
+                BlacklistedToken.objects.get_or_create(token=jeton)
+
+            # Données personnelles des commandes (les commandes et paiements sont conservés)
+            Commande.objects.filter(table=user).update(
+                client_nom=None, client_telephone=None, client_adresse_livraison=None,
+                client_latitude=None, client_longitude=None,
+            )
+
+            # Réservations : celles à venir sont annulées, les notes libres effacées
+            Reservation.objects.filter(
+                client=user, statut__in=Reservation.STATUTS_ACTIFS,
+                date_reservation__gte=timezone.localdate(),
+            ).update(statut='annulee')
+            # Motif d'annulation : texte libre du client, seulement s'il a annulé lui-même
+            # (un motif écrit par le personnel n'est pas une donnée du client)
+            Commande.objects.filter(table=user, annulee_par=user).update(motif_annulation=None)
+            Reservation.objects.filter(client=user).update(note="")
+            ReservationClientBloque.objects.filter(client=user).update(raison="")
+
+            AdresseClient.objects.filter(user=user).delete()
+            PanierItem.objects.filter(table=user).delete()
+            PasswordResetToken.objects.filter(user=user).delete()
+            CleIdempotence.objects.filter(utilisateur=user).delete()
+
+            # Libère l'email et le login (uniques) pour une future inscription
+            user.nom_complet = "Client supprimé"
+            user.telephone = None
+            user.email = f"supprime-{user.pk}{DOMAINE_COMPTE_SUPPRIME}"
+            user.login = f"supprime_{user.pk}"
+            user.actif = False
+            user.is_active = False
+            user.set_unusable_password()
+            user.save()
+
+        return ok(message="Votre compte a été supprimé. Vos données personnelles ont été effacées.")

@@ -57,6 +57,10 @@ class AnnulerCommandeRequeteSerializer(serializers.Serializer):
     motif = serializers.CharField(required=False, allow_blank=True)
 
 
+class SupprimerCompteRequeteSerializer(serializers.Serializer):
+    password = serializers.CharField(help_text="Mot de passe actuel, pour confirmer la suppression.")
+
+
 class ReserverRequeteSerializer(serializers.Serializer):
     date = serializers.CharField(help_text="Format AAAA-MM-JJ.")
     heure = serializers.CharField(help_text="Format HH:MM.")
