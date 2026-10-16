@@ -68,7 +68,7 @@ def send_sms(to, message: str) -> bool:
 def lien_recu(commande) -> str:
     """URL publique de suivi / reçu d'une commande (page confirmation par clé)."""
     base = getattr(settings, 'FRONTEND_URL', '').rstrip('/')
-    slug = commande.restaurant.get_slug()
+    slug = commande.restaurant.slug
     return f"{base}/restaurant/{slug}/confirmation/{commande.cle_suivi}"
 
 

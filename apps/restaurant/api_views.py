@@ -442,8 +442,7 @@ class QRLoginView(APIView):
         tags=["Authentification"],
     )
     def post(self, request, token):
-        from rest_framework_simplejwt.tokens import RefreshToken
-        from apps.accounts.serializers import UserMeSerializer
+        from apps.accounts.serializers import UserMeSerializer, emettre_refresh
         from .models import haversine
 
         try:
@@ -503,7 +502,7 @@ class QRLoginView(APIView):
         )
 
         token_obj.marquer_utilise()
-        refresh = RefreshToken.for_user(table)
+        refresh = emettre_refresh(table)
 
         return ok(
             data={
@@ -961,7 +960,7 @@ def _serialize_resa_staff(r, bloques_ids=None):
         'table_places': r.table.nombre_places if r.table_id else None,
         'client_nom': r.client.nom_complet or r.client.login,
         'client_telephone': r.client.telephone,
-        'client_email': r.client.email,
+        'client_email': None if r.client.est_supprime else r.client.email,
         'date_reservation': r.date_reservation.isoformat(),
         'heure': r.heure.strftime('%H:%M'),
         'heure_fin': _heure_fin_staff(r.heure, r.duree_minutes),

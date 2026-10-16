@@ -159,7 +159,7 @@ Retourne des données différentes selon `request.user.role` :
 | `POST /change-password/` | `ChangePasswordView` | Authentifié - aussi utilisé au first-login |
 | `POST /password-reset/` | `PasswordResetRequestView` | Public - envoie email via Zendou |
 | `POST /password-reset/confirm/` | `PasswordResetConfirmView` | Public - UUID token 1h |
-| `POST /token/refresh/` | SimpleJWT | Public - rotation avec blacklist |
+| `POST /token/refresh/` | `RafraichirJetonView` | Public - rotation avec blacklist, grâce de 60 s (même refresh rejoué = même couple, cache) |
 
 ### Impersonation
 
@@ -246,13 +246,19 @@ SECRET_KEY
 DEBUG
 ALLOWED_HOSTS
 DB_NAME / DB_USER / DB_PASSWORD / DB_HOST / DB_PORT / DB_SSLMODE
-REDIS_URL
+REDIS_URL                           (broker Celery et cache Django, dont les compteurs de throttle)
+NUM_PROXIES                         (défaut: 0 ; 1 derrière Traefik, à confirmer en préproduction)
 JWT_ACCESS_TOKEN_LIFETIME_MINUTES   (défaut: 60)
 JWT_REFRESH_TOKEN_LIFETIME_DAYS     (défaut: 7)
 CORS_ALLOWED_ORIGINS                (ex. http://localhost:3000)
 ZENDOU_API_KEY
 ZENDOU_FROM_EMAIL
 FRONTEND_URL
+APP_CLIENT_VERSION_MIN              (défaut: 1.0.0 ; GET /api/v1/public/config-app/)
+APP_CLIENT_VERSION_RECOMMANDEE      (défaut: 1.0.0)
+APP_EQUIPE_VERSION_MIN              (défaut: 1.0.0)
+APP_EQUIPE_VERSION_RECOMMANDEE      (défaut: 1.0.0)
+APP_MESSAGE_MISE_A_JOUR             (défaut: « Une mise à jour est nécessaire pour continuer. »)
 USE_S3                              (False en dev)
 AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_STORAGE_BUCKET_NAME
 AWS_S3_REGION_NAME / AWS_S3_LOCATION / AWS_S3_CUSTOM_DOMAIN

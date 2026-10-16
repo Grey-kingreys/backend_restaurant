@@ -1,6 +1,5 @@
 # apps/accounts/urls.py
 from django.urls import path
-from rest_framework_simplejwt.views import TokenRefreshView
 from . import api_views
 from apps.restaurant.api_views import QRLoginView
 
@@ -21,7 +20,7 @@ urlpatterns = [
     ),
     path(
         'auth/token/refresh/',
-        TokenRefreshView.as_view(),
+        api_views.RafraichirJetonView.as_view(),
         name='token-refresh'
     ),
     path(

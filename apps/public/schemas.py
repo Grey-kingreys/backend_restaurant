@@ -10,7 +10,11 @@ from rest_framework import serializers
 
 class InscriptionClientRequeteSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(min_length=8, help_text="8 caractères minimum.")
+    password = serializers.CharField(
+        min_length=8,
+        help_text="8 caractères minimum, pas uniquement des chiffres, pas un mot de passe courant. "
+                  "Refusé avec une erreur 400 sur errors.password.",
+    )
     password_confirm = serializers.CharField(help_text="Doit être identique à password.")
     nom_complet = serializers.CharField()
     telephone = serializers.CharField(required=False, allow_blank=True)
@@ -51,6 +55,10 @@ class CommanderRequeteSerializer(serializers.Serializer):
 
 class AnnulerCommandeRequeteSerializer(serializers.Serializer):
     motif = serializers.CharField(required=False, allow_blank=True)
+
+
+class SupprimerCompteRequeteSerializer(serializers.Serializer):
+    password = serializers.CharField(help_text="Mot de passe actuel, pour confirmer la suppression.")
 
 
 class ReserverRequeteSerializer(serializers.Serializer):
@@ -143,7 +151,7 @@ class CommandeCreeeDocSerializer(serializers.Serializer):
     montant_total = serializers.CharField(help_text="Décimal en texte.")
     type_commande = serializers.CharField()
     mode_paiement = serializers.CharField()
-    suivi_url = serializers.CharField(help_text="Chemin relatif de la page de suivi.")
+    suivi_url = serializers.CharField(help_text="URL absolue de la page de suivi de la commande.")
 
 
 class CommandeClientDocSerializer(serializers.Serializer):
@@ -260,3 +268,14 @@ class LivraisonPubliqueDocSerializer(serializers.Serializer):
     items = LivraisonArticleDocSerializer(many=True)
     paiement_autorise = serializers.BooleanField()
     actions = LivraisonActionsDocSerializer()
+
+
+class VersionAppDocSerializer(serializers.Serializer):
+    version_minimale = serializers.CharField(help_text="En dessous, l'application ne fonctionne plus.")
+    version_recommandee = serializers.CharField(help_text="Version conseillée à l'utilisateur.")
+
+
+class ConfigAppDocSerializer(serializers.Serializer):
+    client = VersionAppDocSerializer()
+    equipe = VersionAppDocSerializer()
+    message_mise_a_jour = serializers.CharField(help_text="Message affiché quand une mise à jour est requise.")

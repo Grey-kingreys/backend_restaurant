@@ -76,6 +76,8 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
+    # Seul l'alias /api/v1/ est décrit (l'app mobile n'utilise que lui)
+    'PREPROCESSING_HOOKS': ['apps.schema_openapi.seulement_api_v1'],
     # Noms explicites des enums dont le champ porte le même nom dans plusieurs modèles
     'ENUM_NAME_OVERRIDES': {
         'StatutCommandeEnum': 'apps.commandes.models.Commande.STATUS_CHOICES',
@@ -185,6 +187,21 @@ REST_FRAMEWORK = {
         'login': '10/minute',            # anti brute-force login (staff + tables)
         'password_reset': '5/hour',      # anti email-bombing / énumération
         'livraison_public': '30/minute', # anti brute-force du token de livraison
+        'register': '5/hour',            # anti création de comptes en masse (par IP)
+        'suppression_compte': '5/hour',  # anti essai de mots de passe sur la suppression (par utilisateur)
+    },
+    # Nombre de proxys de confiance devant l'API (0 en dev, 1 derrière Traefik).
+    # Sans cela, tous les clients partagent l'IP du proxy pour les throttles.
+    'NUM_PROXIES': int(os.getenv('NUM_PROXIES', 0)),
+}
+
+# ------------------------------------------
+# CACHE - Redis partagé entre workers (compteurs des throttles notamment)
+# ------------------------------------------
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
     },
 }
 
@@ -325,6 +342,17 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 ZENDOU_API_KEY = os.getenv('ZENDOU_API_KEY', '')
 ZENDOU_FROM_EMAIL = os.getenv('ZENDOU_FROM_EMAIL', 'resfly <noreply@resfly.org>')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+
+# ------------------------------------------
+# Versions des applications mobiles, lues par GET /api/v1/public/config-app/.
+# ------------------------------------------
+APP_CLIENT_VERSION_MIN = os.getenv('APP_CLIENT_VERSION_MIN', '1.0.0')
+APP_CLIENT_VERSION_RECOMMANDEE = os.getenv('APP_CLIENT_VERSION_RECOMMANDEE', '1.0.0')
+APP_EQUIPE_VERSION_MIN = os.getenv('APP_EQUIPE_VERSION_MIN', '1.0.0')
+APP_EQUIPE_VERSION_RECOMMANDEE = os.getenv('APP_EQUIPE_VERSION_RECOMMANDEE', '1.0.0')
+APP_MESSAGE_MISE_A_JOUR = os.getenv(
+    'APP_MESSAGE_MISE_A_JOUR', 'Une mise à jour est nécessaire pour continuer.',
+)
 
 # ------------------------------------------
 # Nimba SMS (opérateur guinéen) - envoi de SMS transactionnels

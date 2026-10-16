@@ -123,6 +123,17 @@ class Restaurant(models.Model):
         verbose_name="Derniere modification"
     )
 
+    # Identifiant public du restaurant dans les URLs (menu QR, commande, suivi).
+    # Rempli à la création à partir du nom (get_slug), avec suffixe -2, -3 en cas
+    # de collision. Un slug publié ne change JAMAIS, même si le restaurant est
+    # renommé : les liens déjà partagés (QR, SMS, emails) restent valides.
+    slug = models.SlugField(
+        max_length=30,
+        unique=True,
+        editable=False,
+        verbose_name="Slug public"
+    )
+
     class Meta:
         verbose_name = "Restaurant"
         verbose_name_plural = "Restaurants"
@@ -131,6 +142,18 @@ class Restaurant(models.Model):
     def __str__(self):
         statut = "ACTIF" if self.is_active else "SUSPENDU"
         return f"{self.nom} [{statut}]"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = self.get_slug() or 'restaurant'
+            candidat, n = base, 1
+            while Restaurant.objects.filter(slug=candidat).exists():
+                n += 1
+                candidat = f"{base}-{n}"
+            self.slug = candidat
+            if kwargs.get('update_fields') is not None:
+                kwargs['update_fields'] = {*kwargs['update_fields'], 'slug'}
+        super().save(*args, **kwargs)
 
     def suspendre(self):
         self.is_active = False

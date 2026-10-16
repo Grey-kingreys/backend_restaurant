@@ -3,20 +3,24 @@
 
 import logging
 import secrets
-from django.db.models import Q
+from django.db import transaction
+from django.db.models import Q, Sum
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
 from django.core.validators import EmailValidator
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.conf import settings
 from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework import status
-from rest_framework_simplejwt.tokens import RefreshToken
+from apps.accounts.serializers import emettre_refresh
+from .idempotence import PARAMETRE_CLE_IDEMPOTENCE, idempotente
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 from drf_spectacular.types import OpenApiTypes
 
-from apps.schema_openapi import enveloppe, enveloppe_sans_data, erreurs
+from apps.schema_openapi import donnees_paginables, enveloppe, enveloppe_sans_data, erreurs
 from .schemas import (
     InscriptionClientRequeteSerializer, InscriptionClientDocSerializer,
     ContactRequeteSerializer, RestaurantListeDocSerializer,
@@ -27,7 +31,11 @@ from .schemas import (
     ReserverRequeteSerializer, ReservationClientDocSerializer,
     MesReservationsDocSerializer, SuiviCommandeDocSerializer,
     LivraisonPubliqueDocSerializer, ActionLivraisonRequeteSerializer,
+    ConfigAppDocSerializer, SupprimerCompteRequeteSerializer,
+    RestaurantPublicDocSerializer, PlatPublicDocSerializer, CommandeClientDocSerializer,
+    StatsCommandesClientDocSerializer,
 )
+from .pagination import PARAMETRES_PAGINATION, paginer
 
 from django.utils import timezone
 from apps.company.models import Restaurant
@@ -52,15 +60,14 @@ def err(message="Erreur.", code=status.HTTP_400_BAD_REQUEST, errors=None):
 
 def get_restaurant_by_slug(slug):
     """Retourne le restaurant actif correspondant au slug ou None."""
-    try:
-        return Restaurant.objects.get(is_active=True, nom__iexact=slug.replace('-', ' '))
-    except Restaurant.DoesNotExist:
-        pass
-    # Deuxième tentative : slug dérivé (lebaobab → Le Baobab)
-    for resto in Restaurant.objects.filter(is_active=True):
-        if resto.get_slug() == slug:
-            return resto
-    return None
+    resto = Restaurant.objects.filter(is_active=True, slug=slug).first()
+    if resto:
+        return resto
+    # Repli : forme dérivée du nom (le-baobab → Le Baobab), des liens de cette
+    # forme ont pu être partagés avant l'existence du champ slug.
+    return Restaurant.objects.filter(
+        is_active=True, nom__iexact=slug.replace('-', ' ')
+    ).first()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -74,6 +81,8 @@ class ClientRegisterView(APIView):
     Accès : Public
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'register'
 
     @extend_schema(
         summary="Inscription client",
@@ -81,7 +90,7 @@ class ClientRegisterView(APIView):
         request=InscriptionClientRequeteSerializer,
         responses={
             201: enveloppe('InscriptionClientReponse', InscriptionClientDocSerializer()),
-            **erreurs(400),
+            **erreurs(400, 429),
         },
     )
     def post(self, request):
@@ -104,10 +113,13 @@ class ClientRegisterView(APIView):
                 if User.objects.filter(email=email).exists():
                     errors['email'] = ["Un compte avec cet email existe déjà."]
 
-        if not password or len(password) < 8:
-            errors['password'] = ["Le mot de passe doit faire au moins 8 caractères."]
-        elif password != password2:
-            errors['password_confirm'] = ["Les mots de passe ne correspondent pas."]
+        try:
+            validate_password(password)
+        except DjangoValidationError as exc:
+            errors['password'] = list(exc.messages)
+        else:
+            if password != password2:
+                errors['password_confirm'] = ["Les mots de passe ne correspondent pas."]
 
         if not nom_complet:
             errors['nom_complet'] = ["Le nom complet est obligatoire."]
@@ -135,7 +147,7 @@ class ClientRegisterView(APIView):
             must_change_password=False,
         )
 
-        refresh = RefreshToken.for_user(user)
+        refresh = emettre_refresh(user)
         return ok(
             data={
                 'access': str(refresh.access_token),
@@ -169,8 +181,13 @@ class RestaurantListPublicView(APIView):
         summary="Liste restaurants publics",
         tags=["Public - Restaurants"],
         operation_id="public_restaurants_list",
+        parameters=PARAMETRES_PAGINATION,
         responses={
-            200: enveloppe('RestaurantListePubliqueReponse', RestaurantListeDocSerializer()),
+            200: enveloppe('RestaurantListePubliqueReponse', donnees_paginables(
+                'RestaurantListeDonnees', RestaurantListeDocSerializer(),
+                RestaurantPublicDocSerializer(many=True),
+            )),
+            **erreurs(400, 404),
         },
     )
     def get(self, request):
@@ -184,6 +201,10 @@ class RestaurantListPublicView(APIView):
             accept_emporter=True
         )
         restos = restos.distinct()
+
+        pagine = paginer(request, restos, _serialize_restaurant)
+        if pagine is not None:
+            return pagine
 
         data = [_serialize_restaurant(r) for r in restos]
         return ok(data={'restaurants': data, 'count': len(data)})
@@ -245,8 +266,13 @@ class PlatsPublicListView(APIView):
     @extend_schema(
         summary="Tous les plats publics",
         tags=["Public - Restaurants"],
+        parameters=PARAMETRES_PAGINATION,
         responses={
-            200: enveloppe('PlatsPublicsListeReponse', PlatsPublicsListeDocSerializer()),
+            200: enveloppe('PlatsPublicsListeReponse', donnees_paginables(
+                'PlatsPublicsListeDonnees', PlatsPublicsListeDocSerializer(),
+                PlatPublicDocSerializer(many=True),
+            )),
+            **erreurs(400, 404),
         },
     )
     def get(self, request):
@@ -261,8 +287,8 @@ class PlatsPublicListView(APIView):
             .order_by('nom')
         )
 
-        data = [
-            {
+        def serialiser(p):
+            return {
                 'id': p.id,
                 'nom': p.nom,
                 'description': p.description,
@@ -273,14 +299,18 @@ class PlatsPublicListView(APIView):
                 ),
                 'restaurant': {
                     'nom': p.restaurant.nom,
-                    'slug': p.restaurant.get_slug(),
+                    'slug': p.restaurant.slug,
                     'adresse': p.restaurant.adresse,
                     'latitude': str(p.restaurant.latitude) if p.restaurant.latitude else None,
                     'longitude': str(p.restaurant.longitude) if p.restaurant.longitude else None,
                 },
             }
-            for p in plats
-        ]
+
+        pagine = paginer(request, plats, serialiser)
+        if pagine is not None:
+            return pagine
+
+        data = [serialiser(p) for p in plats]
         return ok(data={'plats': data, 'count': len(data)})
 
 
@@ -288,7 +318,7 @@ def _serialize_restaurant(r):
     return {
         'id': r.id,
         'nom': r.nom,
-        'slug': r.get_slug(),
+        'slug': r.slug,
         'adresse': r.adresse,
         'telephone': r.telephone,
         'latitude': str(r.latitude) if r.latitude else None,
@@ -303,6 +333,17 @@ def _serialize_restaurant(r):
 # ─────────────────────────────────────────────────────────────────────────────
 
 MODES_PAIEMENT_DISPONIBLES = {'livraison'}  # seul mode actif pour l'instant
+
+
+def _quantite_valide(valeur):
+    """Entier de 1 à 50 (même borne que la prise de commande staff), sinon None."""
+    if isinstance(valeur, bool):
+        return None
+    if isinstance(valeur, str) and valeur.strip().isdigit():
+        valeur = int(valeur.strip())
+    if not isinstance(valeur, int) or not 1 <= valeur <= 50:
+        return None
+    return valeur
 
 
 class CommanderView(APIView):
@@ -325,11 +366,13 @@ class CommanderView(APIView):
         summary="Créer une commande livraison/emporter",
         tags=["Public - Commandes"],
         request=CommanderRequeteSerializer,
+        parameters=[PARAMETRE_CLE_IDEMPOTENCE],
         responses={
             201: enveloppe('CommanderReponse', CommandeCreeeDocSerializer()),
-            **erreurs(400, 401, 403, 404),
+            **erreurs(400, 401, 403, 404, 409),
         },
     )
+    @idempotente
     def post(self, request, slug):
         user = request.user
         if user.role != 'Rclient':
@@ -382,7 +425,12 @@ class CommanderView(APIView):
                 plat = Plat.objects.get(id=item.get('plat_id'), restaurant=resto, disponible=True)
             except Plat.DoesNotExist:
                 return err(message=f"Plat #{item.get('plat_id')} introuvable ou indisponible.")
-            qte = max(1, int(item.get('quantite', 1)))
+            qte = _quantite_valide(item.get('quantite', 1))
+            if qte is None:
+                return err(
+                    message="Données invalides.",
+                    errors={'items': ["La quantité doit être un nombre entier entre 1 et 50."]},
+                )
             montant += plat.prix_unitaire * qte
             items_valides.append((plat, qte))
 
@@ -428,7 +476,7 @@ class CommanderView(APIView):
                 'montant_total': str(commande.montant_total),
                 'type_commande': commande.type_commande,
                 'mode_paiement': commande.mode_paiement,
-                'suivi_url': f"/restaurant/{resto.get_slug()}/confirmation/{cle}/",
+                'suivi_url': f"{settings.FRONTEND_URL.rstrip('/')}/restaurant/{resto.slug}/confirmation/{cle}/",
             },
             message="Commande passée avec succès !",
             code=status.HTTP_201_CREATED,
@@ -450,9 +498,16 @@ class MesCommandesClientView(APIView):
     @extend_schema(
         summary="Mes commandes (client)",
         tags=["Public - Commandes"],
+        parameters=PARAMETRES_PAGINATION,
         responses={
-            200: enveloppe('MesCommandesClientReponse', MesCommandesDocSerializer()),
-            **erreurs(401, 403),
+            200: enveloppe('MesCommandesClientReponse', donnees_paginables(
+                'MesCommandesClientDonnees', MesCommandesDocSerializer(),
+                CommandeClientDocSerializer(many=True),
+                champs_en_plus={'stats': StatsCommandesClientDocSerializer(
+                    help_text="Statistiques sur toutes les commandes du client, pas seulement la page.",
+                )},
+            )),
+            **erreurs(400, 401, 403, 404),
         },
     )
     def get(self, request):
@@ -468,31 +523,48 @@ class MesCommandesClientView(APIView):
             .order_by('-date_commande')
         )
 
-        en_cours_statuts = {'en_attente', 'prete', 'en_livraison', 'servie'}
-        data = []
-        total_depense = 0
-        nb_en_cours = 0
-        for cmd in commandes:
-            nb_items = sum(i.quantite for i in cmd.items.all())
-            if cmd.statut in en_cours_statuts:
-                nb_en_cours += 1
-            if cmd.statut == 'payee':
-                total_depense += cmd.montant_total
-            data.append({
+        def serialiser(cmd):
+            return {
                 'commande_id': cmd.id,
                 'cle_suivi': cmd.cle_suivi,
                 'restaurant': cmd.restaurant.nom,
-                'restaurant_slug': cmd.restaurant.get_slug(),
+                'restaurant_slug': cmd.restaurant.slug,
                 'statut': cmd.statut,
                 'statut_label': STATUT_LABELS.get(cmd.statut, cmd.statut),
                 'type_commande': cmd.type_commande,
                 'mode_paiement': cmd.mode_paiement,
                 'montant_total': str(cmd.montant_total),
-                'nb_items': nb_items,
+                'nb_items': sum(i.quantite for i in cmd.items.all()),
                 'annulable': cmd.peut_annuler_client(),
                 'motif_annulation': cmd.motif_annulation,
                 'date_commande': cmd.date_commande.isoformat(),
-            })
+            }
+
+        en_cours_statuts = {'en_attente', 'prete', 'en_livraison', 'servie'}
+
+        def stats_globales():
+            # Sur toutes les commandes du client (l'app ne peut pas les déduire d'une page)
+            return {'stats': {
+                'total': commandes.count(),
+                'en_cours': commandes.filter(statut__in=en_cours_statuts).count(),
+                'total_depense': str(
+                    commandes.filter(statut='payee').aggregate(s=Sum('montant_total'))['s'] or 0
+                ),
+            }}
+
+        pagine = paginer(request, commandes, serialiser, en_plus=stats_globales)
+        if pagine is not None:
+            return pagine
+
+        data = []
+        total_depense = 0
+        nb_en_cours = 0
+        for cmd in commandes:
+            if cmd.statut in en_cours_statuts:
+                nb_en_cours += 1
+            if cmd.statut == 'payee':
+                total_depense += cmd.montant_total
+            data.append(serialiser(cmd))
 
         return ok(data={
             'commandes': data,
@@ -655,7 +727,7 @@ def _serialize_reservation(r):
     return {
         'id': r.id,
         'restaurant': r.restaurant.nom,
-        'restaurant_slug': r.restaurant.get_slug(),
+        'restaurant_slug': r.restaurant.slug,
         'date_reservation': r.date_reservation.isoformat(),
         'heure': r.heure.strftime('%H:%M'),
         'heure_fin': _heure_fin_str(r.heure, r.duree_minutes),
@@ -754,11 +826,13 @@ class ReserverView(APIView):
         summary="Réserver une table",
         tags=["Public - Réservations"],
         request=ReserverRequeteSerializer,
+        parameters=[PARAMETRE_CLE_IDEMPOTENCE],
         responses={
             201: enveloppe('ReserverReponse', ReservationClientDocSerializer()),
             **erreurs(400, 401, 403, 404, 409),
         },
     )
+    @idempotente
     def post(self, request, slug):
         user = request.user
         if user.role != 'Rclient':
@@ -832,9 +906,13 @@ class MesReservationsView(APIView):
     @extend_schema(
         summary="Mes réservations (client)",
         tags=["Public - Réservations"],
+        parameters=PARAMETRES_PAGINATION,
         responses={
-            200: enveloppe('MesReservationsReponse', MesReservationsDocSerializer()),
-            **erreurs(401, 403),
+            200: enveloppe('MesReservationsReponse', donnees_paginables(
+                'MesReservationsDonnees', MesReservationsDocSerializer(),
+                ReservationClientDocSerializer(many=True),
+            )),
+            **erreurs(400, 401, 403, 404),
         },
     )
     def get(self, request):
@@ -845,6 +923,9 @@ class MesReservationsView(APIView):
             .select_related('restaurant', 'table')
             .order_by('-date_reservation', '-heure')
         )
+        pagine = paginer(request, resas, _serialize_reservation)
+        if pagine is not None:
+            return pagine
         return ok(data={'reservations': [_serialize_reservation(r) for r in resas], 'count': resas.count()})
 
 
@@ -1126,3 +1207,148 @@ class ContactView(APIView):
                 code=status.HTTP_502_BAD_GATEWAY,
             )
         return ok(message="Message envoyé. Nous vous répondrons rapidement.")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONFIGURATION DES APPLICATIONS MOBILES
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ConfigAppView(APIView):
+    """
+    GET /api/v1/public/config-app/ (alias /api/public/config-app/)
+    Versions minimales et recommandées des applications client et équipe.
+    Accès : Public, sans limitation de débit.
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Configuration des applications mobiles",
+        tags=["Public - Application"],
+        operation_id="public_config_app",
+        responses={
+            200: enveloppe('ConfigAppReponse', ConfigAppDocSerializer()),
+        },
+    )
+    def get(self, request):
+        return ok(data={
+            'client': {
+                'version_minimale': settings.APP_CLIENT_VERSION_MIN,
+                'version_recommandee': settings.APP_CLIENT_VERSION_RECOMMANDEE,
+            },
+            'equipe': {
+                'version_minimale': settings.APP_EQUIPE_VERSION_MIN,
+                'version_recommandee': settings.APP_EQUIPE_VERSION_RECOMMANDEE,
+            },
+            'message_mise_a_jour': settings.APP_MESSAGE_MISE_A_JOUR,
+        })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SUPPRESSION DE COMPTE CLIENT (anonymisation)
+# ─────────────────────────────────────────────────────────────────────────────
+
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+from apps.accounts import refresh_grace
+from apps.accounts.models import AdresseClient, DOMAINE_COMPTE_SUPPRIME, PasswordResetToken
+from apps.commandes.models import PanierItem
+from .models import CleIdempotence
+
+
+class SupprimerMonCompteView(APIView):
+    """
+    POST /api/v1/public/mon-compte/supprimer/
+    Supprime le compte du client par anonymisation (décision D09) : le compte est
+    désactivé et vidé de ses données personnelles ; commandes et paiements restent
+    (comptabilité des restaurants) mais sans nom, téléphone ni adresse.
+    Accès : Rclient authentifié
+    """
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'suppression_compte'
+
+    @extend_schema(
+        summary="Supprimer mon compte (client)",
+        description=(
+            "Anonymise le compte : données personnelles effacées, adresses supprimées, "
+            "réservations à venir annulées, sessions fermées. Les commandes passées sont "
+            "conservées sans nom, téléphone ni adresse. Irréversible. Refusée (409) tant qu'une "
+            "commande est en cours (en attente, prête ou en livraison) ou qu'une réservation "
+            "est confirmée pour aujourd'hui."
+        ),
+        tags=["Public - Auth"],
+        request=SupprimerCompteRequeteSerializer,
+        responses={
+            200: enveloppe_sans_data('SupprimerCompteReponse'),
+            **erreurs(400, 401, 403, 409, 429),
+        },
+    )
+    def post(self, request):
+        user = request.user
+        if user.role != 'Rclient':
+            return err(message="Réservé aux clients.", code=status.HTTP_403_FORBIDDEN)
+
+        password = request.data.get('password') or ''
+        if not password or not user.check_password(password):
+            return err(
+                message="Mot de passe incorrect. Saisissez votre mot de passe actuel pour supprimer votre compte.",
+                errors={'password': ["Mot de passe incorrect."]},
+            )
+
+        # Une seule transaction : en cas d'échec, rien n'est anonymisé à moitié
+        with transaction.atomic():
+            # Refus tant qu'une commande ou une réservation du jour est en cours (D14)
+            if Commande.objects.filter(
+                table=user, statut__in=('en_attente', 'prete', 'en_livraison'),
+            ).exists():
+                return err(
+                    message="Vous avez une commande en cours. "
+                            "Vous pourrez supprimer votre compte une fois qu'elle sera terminée.",
+                    code=status.HTTP_409_CONFLICT,
+                )
+            if Reservation.objects.filter(
+                client=user, statut='confirmee', date_reservation=timezone.localdate(),
+            ).exists():
+                return err(
+                    message="Vous avez une réservation confirmée aujourd'hui. "
+                            "Vous pourrez supprimer votre compte une fois qu'elle sera passée.",
+                    code=status.HTTP_409_CONFLICT,
+                )
+
+            # Déconnexion partout, y compris pendant la période de grâce du refresh
+            for jeton in OutstandingToken.objects.filter(user=user):
+                refresh_grace.oublier(jeton.jti)
+                BlacklistedToken.objects.get_or_create(token=jeton)
+
+            # Données personnelles des commandes (les commandes et paiements sont conservés)
+            Commande.objects.filter(table=user).update(
+                client_nom=None, client_telephone=None, client_adresse_livraison=None,
+                client_latitude=None, client_longitude=None,
+            )
+
+            # Réservations : celles à venir sont annulées, les notes libres effacées
+            Reservation.objects.filter(
+                client=user, statut__in=Reservation.STATUTS_ACTIFS,
+                date_reservation__gte=timezone.localdate(),
+            ).update(statut='annulee')
+            # Motif d'annulation : texte libre du client, seulement s'il a annulé lui-même
+            # (un motif écrit par le personnel n'est pas une donnée du client)
+            Commande.objects.filter(table=user, annulee_par=user).update(motif_annulation=None)
+            Reservation.objects.filter(client=user).update(note="")
+            ReservationClientBloque.objects.filter(client=user).update(raison="")
+
+            AdresseClient.objects.filter(user=user).delete()
+            PanierItem.objects.filter(table=user).delete()
+            PasswordResetToken.objects.filter(user=user).delete()
+            CleIdempotence.objects.filter(utilisateur=user).delete()
+
+            # Libère l'email et le login (uniques) pour une future inscription
+            user.nom_complet = "Client supprimé"
+            user.telephone = None
+            user.email = f"supprime-{user.pk}{DOMAINE_COMPTE_SUPPRIME}"
+            user.login = f"supprime_{user.pk}"
+            user.actif = False
+            user.is_active = False
+            user.set_unusable_password()
+            user.save()
+
+        return ok(message="Votre compte a été supprimé. Vos données personnelles ont été effacées.")

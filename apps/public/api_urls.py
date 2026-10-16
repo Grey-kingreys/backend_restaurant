@@ -16,6 +16,13 @@ urlpatterns = [
         name='client-register'
     ),
 
+    # ── Configuration des applications mobiles (versions) ────────────────
+    path(
+        'config-app/',
+        api_views.ConfigAppView.as_view(),
+        name='config-app'
+    ),
+
     # ── Contact (formulaire vitrine) ──────────────────────────────────────
     path(
         'contact/',
@@ -79,6 +86,12 @@ urlpatterns = [
         'mes-commandes/<int:pk>/annuler/',
         api_views.AnnulerCommandeClientView.as_view(),
         name='annuler-commande'
+    ),
+
+    path(
+        'mon-compte/supprimer/',
+        api_views.SupprimerMonCompteView.as_view(),
+        name='supprimer-mon-compte'
     ),
 
     # ── Suivi commande (clé publique) ─────────────────────────────────────

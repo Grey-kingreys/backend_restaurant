@@ -1,10 +1,11 @@
 # apps/accounts/api_views.py
+import time
+
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.throttling import ScopedRateThrottle
-from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db.models import Q
@@ -13,6 +14,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiPara
 from drf_spectacular.types import OpenApiTypes
 
 from apps.schema_openapi import enveloppe, enveloppe_sans_data, erreurs
+from . import refresh_grace
 from .schemas import (
     ConnexionDocSerializer, RafraichirJetonRequeteSerializer, RafraichirJetonDocSerializer,
     UtilisateursListeDocSerializer, ReinitialisationConfirmeeDocSerializer,
@@ -25,6 +27,7 @@ from .permissions import (
 )
 from .perm_codes import PERM_MANAGE_ROLES, PERM_DEACTIVATE_EQUIPE
 from .serializers import (
+    emettre_refresh,
     LoginSerializer,
     LogoutSerializer,
     UserMeSerializer,
@@ -460,7 +463,7 @@ class ImpersonateView(APIView):
         if not target.actif:
             return error_response(message="Impossible de simuler un utilisateur inactif.")
 
-        refresh = RefreshToken.for_user(target)
+        refresh = emettre_refresh(target)
         return success_response(
             data={
                 'access': str(refresh.access_token),
@@ -843,13 +846,16 @@ class AdresseClientSetDefaultView(APIView):
 # RAFRAÎCHISSEMENT DU JETON (vue SimpleJWT, routée dans urls.py)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Description de la vue SimpleJWT sans la modifier : elle renvoie {access, refresh}
-# hors enveloppe (rest_framework_simplejwt/views.py, TokenViewBase.post).
-extend_schema_view(
-    post=extend_schema(
+class RafraichirJetonView(TokenRefreshView):
+    """Vue SimpleJWT avec période de grâce de 60 s (voir apps/accounts/refresh_grace.py).
+    Réponse hors enveloppe : {access, refresh}."""
+
+    @extend_schema(
         summary="Rafraîchir le jeton d'accès",
         description="Échange un refresh token valide contre un nouvel access token. "
-                    "Le refresh token est renouvelé (rotation) et l'ancien est blacklisté.",
+                    "Le refresh token est renouvelé (rotation) et l'ancien est blacklisté. "
+                    "Si la réponse s'est perdue, le même refresh rejoué dans les 60 secondes "
+                    "renvoie le même couple. Un refresh invalidé par la déconnexion reste refusé.",
         request=RafraichirJetonRequeteSerializer,
         responses={
             200: RafraichirJetonDocSerializer,
@@ -857,4 +863,35 @@ extend_schema_view(
         },
         tags=["Auth"],
     )
-)(TokenRefreshView)
+    def post(self, request, *args, **kwargs):
+        jti = refresh_grace.jti_de(request.data.get('refresh') or '')
+        if not jti:
+            return super().post(request, *args, **kwargs)  # invalide : refus habituel
+
+        couple = refresh_grace.lire(jti)
+        if couple:
+            return Response(couple, status=status.HTTP_200_OK)
+
+        if not refresh_grace.prendre_verrou(jti):
+            # Un appel identique est en cours : on attend son couple plutôt que d'en émettre un second
+            for _ in range(50):
+                time.sleep(0.1)
+                couple = refresh_grace.lire(jti)
+                if couple:
+                    return Response(couple, status=status.HTTP_200_OK)
+            return super().post(request, *args, **kwargs)
+
+        try:
+            # Un appel concurrent a pu terminer entre notre lecture et la prise du verrou
+            couple = refresh_grace.lire(jti)
+            if couple:
+                return Response(couple, status=status.HTTP_200_OK)
+            reponse = super().post(request, *args, **kwargs)
+            if reponse.status_code == status.HTTP_200_OK:
+                refresh_grace.memoriser(jti, {
+                    'access': reponse.data['access'],
+                    'refresh': reponse.data['refresh'],
+                })
+            return reponse
+        finally:
+            refresh_grace.rendre_verrou(jti)
